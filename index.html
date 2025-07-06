@@ -1,1 +1,844 @@
-salam bu yeni smm panel səifəsidir
+<!DOCTYPE html>
+<html lang="az">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Takipçi Xidməti</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/2.2.19/tailwind.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #1a202c; /* Koyu arka plan */
+            color: #e2e8f0; /* Açık gri metin */
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        .main-content {
+            flex-grow: 1;
+            padding-bottom: 80px; /* Footer yüksekliği kadar boşluk */
+        }
+        .container {
+            max-width: 500px; /* Ekran görüntüsüne göre daha dar bir konteyner */
+            margin: 0 auto;
+            padding: 1.5rem;
+        }
+        .card {
+            background-color: #2d3748; /* Kart arka planı */
+            border-radius: 0.75rem;
+            padding: 1.5rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            border: 1px solid #4a5568;
+        }
+        .input-field, .select-field {
+            width: 100%;
+            padding: 0.75rem;
+            border-radius: 0.5rem;
+            background-color: #4a5568;
+            color: #e2e8f0;
+            border: 1px solid #6b7280;
+            outline: none; /* Odaklandığında dış çizgiyi kaldır */
+        }
+        .input-field:focus, .select-field:focus {
+            ring: 2px;
+            ring-color: #34d399; /* Yeşil vurgu */
+            border-color: #34d399;
+        }
+        .button-primary {
+            background-color: #34d399; /* Yeşil düğme */
+            color: white;
+            padding: 0.75rem 1.5rem;
+            border-radius: 0.5rem;
+            font-weight: 600;
+            transition: background-color 0.2s ease;
+        }
+        .button-primary:hover:not(:disabled) {
+            background-color: #10b981;
+        }
+        .button-primary:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        .balance-section {
+            background-color: #2d3748;
+            padding: 1rem;
+            border-radius: 0.75rem;
+            margin-bottom: 1.5rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border: 1px solid #10b981;
+            font-size: 1.1rem;
+            font-weight: 600;
+        }
+        .balance-section button {
+            background-color: #f97316; /* Turuncu düğme */
+            padding: 0.5rem 1rem;
+            border-radius: 0.5rem;
+            color: white;
+            font-weight: 600;
+            transition: background-color 0.2s ease;
+        }
+        .balance-section button:hover {
+            background-color: #ea580c;
+        }
+        .bottom-nav {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            background-color: #2d3748;
+            border-top: 1px solid #4a5568;
+            display: flex;
+            justify-content: space-around;
+            padding: 0.75rem 0;
+            box-shadow: 0 -4px 6px rgba(0, 0, 0, 0.1);
+            z-index: 100;
+        }
+        .nav-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            color: #a0aec0; /* Gri ikon ve metin */
+            font-size: 0.8rem;
+            text-decoration: none;
+            transition: color 0.2s ease;
+        }
+        .nav-item i {
+            font-size: 1.5rem;
+            margin-bottom: 0.25rem;
+        }
+        .nav-item:hover, .nav-item.active {
+            color: #34d399; /* Yeşil vurgu */
+        }
+        .alert-message {
+            position: fixed;
+            bottom: 80px; /* Footer'ın üstünde görünmesi için */
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: #dc2626;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+            z-index: 1000;
+            opacity: 0;
+            transition: opacity 0.3s ease-in-out;
+        }
+        .alert-message.show {
+            opacity: 1;
+        }
+        /* Balans Artır Modal Stilleri */
+        .modal {
+            position: fixed;
+            z-index: 1001;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0,0,0,0.7);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            /* Modalı başlanğıcda gizli saxlayın */
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.3s ease-in-out, visibility 0.3s ease-in-out;
+        }
+        .modal.show {
+            opacity: 1;
+            visibility: visible;
+        }
+        .modal-content {
+            background-color: #2d3748;
+            margin: auto;
+            padding: 20px;
+            border-radius: 0.75rem;
+            width: 90%;
+            max-width: 450px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+            position: relative;
+            text-align: center;
+        }
+        .close-button {
+            color: #aaa;
+            position: absolute;
+            top: 10px;
+            right: 15px;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        .close-button:hover,
+        .close-button:focus {
+            color: #e2e8f0;
+        }
+        .payment-card-image {
+            width: 100%;
+            max-width: 250px;
+            margin: 0 auto 1rem;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+        }
+        .description-box {
+            background-color: #2d3748;
+            border-radius: 0.75rem;
+            padding: 1.5rem;
+            margin-top: 1.5rem;
+            border: 1px solid #4a5568;
+            font-size: 0.9rem;
+            line-height: 1.4;
+        }
+        .description-box h4 {
+            font-weight: bold;
+            color: #34d399;
+            margin-bottom: 0.75rem;
+        }
+        .description-box ul {
+            list-style: none;
+            padding: 0;
+            margin-bottom: 1rem;
+        }
+        .description-box ul li {
+            margin-bottom: 0.5rem;
+            display: flex;
+            align-items: flex-start;
+        }
+        .description-box ul li strong {
+            color: #e2e8f0;
+            flex-shrink: 0;
+            margin-right: 0.5rem;
+        }
+        .description-box p.note {
+            font-style: italic;
+            color: #a0aec0;
+            margin-bottom: 0.5rem;
+        }
+        .description-box p.note span {
+            color: #f97316; /* Turuncu vurgu */
+        }
+        /* Floating WhatsApp Bubble */
+        #floating-whatsapp-bubble {
+            position: fixed;
+            bottom: 20px; /* Footer'ın üstünde */
+            right: 20px;
+            background-color: #25D366; /* WhatsApp yeşili */
+            color: white;
+            padding: 15px;
+            border-radius: 50%;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+            cursor: pointer;
+            z-index: 1000;
+            transition: transform 0.3s ease-in-out;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        #floating-whatsapp-bubble:hover {
+            transform: scale(1.1);
+        }
+    </style>
+</head>
+<body>
+
+    <header class="bg-gray-900 shadow-lg py-4 fixed w-full top-0 z-10">
+        <div class="max-w-7xl mx-auto px-4 flex justify-between items-center">
+            <a href="index.html" class="text-white text-2xl font-bold tracking-wide">AxtarGet</a>
+            <!-- Başlıq ikonunu əlavə etdik -->
+            <span class="text-xl font-semibold"><i class="fas fa-users mr-2 text-blue-400"></i>Takipçi Xidməti</span>
+        </div>
+    </header>
+
+    <div class="main-content pt-20"> <!-- Header boşluğu -->
+        <div class="container">
+            <div class="balance-section">
+                <div class="flex flex-col items-start">
+                    <span>Balansın: <span id="user-balance">0.00 AZN</span></span>
+                    <span class="text-sm text-gray-400 mt-1">İstifadəçi ID: <span id="user-id-display">Yüklənir...</span></span>
+                </div>
+                <button id="top-up-button">Balans Artır</button>
+            </div>
+
+            <div class="card space-y-4">
+                <div>
+                    <label for="category-select" class="block text-gray-400 text-sm font-bold mb-2">Kateqori</label>
+                    <select id="category-select" class="select-field">
+                        <option value="">Kateqoriya Seçin</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label for="service-select" class="block text-gray-400 text-sm font-bold mb-2">Servis</label>
+                    <select id="service-select" class="select-field" disabled>
+                        <option value="">Servis Seçin</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label for="link-input" class="block text-gray-400 text-sm font-bold mb-2">Link</label>
+                    <input type="text" id="link-input" placeholder="" class="input-field">
+                </div>
+
+                <div>
+                    <label for="quantity-input" class="block text-gray-400 text-sm font-bold mb-2">Miqdar</label>
+                    <input type="number" id="quantity-input" placeholder="Minimum: 10 - Maksimum: 10 000 000" class="input-field" min="10">
+                    <p class="text-xs text-gray-500 mt-1">Minimum: <span id="min-quantity">0</span> - Maksimum: <span id="max-quantity">0</span></p>
+                </div>
+
+                <div>
+                    <label for="avg-time-input" class="block text-gray-400 text-sm font-bold mb-2">Ortalama süre</label>
+                    <input type="text" id="avg-time-input" class="input-field" readonly>
+                </div>
+
+                <div>
+                    <label for="price-input" class="block text-gray-400 text-sm font-bold mb-2">Qiymət</label>
+                    <input type="text" id="price-input" class="input-field" readonly>
+                </div>
+
+                <button id="place-order-button" class="button-primary w-full" disabled>Sipariş Oluştur</button>
+            </div>
+
+            <!-- Açıqlama Bölməsi -->
+            <div class="description-box card">
+                <h4>Xidmət Haqqında Qeydlər:</h4>
+                <ul>
+                    <li><strong>Min:</strong> <span id="desc-min-quantity"></span></li>
+                    <li><strong>Max:</strong> <span id="desc-max-quantity"></span></li>
+                    <li><strong>Link:</strong> Kullanıcı Adı veya Video Linki</li>
+                    <li><strong>Başlama Hızı:</strong> <span id="desc-avg-time"></span></li>
+                    <li><strong>Düşüş Oranı:</strong> Son 1 hafta içinde %30 civarında düşüş gözlenmiştir.</li>
+                    <li><strong>Telafi:</strong> Başlangıç sayısının altındaki siparişlere telafi sağlanmamaktadır.</li>
+                </ul>
+                <p class="note">
+                    📌 Servis yoğun olduğu zamanlarda işleme başlama hızı değişmektedir.
+                </p>
+                <p class="note">
+                    📌 Verdiğiniz sipariş sistemde tamamlanmadan aynı linke <span>2. siparişi</span> vermeyiniz.
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <footer class="bottom-nav">
+        <a href="index.html" class="nav-item">
+            <i class="fas fa-home"></i>
+            <span>Ana Səhifə</span>
+        </a>
+        <a href="#" class="nav-item active">
+            <i class="fas fa-shopping-cart"></i>
+            <span>Yeni Sifariş</span>
+        </a>
+        <a href="orders.html" class="nav-item">
+            <i class="fas fa-list-alt"></i>
+            <span>Sifarişlər</span>
+        </a>
+        <a href="#" class="nav-item" id="bottom-nav-topup">
+            <i class="fas fa-money-bill-wave"></i>
+            <span>Balans əlavə et</span>
+        </a>
+        <!-- Dəstək linki ləğv edildi -->
+    </footer>
+
+    <div id="alert-container"></div>
+
+    <!-- Balans Artır Modal -->
+    <div id="top-up-modal" class="modal hidden"> <!-- Modal başlangıçta gizli sinfi ile -->
+        <div class="modal-content">
+            <span class="close-button" id="close-top-up-modal">&times;</span>
+            <h3 class="text-2xl font-bold text-white mb-4">Balans Artır</h3>
+            <!-- Kapital Bank kartı şəkli -->
+            <img src="https://placehold.co/250x150/000000/ffffff?text=Kapital+Bank+Kart%C4%B1" alt="Kapital Bank Kartı" class="payment-card-image">
+            <p class="text-lg text-white mb-2">Ödəniş etmək üçün aşağıdakı kart nömrəsinə pul göndərin:</p>
+            <p class="text-2xl font-bold text-green-400 mb-4" id="bank-card-number">4169 7388 7208 5778</p>
+            <p class="text-md text-gray-300 mb-4">
+                Ödəniş edildikdən sonra çeki **060-600-61-62** nömrəsinin WhatsAppına atın.
+                <br>5-15 dəqiqə ərzində balansınız yüklənəcək.
+            </p>
+            <a id="whatsapp-topup-link" href="#" target="_blank" class="px-6 py-3 bg-green-600 text-white rounded-full font-semibold hover:bg-green-700 transition-colors duration-300 shadow-md inline-flex items-center">
+                <i class="fab fa-whatsapp mr-2"></i> WhatsApp-a Göndər
+            </a>
+        </div>
+    </div>
+
+    <!-- Floating WhatsApp Bubble -->
+    <a href="#" id="floating-whatsapp-bubble" class="fixed bottom-8 right-8 bg-green-600 text-white p-4 rounded-full shadow-lg cursor-pointer hover:bg-green-700 transition-colors duration-300 z-50" title="Dəstək üçün WhatsApp">
+        <i class="fab fa-whatsapp text-3xl"></i>
+    </a>
+
+
+    <!-- Firebase SDKs -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+        import { getFirestore, doc, getDoc, setDoc, updateDoc, collection, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+        
+        // Firebase konfiqurasiyası
+        const firebaseConfig = {
+            apiKey: "AIzaSyBEFLX4Uy4jTzoSyEdzYzOSEd2lqn8ifbE",
+            authDomain: "axtargetbotwebsite.firebaseapp.com",
+            projectId: "axtargetbotwebsite",
+            storageBucket: "axtargetbotwebsite.firebasestorage.app", 
+            messagingSenderId: "808698399196",
+            appId: "1:808698399196:web:61b6be0721b94f24c3a719",
+            measurementId: "G-VLWZG4Q5TD"
+        };
+        const firebaseProjectId = firebaseConfig.projectId;
+
+        // Firebase'i Başlat
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+
+        let currentUserId = null;
+        let userBalance = 0;
+        let selectedCategory = null; // Seçili kategori objesi
+        let selectedService = null; // Seçili servis objesi
+
+        // Medyabayim API Bilgileri (TƏHLÜKƏSİZ DEYİL - YALNIZ DEMO ÜÇÜN!)
+        const MEDYABAYIM_API_KEY = "d17e31d847702984ad18808538b93386"; // Sizin API açarınız
+        const MEDYABAYIM_API_URL = "https://medyabayim.com/api"; // Medyabayim API URL'si
+        const TL_TO_AZN_RATE = 0.50; // Örnek kur: 1 TL = 0.50 AZN (Gerçek kuru güncelleyin)
+
+        // DOM Elementləri
+        const userBalanceEl = document.getElementById('user-balance');
+        const userIdDisplayEl = document.getElementById('user-id-display'); // Kullanıcı ID'sini gösterecek element
+        const topUpButton = document.getElementById('top-up-button');
+        const categorySelect = document.getElementById('category-select');
+        const serviceSelect = document.getElementById('service-select');
+        const linkInput = document.getElementById('link-input');
+        const quantityInput = document.getElementById('quantity-input');
+        const minQuantityEl = document.getElementById('min-quantity');
+        const maxQuantityEl = document.getElementById('max-quantity');
+        const avgTimeInput = document.getElementById('avg-time-input');
+        const priceInput = document.getElementById('price-input');
+        const placeOrderButton = document.getElementById('place-order-button');
+        const alertContainer = document.getElementById('alert-container');
+        const topUpModal = document.getElementById('top-up-modal');
+        const closeTopUpModalButton = document.getElementById('close-top-up-modal');
+        const bottomNavTopUp = document.getElementById('bottom-nav-topup'); // Alt navigasyondaki Balans əlavə et butonu
+        const floatingWhatsappBubble = document.getElementById('floating-whatsapp-bubble'); // Yeni WhatsApp balonu
+        const whatsappTopUpLink = document.getElementById('whatsapp-topup-link'); // WhatsApp linki (modal içinde)
+        const bankCardNumberEl = document.getElementById('bank-card-number'); // Bank kartı nömrəsi elementi
+
+        // Açıqlama bölməsindeki DOM elementləri
+        const descMinQuantity = document.getElementById('desc-min-quantity');
+        const descMaxQuantity = document.getElementById('desc-max-quantity');
+        const descAvgTime = document.getElementById('desc-avg-time');
+
+        // Ödəniş məlumatları
+        const PAYMENT_CARD_NUMBER = "4169 7388 7208 5778";
+        const PAYMENT_WHATSAPP_NUMBER = "994606006162"; // WhatsApp API için başında 994 olmalı
+
+
+        // Servis Verileri (Demo amaçlı ve Medyabayim servis ID'leri ile eşleştirildi)
+        const allServices = [
+            // TikTok Servisleri
+            {
+                platform: 'TikTok', // Platform bilgisini doğrudan servise ekle
+                category: 'TikTok Takipçi Servisleri',
+                categoryIcon: '<i class="fab fa-tiktok text-white mr-2"></i>', // Kategori ikonu
+                items: [
+                    // Medyabayim Service ID: 1 (Örnek)
+                    { id: 'tiktok_foreign_follower', name: 'TikTok Xarici Takipçi', icon: '<i class="fab fa-tiktok text-white"></i>', avgTime: '30-50 dəqiqə', min: 10, max: 10000000, pricePerK: 4.33, medyabayimServiceId: 1 },
+                ]
+            },
+            {
+                platform: 'TikTok', // Platform bilgisini doğrudan servise ekle
+                category: 'TikTok Bəyəni Servisləri',
+                categoryIcon: '<i class="fab fa-tiktok text-white mr-2"></i>', // Kategori ikonu
+                items: [
+                    { id: 'tiktok_video_like', name: '4014 - TikTok Bəyəni ❤️ |10M | BEST', icon: '<i class="fab fa-tiktok text-white"></i>', avgTime: '5-15 dəqiqə', min: 10, max: 10000000, pricePerK: 1.51, medyabayimServiceId: 4014 },
+                    // Diğer TikTok servisleri için de medyabayimServiceId eklenmeli
+                    { id: 'tiktok_video_view', name: 'TikTok Video İzlənmə', icon: '<i class="fab fa-tiktok text-white"></i>', avgTime: '0-5 dəqiqə', min: 100, max: 100000000, pricePerK: 0.05, medyabayimServiceId: 2 },
+                    { id: 'tiktok_video_comment', name: 'TikTok Video Yorum', icon: '<i class="fab fa-tiktok text-white"></i>', avgTime: '1-2 saat', min: 1, max: 1000, pricePerK: 10.00, medyabayimServiceId: 3 },
+                    { id: 'tiktok_video_save', name: 'TikTok Video Kaydetmə', icon: '<i class="fab fa-tiktok text-white"></i>', avgTime: '10-30 dəqiqə', min: 10, max: 1000000, pricePerK: 5.00, medyabayimServiceId: 4 },
+                    { id: 'tiktok_video_share', name: 'TikTok Video Paylaşma', icon: '<i class="fab fa-tiktok text-white"></i>', avgTime: '10-30 dəqiqə', min: 10, max: 1000000, pricePerK: 4.00, medyabayimServiceId: 5 },
+                    { id: 'tiktok_profile_view', name: 'TikTok Profil Görüntüləmə', icon: '<i class="fab fa-tiktok text-white"></i>', avgTime: '5-15 dəqiqə', min: 100, max: 50000000, pricePerK: 0.10, medyabayimServiceId: 6 },
+                ]
+            },
+            // Instagram Servisleri
+            {
+                platform: 'Instagram', // Platform bilgisini doğrudan servise ekle
+                category: 'Instagram Takipçi Servisleri',
+                categoryIcon: '<i class="fab fa-instagram text-purple-400 mr-2"></i>', // Kategori ikonu
+                items: [
+                    { id: 'instagram_follower', name: 'Instagram Takipçi', icon: '<i class="fab fa-instagram text-purple-400"></i>', avgTime: '20-40 dəqiqə', min: 10, max: 1000000, pricePerK: 0.69, medyabayimServiceId: 7 },
+                    { id: 'instagram_az_follower', name: 'Instagram Azərbaycanlı Takipçi 🇦🇿', icon: '<i class="fab fa-instagram text-purple-400"></i>', avgTime: '1 saat 30 dəqiqə', min: 10, max: 100000, pricePerK: 8.32, medyabayimServiceId: 8 },
+                    { id: 'instagram_tr_follower', name: 'Instagram Türk Takipçi 🇹🇷', icon: '<i class="fab fa-instagram text-purple-400"></i>', avgTime: '50 dəqiqə', min: 10, max: 500000, pricePerK: 6.73, medyabayimServiceId: 9 },
+                    { id: 'instagram_30day_guarantee', name: 'Instagram 30 Gün Garantili Takipçi <i class="fas fa-redo-alt text-blue-400"></i>', icon: '<i class="fab fa-instagram"></i>', avgTime: '1 saat', min: 10, max: 50000, pricePerK: 3.22, medyabayimServiceId: 10 },
+                    { id: 'instagram_100day_guarantee', name: 'Instagram 100 Gün Garantili Takipçi <i class="fas fa-redo-alt text-blue-400"></i>', icon: '<i class="fab fa-instagram"></i>', avgTime: '1 saat 10 dəqiqə', min: 10, max: 50000, pricePerK: 3.30, medyabayimServiceId: 11 },
+                    { id: 'instagram_365day_guarantee', name: 'Instagram 365 Gün Garantili Takipçi <i class="fas fa-redo-alt text-blue-400"></i>', icon: '<i class="fab fa-instagram"></i>', avgTime: '1 saat 20 dəqiqə', min: 10, max: 50000, pricePerK: 40.00, medyabayimServiceId: 12 },
+                    { id: 'instagram_lifetime_guarantee', name: 'Instagram Ömür Boyu Garantili Takipçi <i class="fas fa-infinity text-blue-400"></i>', icon: '<i class="fab fa-instagram"></i>', avgTime: '1 saat 40 dəqiqə', min: 10, max: 20000, pricePerK: 3.89, medyabayimServiceId: 13 },
+                ]
+            },
+            {
+                platform: 'Instagram', // Platform bilgisini doğrudan servise ekle
+                category: 'Instagram Bəyəni Servisləri',
+                categoryIcon: '<i class="fab fa-instagram text-purple-400 mr-2"></i>', // Kategori ikonu
+                items: [
+                    { id: 'instagram_like', name: 'Instagram Bəyəni (heçvaxd enməz)', icon: '<i class="fab fa-instagram text-purple-400"></i>', avgTime: '0-5 dəqiqə', min: 10, max: 10000000, pricePerK: 0.41, medyabayimServiceId: 14 },
+                    { id: 'instagram_az_like', name: 'Instagram Azərbaycanlı Bəyəni 🇦🇿', icon: '<i class="fab fa-instagram text-purple-400"></i>', avgTime: '5-15 dəqiqə', min: 10, max: 100000, pricePerK: 10.00, medyabayimServiceId: 15 },
+                    { id: 'instagram_video_view', name: 'Instagram Video İzlənmə', icon: '<i class="fab fa-instagram text-purple-400"></i>', avgTime: '0-5 dəqiqə', min: 100, max: 50000000, pricePerK: 0.12, medyabayimServiceId: 16 },
+                    { id: 'instagram_az_video_view', name: 'Instagram Azərbaycanlı Video İzlənmə 🇦🇿', icon: '<i class="fab fa-instagram"></i>', avgTime: '10-30 dəqiqə', min: 100, max: 5000000, pricePerK: 0.99, medyabayimServiceId: 17 },
+                    { id: 'instagram_comment', name: 'Instagram Yorum', icon: '<i class="fab fa-instagram text-purple-400"></i>', avgTime: '1-2 saat', min: 1, max: 500, pricePerK: 12.00, medyabayimServiceId: 18 },
+                    { id: 'instagram_save', name: 'Instagram Kaydetmə', icon: '<i class="fab fa-instagram text-purple-400"></i>', avgTime: '5-15 dəqiqə', min: 10, max: 1000000, pricePerK: 3.06, medyabayimServiceId: 19 },
+                    { id: 'instagram_share', name: 'Instagram Paylaşma', icon: '<i class="fab fa-instagram text-purple-400"></i>', avgTime: '5-15 dəqiqə', min: 10, max: 1000000, pricePerK: 6.00, medyabayimServiceId: 20 },
+                ]
+            },
+        ];
+
+        // Balansı yeniləmə funksiyası
+        async function updateBalanceUI() {
+            if (currentUserId) {
+                const userDocRef = doc(db, `users`, currentUserId);
+                const userDocSnap = await getDoc(userDocRef);
+                if (userDocSnap.exists() && userDocSnap.data().balance !== undefined) {
+                    userBalance = userDocSnap.data().balance;
+                } else {
+                    userBalance = 0;
+                    await setDoc(userDocRef, { balance: 0 }, { merge: true }); // Merge true, diğer verileri korur
+                }
+                userBalanceEl.textContent = `${userBalance.toFixed(2)} AZN`;
+            }
+        }
+
+        // Custom Alert Funksiyası
+        function showAlert(message, type = 'error', duration = 3000) {
+            const alertBox = document.createElement('div');
+            alertBox.className = `alert-message ${type} fixed bottom-4 left-1/2 transform -translate-x-1/2 bg-red-600 text-white p-3 rounded-lg shadow-md z-50`;
+            alertBox.innerHTML = message; // HTML içeriği de desteklemesi için
+            
+            const existingAlerts = document.querySelectorAll('.alert-message');
+            existingAlerts.forEach(alert => alert.remove());
+
+            if (type === 'success') {
+                alertBox.classList.remove('bg-red-600');
+                alertBox.classList.add('bg-green-600');
+            }
+            alertContainer.appendChild(alertBox);
+            setTimeout(() => {
+                alertBox.classList.add('show');
+            }, 10);
+            setTimeout(() => {
+                alertBox.classList.remove('show');
+                alertBox.addEventListener('transitionend', () => alertBox.remove(), { once: true });
+            }, duration);
+        }
+
+        // Firebase Autentifikasiya və Balans Yüklənməsi
+        onAuthStateChanged(auth, async (user) => {
+            if (user) {
+                currentUserId = user.uid;
+                userIdDisplayEl.textContent = user.uid; // İstifadəçi ID'sini göstər
+                await updateBalanceUI();
+            } else {
+                signInAnonymously(auth).then(async (anonUserCredential) => {
+                    currentUserId = anonUserCredential.user.uid;
+                    userIdDisplayEl.textContent = anonUserCredential.user.uid; // İstifadəçi ID'sini göstər
+                    await updateBalanceUI();
+                }).catch(error => {
+                    console.error("Anonim girişdə xəta:", error);
+                    showAlert("Sistemə daxil olarkən xəta baş verdi. Zəhmət olmasa səhifəni yeniləyin.", 'error');
+                });
+            }
+        });
+
+        // Kategori select'ini doldur
+        function populateCategorySelect() {
+            categorySelect.innerHTML = '<option value="">Kateqoriya Seçin</option>';
+            // Sadece benzersiz kategorileri al
+            const uniqueCategories = [...new Set(allServices.map(s => s.category))];
+            uniqueCategories.forEach(categoryName => {
+                const categoryData = allServices.find(s => s.category === categoryName);
+                const option = document.createElement('option');
+                option.value = categoryData.category;
+                // Kategori ikonunu da option içine ekle
+                option.innerHTML = `${categoryData.categoryIcon || ''} ${categoryData.category}`;
+                categorySelect.appendChild(option);
+            });
+        }
+
+        // Kategori seçildiğinde servis select'ini doldur
+        categorySelect.addEventListener('change', () => {
+            const selectedCategoryName = categorySelect.value;
+            // Kategori seçimi kaldırılırsa selectedCategory null olur
+            selectedCategory = allServices.find(cat => cat.category === selectedCategoryName) || null;
+            
+            serviceSelect.innerHTML = '<option value="">Servis Seçin</option>';
+            serviceSelect.disabled = true;
+            selectedService = null;
+            resetOrderForm();
+            updateDescriptionBox(); // Kategori değiştiğinde açıklama kutusunu güncelle
+
+            if (selectedCategory) {
+                // Servisleri fiyata göre sırala (burada pricePerK en düşükten en yükseğe doğru sıralanacak)
+                const sortedServices = [...selectedCategory.items].sort((a, b) => a.pricePerK - b.pricePerK);
+
+                sortedServices.forEach(service => {
+                    const option = document.createElement('option');
+                    option.value = service.id;
+                    option.innerHTML = `${service.icon} ${service.name} (1K - ${service.pricePerK.toFixed(2)} AZN)`; // Fiyat bilgisi eklendi
+                    serviceSelect.appendChild(option);
+                });
+                serviceSelect.disabled = false;
+            }
+        });
+
+        // Servis seçildiğinde fiyat ve min/max değerlerini göster
+        serviceSelect.addEventListener('change', () => {
+            const selectedServiceId = serviceSelect.value;
+            // selectedService nesnesini bulurken selectedCategory'nin varlığını kontrol et
+            selectedService = selectedCategory ? { 
+                ...selectedCategory.items.find(item => item.id === selectedServiceId),
+                // platform bilgisini selectedCategory'den al
+                platform: selectedCategory.platform 
+            } : null;
+
+            resetOrderForm();
+
+            if (selectedService) {
+                minQuantityEl.textContent = selectedService.min;
+                maxQuantityEl.textContent = selectedService.max;
+                quantityInput.min = selectedService.min;
+                quantityInput.max = selectedService.max;
+                avgTimeInput.value = selectedService.avgTime;
+                calculateOrderPrice(); // Servis değiştiğinde fiyatı yeniden hesapla
+                updateDescriptionBox(); // Servis değiştiğinde açıklama kutusunu güncelle
+            } else {
+                updateDescriptionBox(); // Servis seçimi kaldırıldığında sıfırla
+            }
+        });
+
+        // Miktar girildiğinde fiyatı hesapla
+        quantityInput.addEventListener('input', calculateOrderPrice);
+
+        function calculateOrderPrice() {
+            if (!selectedService) {
+                priceInput.value = '';
+                placeOrderButton.disabled = true;
+                return;
+            }
+
+            const quantity = parseInt(quantityInput.value);
+            if (isNaN(quantity)) {
+                priceInput.value = '';
+                placeOrderButton.disabled = true;
+                return;
+            }
+
+            // Miktar minimum ve maksimum aralığında mı kontrol et
+            if (quantity < selectedService.min || quantity > selectedService.max) {
+                priceInput.value = '';
+                placeOrderButton.disabled = true;
+                // Sadece hata varsa mesajı göster, aksi takdirde gizle
+                if (quantity > 0) { // Sadece pozitif miktarlar için hata göster
+                    showAlert(`Miqdar ${selectedService.min} ilə ${selectedService.max} arasında olmalıdır.`, 'error', 4000);
+                }
+                return;
+            }
+
+            const price = (quantity / 1000) * selectedService.pricePerK;
+            priceInput.value = `${price.toFixed(2)} AZN`;
+            placeOrderButton.disabled = false;
+        }
+
+        // Sipariş formunu sıfırla
+        function resetOrderForm() {
+            linkInput.value = '';
+            quantityInput.value = '';
+            avgTimeInput.value = '';
+            priceInput.value = '';
+            minQuantityEl.textContent = '0';
+            maxQuantityEl.textContent = '0';
+            placeOrderButton.disabled = true;
+        }
+
+        // Açıqlama qutusunu yenilə
+        function updateDescriptionBox() {
+            if (selectedService) {
+                descMinQuantity.textContent = selectedService.min;
+                descMaxQuantity.textContent = selectedService.max;
+                descAvgTime.textContent = selectedService.avgTime;
+            } else {
+                descMinQuantity.textContent = 'N/A';
+                descMaxQuantity.textContent = 'N/A';
+                descAvgTime.textContent = 'N/A';
+            }
+        }
+
+        // Balans artırma modalını aç (Balans Artır düyməsi)
+        topUpButton.addEventListener('click', () => {
+            if (!currentUserId) {
+                showAlert("Balans artırmaq üçün sistemə daxil olmalısınız. Zəhmət olmasa səhifəni yeniləyin.", 'error');
+                return;
+            }
+            topUpModal.classList.add('show'); // 'show' sınıfını ekleyerek görünür yap
+            // WhatsApp linkini dinamik olarak güncelle
+            whatsappTopUpLink.href = `https://wa.me/${PAYMENT_WHATSAPP_NUMBER}?text=${encodeURIComponent('Salam, mənim istifadəçi ID-m: ' + currentUserId + '. Balans artırmaq istəyirəm.')}`;
+            bankCardNumberEl.textContent = PAYMENT_CARD_NUMBER; // Kart numarasını ayarla
+            console.log("Balans Artır modalı açıldı."); // Debug log
+        });
+
+        // Alt navigasyondaki "Balans əlavə et" butonu
+        bottomNavTopUp.addEventListener('click', (e) => {
+            e.preventDefault(); // Varsayılan link davranışını engelle
+            topUpButton.click(); // Üstteki butonu tıkla
+        });
+
+        // Balans artırma modalını kapat (X düyməsi)
+        if (closeTopUpModalButton) {
+            closeTopUpModalButton.addEventListener('click', () => {
+                topUpModal.classList.remove('show'); // 'show' sınıfını kaldırarak gizle
+                console.log("Balans Artır modalı kapatıldı (X butonu ile)."); // Debug log
+            });
+        } else {
+            console.error("closeTopUpModalButton elementi bulunamadı!");
+        }
+
+        // Modala dış tıklama ile kapatma
+        if (topUpModal) {
+            topUpModal.addEventListener('click', (event) => {
+                // Sadece modalın arka planına tıklandığında kapanması için kontrol et
+                if (event.target === topUpModal) {
+                    topUpModal.classList.remove('show'); // 'show' sınıfını kaldırarak gizle
+                    console.log("Balans Artır modalı kapatıldı (dış tıklama ile)."); // Debug log
+                }
+            });
+        } else {
+            console.error("topUpModal elementi bulunamadı!");
+        }
+
+        // Floating WhatsApp Bubble'ı başlat
+        if (floatingWhatsappBubble) {
+            floatingWhatsappBubble.addEventListener('click', (e) => {
+                e.preventDefault();
+                const whatsappMessage = `Salam, dəstəyə ehtiyacım var. İstifadəçi ID-m: ${currentUserId}.`;
+                const whatsappUrl = `https://wa.me/${PAYMENT_WHATSAPP_NUMBER}?text=${encodeURIComponent(whatsappMessage)}`;
+                window.open(whatsappUrl, '_blank');
+            });
+        }
+
+
+        // Sipariş oluştur
+        placeOrderButton.addEventListener('click', async () => {
+            if (!currentUserId) {
+                showAlert("Sifariş vermək üçün sistemə daxil olmalısınız.", 'error');
+                console.error("Sifariş xətası: currentUserId boşdur.");
+                return;
+            }
+            if (!selectedService || !linkInput.value.trim() || !quantityInput.value.trim()) {
+                showAlert("Zəhmət olmasa, bütün sifariş detallarını doldurun.", 'error');
+                console.error("Sifariş xətası: Seçili xidmət, link və ya miqdar boşdur.");
+                return;
+            }
+
+            const quantity = parseInt(quantityInput.value);
+            const priceText = priceInput.value;
+            const totalPrice = parseFloat(priceText.replace(' AZN', ''));
+
+            if (isNaN(quantity) || quantity < selectedService.min || quantity > selectedService.max) {
+                showAlert(`Miqdar ${selectedService.min} ilə ${selectedService.max} arasında olmalıdır.`, 'error');
+                console.error(`Sifariş xətası: Miqdar ${quantity} aralıqdan kənardadır (${selectedService.min}-${selectedService.max}).`);
+                return;
+            }
+
+            if (userBalance < totalPrice) {
+                showAlert("Balansınız yetərli deyil. Zəhmət olmasa balansınızı artırın.", 'error');
+                console.error(`Sifariş xətası: Balans yetərli deyil. Cari: ${userBalance}, Tələb olunan: ${totalPrice}.`);
+                return;
+            }
+
+            try {
+                // Medyabayim API-nə sifariş göndərmə (real API çağırışı)
+                console.log("Medyabayim API-nə sifariş göndərilir...");
+                const medyabayimOrderData = new URLSearchParams();
+                medyabayimOrderData.append("key", MEDYABAYIM_API_KEY);
+                medyabayimOrderData.append("action", "add");
+                medyabayimOrderData.append("service", selectedService.medyabayimServiceId);
+                medyabayimOrderData.append("link", linkInput.value.trim());
+                medyabayimOrderData.append("quantity", quantity);
+
+                const medyabayimResponse = await fetch(MEDYABAYIM_API_URL, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                    body: medyabayimOrderData.toString()
+                });
+
+                const medyabayimResult = await medyabayimResponse.json();
+                console.log("Medyabayim API cavabı:", medyabayimResult);
+
+                if (medyabayimResult.order) { // Sifariş uğurlu olduqda
+                    console.log("Sifariş Firebase'e gönderiliyor...");
+                    const orderData = {
+                        userId: currentUserId,
+                        serviceId: selectedService.id,
+                        serviceName: selectedService.name,
+                        platform: selectedService.platform, 
+                        link: linkInput.value.trim(),
+                        quantity: quantity,
+                        totalPrice: totalPrice,
+                        avgTime: selectedService.avgTime,
+                        timestamp: serverTimestamp(), // Burası Firebase Timestamp oluşturur
+                        status: 'pending', // Medyabayim'e gönderildiği için 'pending'
+                        isNew: true,
+                        medyabayimOrderId: medyabayimResult.order // Medyabayim'den gelen sipariş ID'si
+                    };
+                    console.log("Sifariş data-sı:", orderData);
+
+                    // Sifariş detallarını Firebase'e kaydet
+                    const newOrderRef = await addDoc(collection(db, `artifacts/${firebaseProjectId}/public/data/orders`), orderData);
+
+                    // Balansı güncelle
+                    const userDocRef = doc(db, `users`, currentUserId);
+                    await updateDoc(userDocRef, {
+                        balance: userBalance - totalPrice
+                    });
+                    userBalance -= totalPrice;
+                    userBalanceEl.textContent = `${userBalance.toFixed(2)} AZN`;
+
+                    showAlert(`Sifarişiniz yerləşdirildi! Sifariş ID-si: ${newOrderRef.id}. Medyabayim Sifariş ID: ${medyabayimResult.order}.`, 'success', 10000);
+                    
+                    resetOrderForm();
+                    categorySelect.value = "";
+                    serviceSelect.innerHTML = '<option value="">Servis Seçin</option>';
+                    serviceSelect.disabled = true;
+                    selectedCategory = null;
+                    selectedService = null;
+                    updateDescriptionBox(); // Sipariş sonrası açıklama kutusunu sıfırla/güncelle
+
+                    // Sifariş tamamlandıqdan sonra orders.html səhifəsinə yönləndir
+                    setTimeout(() => {
+                        window.location.href = 'orders.html'; 
+                    }, 1000);
+
+                } else if (medyabayimResult.error) { // Medyabayim API'den hata gelirse
+                    showAlert(`Medyabayim sifarişi yerləşdirilərkən xəta: ${medyabayimResult.error}. Balansınızdan pul çıxarılmadı.`, 'error', 8000);
+                    console.error("Medyabayim API xətası:", medyabayimResult.error);
+                } else {
+                    showAlert("Medyabayim API-dən gözlənilməz cavab alındı. Balansınızdan pul çıxarılmadı.", 'error', 8000);
+                    console.error("Medyabayim API gözlənilməz cavab:", medyabayimResult);
+                }
+
+            } catch (error) {
+                console.error("Sifariş yerləşdirmə xətası (catch blokunda):", error);
+                if (error.code) {
+                    showAlert(`Sifariş yerləşdirərkən xəta: ${error.code}. Detaylar üçün konsolu yoxlayın.`, 'error', 5000);
+                } else {
+                    showAlert("Sifariş yerləşdirərkən gözlənilməz xəta baş verdi. Zəhmət olmasa yenidən cəhd edin.", 'error');
+                }
+            }
+        });
+
+        // Sayfa yüklendiğinde servis kategorilerini ve UI'yi başlat
+        window.onload = () => {
+            populateCategorySelect();
+            updateDescriptionBox(); // Başlangıçta açıklama kutusunu sıfırla
+        };
+    </script>
+</body>
+</html>
