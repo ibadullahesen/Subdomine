@@ -859,8 +859,8 @@ export default function UstalarMMC() {
             <div className="flex items-center space-x-3">
               <Wrench className="h-8 w-8" />
               <div>
-                <h1 className="text-3xl font-bold">Ustalar MMC</h1>
-                <p className="text-blue-200">Santexnik işlərinin idarəetmə sistemi</p>
+                <h1 className="text-3xl font-bold">Ustasan MMC</h1>
+                <p className="text-blue-200">işlərin gedişatını idarə etmə sistemi</p>
               </div>
             </div>
             {currentUser && (
