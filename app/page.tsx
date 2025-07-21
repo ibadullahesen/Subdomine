@@ -1034,7 +1034,7 @@ export default function UstalarMMC() {
           <div className="max-w-4xl mx-auto">
             <Card className="shadow-xl">
               <CardHeader>
-                <CardTitle className="text-3xl font-bold text-center text-gray-900">Ustalar MMC</CardTitle>
+                <CardTitle className="text-3xl font-bold text-center text-gray-900">Ustasan MMC</CardTitle>
               </CardHeader>
               <CardContent className="text-center py-12">
                 <p className="text-xl text-gray-600">Peşəkar santexnik xidmətlərində keyfiyyət və etibarlılıq</p>
