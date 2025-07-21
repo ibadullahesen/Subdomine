@@ -945,7 +945,7 @@ export default function UstalarMMC() {
             <div className="max-w-3xl mx-auto">
               <h2 className="text-5xl font-bold text-gray-900 mb-6">Peşəkar Santexnik Xidmətləri</h2>
               <p className="text-xl text-gray-600 mb-8">
-                Ustalar MMC - keyfiyyət və etibarlılıq təminatı ilə santexnik işlərinin idarəetmə sistemi
+                Ustasan MMC - keyfiyyət və etibarlılıq təminatı ilə santexnik işlərinin idarəetmə sistemi
               </p>
               <Button
                 size="lg"
