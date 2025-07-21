@@ -943,9 +943,9 @@ export default function UstalarMMC() {
         {activeSection === "home" && !currentUser && (
           <div className="text-center py-20">
             <div className="max-w-3xl mx-auto">
-              <h2 className="text-5xl font-bold text-gray-900 mb-6">Peşəkar Santexnik Xidmətləri</h2>
+              <h2 className="text-5xl font-bold text-gray-900 mb-6">Professional Usta Xidmətləri</h2>
               <p className="text-xl text-gray-600 mb-8">
-                Ustasan MMC - keyfiyyət və etibarlılıq təminatı ilə santexnik işlərinin idarəetmə sistemi
+                USTASAN MMC-Şəffaflıq & Keyfiyyət təminatı ilə Hər növ layihələrin idarə etmə sistemi
               </p>
               <Button
                 size="lg"
