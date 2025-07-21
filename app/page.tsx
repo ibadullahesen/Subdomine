@@ -1023,9 +1023,6 @@ export default function UstalarMMC() {
                 </Button>
 
                 <div className="text-center text-sm text-gray-500 mt-4">
-                  <p>Test məlumatları:</p>
-                  <p>Admin: admin / admin123</p>
-                  <p>Usta: u001 (şifresiz)</p>
                 </div>
               </CardContent>
             </Card>
