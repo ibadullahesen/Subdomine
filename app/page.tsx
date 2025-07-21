@@ -945,7 +945,7 @@ export default function UstalarMMC() {
             <div className="max-w-3xl mx-auto">
               <h2 className="text-5xl font-bold text-gray-900 mb-6">Professional Usta Xidmətləri</h2>
               <p className="text-xl text-gray-600 mb-8">
-                USTASAN MMC-Şəffaflıq & Keyfiyyət təminatı ilə Hər növ layihələrin idarə etmə sistemi</p>
+                USTASAN MMC-Şəffaflıq & Keyfiyyət təminatı ilə, Hər növ layihələrin idarə etmə sistemi
               </p>
               <Button
                 size="lg"
