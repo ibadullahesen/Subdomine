@@ -1037,7 +1037,9 @@ export default function UstalarMMC() {
                 <CardTitle className="text-3xl font-bold text-center text-gray-900">Ustasan MMC</CardTitle>
               </CardHeader>
               <CardContent className="text-center py-12">
-                <p className="text-xl text-gray-600">Peşəkar santexnik xidmətlərində keyfiyyət və etibarlılıq</p>
+                <p className="text-xl text-gray-600">Ustasan MMC – peşəkar ustaların xidmətlərini bir araya gətirən və müştərilərlə birbaşa əlaqə yaradan innovativ platformadır.
+                <br/>
+                Missiyamız – təmir, tikinti və digər ustalıq xidmətlərini daha şəffaf, etibarlı və rahat şəkildə təqdim etməkdir.</p>
               </CardContent>
             </Card>
           </div>
