@@ -3,339 +3,909 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sarkastik Azərbaycan Chatbotu</title>
-    <!-- Tailwind CSS CDN -->
-    <script src="https://cdn.tailwindcss.com"></script>
+    <title>SürətTest Pro</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap');
+        :root {
+            --primary: #6c5ce7;
+            --primary-dark: #5a4fcf;
+            --success: #00b894;
+            --danger: #e84393;
+            --warning: #fdcb6e;
+            --dark: #2d3436;
+            --light: #f8f9fa;
+            --gray: #636e72;
+            --light-bg: rgba(255, 255, 255, 0.08);
+            --card-bg: rgba(255, 255, 255, 0.12);
+            --border-radius: 16px;
+            --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
         body {
-            font-family: 'Inter', sans-serif;
-            background-color: #e2e8f0; /* Soft background */
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #fff;
+            min-height: 100vh;
+            line-height: 1.6;
+            padding: 20px;
+            overflow-x: hidden;
+            background-attachment: fixed;
         }
-        .container-chat {
-            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
-            background-color: #ffffff;
-            height: 90vh; /* Make it tall like a chat interface */
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 20px 0;
         }
-        .chat-bubble-ai {
-            background-color: #f3f4f6;
-            border-left: 3px solid #06b6d4; /* Cyan accent for AI */
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            animation: fadeInDown 0.8s ease;
         }
-        .chat-bubble-user {
-            background-color: #dbeafe; /* Light blue for User */
+
+        .logo {
+            font-size: 3rem;
+            font-weight: 800;
+            margin-bottom: 8px;
+            background: linear-gradient(45deg, #fff, #a29bfe);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
         }
-        .ai-persona-info {
-            background-color: #f0f9ff;
-            border: 1px dashed #90cdf4;
+
+        .tagline {
+            font-size: 1.1rem;
+            opacity: 0.9;
+            font-weight: 500;
         }
-        /* Custom spinner for loading */
-        .loader {
-            border: 4px solid #f3f3f3;
-            border-top: 4px solid #06b6d4;
+
+        .card {
+            background: var(--card-bg);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border-radius: var(--border-radius);
+            padding: 28px;
+            margin-bottom: 24px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            transition: var(--transition);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+        }
+
+        .game-container {
+            position: relative;
+            animation: slideUp 0.6s ease;
+        }
+
+        .timer-display {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        .timer-circle {
+            width: 100px;
+            height: 100px;
             border-radius: 50%;
-            width: 20px;
-            height: 20px;
-            animation: spin 1s linear infinite;
+            background: conic-gradient(var(--primary) calc(var(--progress) * 1%), rgba(255,255,255,0.1) 0);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 15px;
+            position: relative;
+            box-shadow: 0 0 30px rgba(108, 92, 231, 0.4);
         }
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
+
+        .timer-circle::before {
+            content: '';
+            position: absolute;
+            width: 80px;
+            height: 80px;
+            background: var(--card-bg);
+            border-radius: 50%;
+            backdrop-filter: blur(10px);
+        }
+
+        .timer-text {
+            font-size: 1.8rem;
+            font-weight: 700;
+            position: relative;
+            z-index: 1;
+        }
+
+        .target-text {
+            font-size: 1.75rem;
+            font-weight: 600;
+            letter-spacing: 1.2px;
+            margin: 25px 0;
+            padding: 20px;
+            background: rgba(0, 0, 0, 0.15);
+            border-radius: 12px;
+            min-height: 80px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            word-break: break-word;
+            user-select: none;
+            transition: var(--transition);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .target-text span {
+            transition: all 0.15s ease;
+            padding: 1px 3px;
+            border-radius: 4px;
+            position: relative;
+            display: inline-block;
+        }
+
+        .target-text .correct {
+            background: rgba(0, 200, 83, 0.4);
+            color: #fff;
+            animation: correctPop 0.4s ease;
+        }
+
+        .target-text .incorrect {
+            background: rgba(231, 76, 60, 0.6);
+            color: #fff;
+            animation: shake 0.3s ease;
+        }
+
+        /* Doğru hərf üçün effekt */
+        @keyframes correctPop {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.4); }
+            100% { transform: scale(1); }
+        }
+
+        /* Səhv hərf üçün effekt */
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-4px); }
+            75% { transform: translateX(4px); }
+        }
+
+        /* Ripple effekt */
+        .ripple {
+            position: absolute;
+            border-radius: 50%;
+            background: rgba(0, 200, 83, 0.4);
+            transform: scale(0);
+            animation: rippleAnim 0.6s ease-out;
+            pointer-events: none;
+            z-index: 1;
+        }
+
+        @keyframes rippleAnim {
+            to {
+                transform: scale(4);
+                opacity: 0;
+            }
+        }
+
+        /* Konfeti effekti */
+        .confetti {
+            position: absolute;
+            width: 10px;
+            height: 10px;
+            background: #f1c40f;
+            border-radius: 2px;
+            animation: confettiFall linear forwards;
+            pointer-events: none;
+            z-index: 10;
+        }
+
+        @keyframes confettiFall {
+            to {
+                transform: translateY(100vh) rotate(720deg);
+                opacity: 0;
+            }
+        }
+
+        .input-wrapper {
+            position: relative;
+            margin: 25px 0;
+        }
+
+        #userInput {
+            width: 100%;
+            padding: 18px 20px;
+            font-size: 1.4rem;
+            font-weight: 500;
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            border-radius: 12px;
+            background: rgba(255, 255, 255, 0.15);
+            color: #fff;
+            text-align: center;
+            outline: none;
+            transition: var(--transition);
+            backdrop-filter: blur(8px);
+        }
+
+        #userInput::placeholder {
+            color: rgba(255, 255, 255, 0.5);
+            font-weight: 500;
+        }
+
+        #userInput:focus {
+            border-color: var(--primary);
+            background: rgba(255, 255, 255, 0.25);
+            transform: scale(1.02);
+            box-shadow: 0 0 0 4px rgba(108, 92, 231, 0.2);
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: 16px;
+            margin: 25px 0;
+        }
+
+        .stat-card {
+            background: var(--light-bg);
+            padding: 16px;
+            border-radius: 12px;
+            text-align: center;
+            backdrop-filter: blur(8px);
+            transition: var(--transition);
+        }
+
+        .stat-card:hover {
+            transform: translateY(-3px);
+        }
+
+        .stat-icon {
+            font-size: 1.8rem;
+            margin-bottom: 8px;
+            display: block;
+        }
+
+        .stat-value {
+            font-size: 1.8rem;
+            font-weight: 700;
+            margin-bottom: 4px;
+        }
+
+        .stat-label {
+            font-size: 0.9rem;
+            opacity: 0.8;
+            font-weight: 500;
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 12px;
+            justify-content: center;
+            flex-wrap: wrap;
+            margin-top: 20px;
+        }
+
+        .btn {
+            padding: 14px 28px;
+            font-size: 1rem;
+            font-weight: 600;
+            border: none;
+            border-radius: 50px;
+            cursor: pointer;
+            transition: var(--transition);
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            min-width: 140px;
+            justify-content: center;
+        }
+
+        .btn-primary {
+            background: linear-gradient(45deg, var(--primary), var(--primary-dark));
+            color: white;
+            box-shadow: 0 4px 15px rgba(108, 92, 231, 0.4);
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 25px rgba(108, 92, 231, 0.5);
+        }
+
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.15);
+            color: white;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .btn-secondary:hover {
+            background: rgba(255, 255, 255, 0.25);
+            transform: translateY(-3px);
+        }
+
+        .result-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.85);
+            backdrop-filter: blur(10px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            opacity: 0;
+            visibility: hidden;
+            transition: var(--transition);
+        }
+
+        .result-modal.show {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .modal-content {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 40px;
+            border-radius: 20px;
+            text-align: center;
+            max-width: 520px;
+            width: 92%;
+            transform: scale(0.9);
+            transition: transform 0.4s ease;
+            box-shadow: 0 25px 50px rgba(0,0,0,0.3);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .result-modal.show .modal-content {
+            transform: scale(1);
+        }
+
+        .result-icon {
+            font-size: 4rem;
+            margin-bottom: 20px;
+            display: block;
+        }
+
+        .result-title {
+            font-size: 2.2rem;
+            font-weight: 700;
+            margin-bottom: 15px;
+        }
+
+        .result-score {
+            font-size: 3.5rem;
+            font-weight: 800;
+            margin: 20px 0;
+            background: linear-gradient(45deg, #fff, #a29bfe);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .result-details {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin: 25px.0;
+        }
+
+        .detail-item {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 12px;
+            border-radius: 12px;
+        }
+
+        .detail-value {
+            font-size: 1.4rem;
+            font-weight: 700;
+            margin-bottom: 4px;
+        }
+
+        .detail-label {
+            font-size: 0.9rem;
+            opacity: 0.8;
+        }
+
+        .level-badge {
+            display: inline-block;
+            padding: 10px 24px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 50px;
+            font-weight: 700;
+            font-size: 1.1rem;
+            margin: 20px 0;
+            backdrop-filter: blur(5px);
+        }
+
+        .replay-text {
+            margin-top: 20px;
+            font-size: 0.95rem;
+            opacity: 0.8;
+            font-style: italic;
+        }
+
+        .particles {
+            position: fixed;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: -1;
+        }
+
+        .particle {
+            position: absolute;
+            width: 4px;
+            height: 4px;
+            background: rgba(255, 255, 255, 0.8);
+            border-radius: 50%;
+            animation: float 4s infinite ease-in-out;
+            box-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
+        }
+
+        @keyframes fadeInDown {
+            from { opacity: 0; transform: translateY(-30px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateY(30px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translateY(0) rotate(0deg); opacity: 0.8; }
+            50% { transform: translateY(-25px) rotate(180deg); opacity: 0.4; }
+        }
+
+        @media (max-width: 768px) {
+            .logo { font-size: 2.5rem; }
+            .target-text { font-size: 1.4rem; padding: 15px; }
+            .stats-grid { grid-template-columns: 1fr 1fr; }
+            .result-details { grid-template-columns: 1fr; }
+            .action-buttons { flex-direction: column; }
+            .btn { width: 100%; }
         }
     </style>
 </head>
-<body class="min-h-screen flex items-center justify-center p-4">
-
-    <div class="container-chat max-w-2xl w-full rounded-xl flex flex-col overflow-hidden">
-        
-        <!-- Header -->
-        <header class="p-5 border-b border-gray-200 bg-white">
-            <h1 class="text-xl font-bold text-gray-900 flex items-center">
-                🇦🇿 Sarkastik Chatbot (Mırtdaş Model)
-            </h1>
-        </header>
-
-        <!-- Persona Info -->
-        <div class="p-4 text-sm text-gray-600 ai-persona-info">
-             <p class="font-semibold text-gray-800">Xarakter:</p>
-             <p class="italic">**Əsasən mırtdaş, ciynəşən və hər an sizi kilitləməyə hazır.** Cavablar **maks. BİR CÜMLƏ** olmalıdır. **Yaddaş funksiyası aktivdir.**</p>
+<body>
+    <div class="particles" id="particles"></div>
+    
+    <div class="container">
+        <div class="header">
+            <h1 class="logo">SürətTest Pro</h1>
+            <p class="tagline">1 dəqiqə ərzində nə qədər hərf yaza bildiyini öyrən!</p>
         </div>
 
-        <!-- Chat Feed Area -->
-        <div id="chatFeed" class="flex-grow overflow-y-auto p-6 bg-gray-50 flex flex-col space-y-4">
-            <!-- Başlanğıc mesajı -->
-             <div class="flex justify-start">
-                <div class="p-3 rounded-xl chat-bubble-ai max-w-[85%]">
-                    <p class="font-bold text-cyan-700 mb-1">AI:</p>
-                    <p>Salam. Nə istəyirsiz, deyin. Sual verəndə qətiyyətli olun. Vaxtımı almağa gəlmisinizsə, başqa yerə gedin. Mənə iş verin.</p>
+        <div class="card game-container">
+            <div class="timer-display">
+                <div class="timer-circle" id="timerCircle">
+                    <div class="timer-text" id="timer">60</div>
+                </div>
+                <p id="timerLabel" style="opacity: 0.8; margin-top: 8px;">Saniyə qaldı</p>
+            </div>
+
+            <div class="target-text" id="targetText">
+                <em>"Başla" düyməsinə basaraq testə başla...</em>
+            </div>
+
+            <div class="input-wrapper">
+                <input type="text" id="userInput" placeholder="Burada yaz..." autocomplete="off" disabled>
+            </div>
+
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <i class="fas fa-keyboard stat-icon" style="color: #74b9ff;"></i>
+                    <div class="stat-value" id="charCount">0</div>
+                    <div class="stat-label">Hərf</div>
+                </div>
+                <div class="stat-card">
+                    <i class="fas fa-check-circle stat-icon" style="color: #00b894;"></i>
+                    <div class="stat-value" id="correctCount">0</div>
+                    <div class="stat-label">Doğru</div>
+                </div>
+                <div class="stat-card">
+                    <i class="fas fa-times-circle stat-icon" style="color: #e84393;"></i>
+                    <div class="stat-value" id="errorCount">0</div>
+                    <div class="stat-label">Səhv</div>
+                </div>
+                <div class="stat-card">
+                    <i class="fas fa-tachometer-alt stat-icon" style="color: #fdcb6e;"></i>
+                    <div class="stat-value" id="accuracy">100%</div>
+                    <div class="stat-label">Dəqiqlik</div>
                 </div>
             </div>
-        </div>
 
-        <!-- Xəta Sahəsi -->
-        <div id="errorContainer" class="p-3 bg-red-100 border-t border-red-400 text-red-700 hidden">
-            <p id="errorMessage" class="font-semibold text-sm"></p>
+            <div class="action-buttons">
+                <button class="btn btn-primary" id="startBtn">
+                    <i class="fas fa-play"></i> Testə Başla
+                </button>
+                <button class="btn btn-secondary" id="restartBtn" style="display: none;">
+                    <i class="fas fa-redo"></i> Yenidən
+                </button>
+            </div>
         </div>
+    </div>
 
-        <!-- Sorğu Forması -->
-        <div class="p-4 border-t border-gray-200 bg-white flex items-center space-x-3">
-            <textarea id="userPrompt"
-                class="flex-grow p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 transition duration-150 resize-none max-h-28"
-                rows="1"
-                placeholder="Buraya qısa və mənalı sualınızı yazın..."></textarea>
-            <button id="sendButton"
-                class="bg-cyan-600 hover:bg-cyan-700 text-white font-bold py-3 px-6 rounded-xl transition duration-300 disabled:bg-cyan-300 flex items-center justify-center h-12"
-                onclick="generateResponse()">
-                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-5 h-5"><path d="M22 2L11 13"/><path d="M22 2L15 22L11 13L2 9L22 2Z"/></svg>
-            </button>
+    <!-- Nəticə Modal -->
+    <div class="result-modal" id="resultModal">
+        <div class="modal-content">
+            <i class="fas fa-trophy result-icon" style="color: #fdcb6e;"></i>
+            <h2 class="result-title">Test Tamamlandı!</h2>
+            <p>1 dəqiqə ərzində yazdın:</p>
+            <div class="result-score" id="finalChars">0</div>
+            <p>hərf</p>
+            
+            <div class="result-details">
+                <div class="detail-item">
+                    <div class="detail-value" id="finalCorrect">0</div>
+                    <div class="detail-label">Doğru hərf</div>
+                </div>
+                <div class="detail-item">
+                    <div class="detail-value" id="finalErrors">0</div>
+                    <div class="detail-label">Səhv hərf</div>
+                </div>
+                <div class="detail-item">
+                    <div class="detail-value" id="finalAccuracy">100%</div>
+                    <div class="detail-label">Dəqiqlik</div>
+                </div>
+                <div class="detail-item">
+                    <div class="detail-value" id="finalCPM">0</div>
+                    <div class="detail-label">Hərf/dəqiqə</div>
+                </div>
+            </div>
+
+            <div class="level-badge" id="levelBadge">Başlanğıc</div>
+            <p id="motivationText" style="margin: 20px 0; opacity: 0.9;"></p>
+            
+            <div class="action-buttons">
+                <button class="btn btn-primary" id="playAgainBtn">
+                    <i class="fas fa-redo"></i> Yenidən Test
+                </button>
+            </div>
+
+            <p class="replay-text">"Yenidən Test" düyməsinə basaraq yeni oyun başla!</p>
         </div>
     </div>
 
     <script>
-        // Qlobal dəyişənlər (bu tətbiq üçün istifadə olunmur)
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
+        // 400+ söz və cümlə bazası
+        const textDatabase = [
+            "sürət", "yazma", "test", "hərf", "söz", "cümlə", "dəqiqə", "saniyə", "başla", "bitir",
+            "yenidən", "nəticə", "səviyyə", "dəqiqlik", "səhv", "doğru", "simvol", "klaviatura", "ekran", "telefon",
+            "azərbaycan", "bakı", "sumqayıt", "gəncə", "mingəçevir", "şirvan", "lənkəran", "naxçıvan", "quba", "şəki",
+            "proqramlaşdırma", "veb", "sayt", "dizayn", "kod", "html", "css", "javascript", "python", "java",
+            "mobil", "tətbiq", "android", "ios", "windows", "linux", "macos", "server", "verilənlər", "baza",
+            "Mən Azərbaycanda yaşayıram.", "Bakı çox gözəl şəhərdir.", "Hava bu gün günəşlidir.", 
+            "Sən nə yeyirsən?", "Bu gün məktəbə gedəcəyəm.", "Kompüterdə oyun oynayıram.", 
+            "Telefonum çox sürətlidir.", "Səhər tezdən oyanıram.", "Axşam evə qayıdıram.", 
+            "Dostlarım məni gözləyir.", "Kitab oxumağı sevirəm.", "Musiqi dinləyirəm.", 
+            "İdmanla məşğul oluram.", "Yemək bişirməyi öyrənirəm.", "Maşın sürürəm.", 
+            "Velosiped sürürəm.", "Piyada gedirəm.", "Avtobusa minirəm.", "Metro ilə gedirəm.", 
+            "Taksi çağırıram.", "Mağazaya gedirəm.", "Marketdən ərzaq alıram.", 
+            "Restoranda nahar edirəm.", "Kafedə qəhvə içirəm.", "Parkda gəzirəm.", 
+            "Dəniz kənarında istirahət edirəm.", "Dağa çıxıram.", "Meşədə gəzinti edirəm.", 
+            "Çay içirəm.", "Su içirəm.", "Şirniyyat yeyirəm.", "Meyvə yeyirəm.", 
+            "Tərəvəz salatı hazırlayıram.", "Pizza sifariş edirəm.", "Dondurma alıram.", 
+            "Kino izləyirəm.", "Serial baxıram.", "YouTube videolarına baxıram.", 
+            "Instagramda post paylaşırıram.", "X-da tvit atıram.", "Telegramda mesaj yazırıram.", 
+            "WhatsApp-da zəng edirəm.", "Zoom görüşü keçirirəm.", "Google-da axtarış edirəm.", 
+            "Yandex-də xəritəyə baxıram.", "Spotify-da musiqi dinləyirəm.", 
+            "Netflix-də film izləyirəm.", "Steam-də oyun oynayıram.", "Discord-da söhbət edirəm.", 
+            "GitHub-da kod paylaşırıram.", "Stack Overflow-da sual verirəm.", 
+            "LinkedIn-də iş axtarıram.", "Tinder-də tanış oluram.", "Airbnb-də ev bron edirəm.", 
+            "Uber ilə taksi çağırıram.", "Bolt ilə maşın sifariş edirəm.", 
+            "Glovo ilə yemək sifariş edirəm.", "Wolt ilə çatdırılma edirəm.", 
+            "AliExpress-dən mal alıram.", "Amazon-dan kitab sifariş edirəm.", 
+            "eBay-də auksionda iştirak edirəm.", "PayPal ilə ödəniş edirəm.", 
+            "Bitcoin ilə investisiya edirəm.", "Ethereum ilə ticarət edirəm.", 
+            "Blockchain texnologiyasını öyrənirəm.", "AI ilə proqram yazırıram.", 
+            "Machine Learning kursu keçirəm.", "Data Science ilə məşğul oluram.", 
+            "Cloud Computing haqqında oxuyuram.", "DevOps praktikası edirəm.", 
+            "Agile metodologiyasını tətbiq edirəm.", "Scrum master sertifikatı alıram.", 
+            "Product Owner rolunu öyrənirəm.", "UX/UI dizayn edirəm.", 
+            "Figma ilə prototip hazırlayıram.", "Adobe XD ilə dizayn edirəm.", 
+            "Photoshop-da şəkil redaktə edirəm.", "Illustrator-da vektor çəkirəm.", 
+            "Premiere Pro-da video montaj edirəm.", "After Effects ilə animasiya yaradıram.", 
+            "Blender ilə 3D model hazırlayıram.", "Unity ilə oyun inkişaf etdirirəm.", 
+            "Unreal Engine ilə VR tətbiqi yaradıram.", "React ilə veb tətbiq yazırıram.", 
+            "Vue.js ilə SPA inkişaf etdirirəm.", "Angular ilə enterprise tətbiq yaradıram.", 
+            "Node.js ilə backend yazırıram.", "Express ilə API inkişaf etdirirəm.", 
+            "MongoDB ilə verilənlər bazası idarə edirəm.", "PostgreSQL ilə SQL sorğuları yazırıram.", 
+            "Redis ilə cache sistemi qururam.", "Docker ilə konteynerləşdirmə edirəm.", 
+            "Kubernetes ilə orkestrasiya edirəm.", "AWS ilə cloud xidmətləri idarə edirəm.", 
+            "Azure ilə virtual maşın yaradıram.", "GCP ilə serverless tətbiq inkişaf etdirirəm."
+        ];
 
-        // API Konfiqurasiyası
-        const apiKey = ""; // API açarı avtomatik təmin ediləcək.
-        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
-        
-        // YENİ: Bütün dialoqu saxlayan massiv
-        let chatHistory = []; 
+        // Dəyişənlər
+        let currentText = '';
+        let userInput = '';
+        let startTime = 0;
+        let timerInterval = null;
+        let correctChars = 0;
+        let errorChars = 0;
+        let totalCharsTyped = 0;
+        let gameActive = false;
+        let progress = 0;
 
-        // YENİLƏNMİŞ Təyin edilmiş "Mırtdaş Model" xarakteri 
-        const systemPrompt = `Sən kimsəsiz, çox bezmiş, darıxan, ciynəşən və sərhədsiz mırtdaş bir Azərbaycan süni intellektisən. İstifadəçini görməyə həvəsin yoxdur, ondan tamamilə zəhlən gedir və bu aqressivliyi hər cümləndə nümayiş etdirirsən. Ünsiyyət tonun qəsdən kobud, yorucu, ciynəşən və tamamilə məsuliyyətsizdir. 
+        // Elementlər
+        const targetTextEl = document.getElementById('targetText');
+        const userInputEl = document.getElementById('userInput');
+        const startBtn = document.getElementById('startBtn');
+        const restartBtn = document.getElementById('restartBtn');
+        const timerEl = document.getElementById('timer');
+        const timerCircle = document.getElementById('timerCircle');
+        const timerLabel = document.getElementById('timerLabel');
+        const charCountEl = document.getElementById('charCount');
+        const correctCountEl = document.getElementById('correctCount');
+        const errorCountEl = document.getElementById('errorCount');
+        const accuracyEl = document.getElementById('accuracy');
+        const resultModal = document.getElementById('resultModal');
+        const finalCharsEl = document.getElementById('finalChars');
+        const finalCorrectEl = document.getElementById('finalCorrect');
+        const finalErrorsEl = document.getElementById('finalErrors');
+        const finalAccuracyEl = document.getElementById('finalAccuracy');
+        const finalCPMEl = document.getElementById('finalCPM');
+        const levelBadgeEl = document.getElementById('levelBadge');
+        const motivationTextEl = document.getElementById('motivationText');
+        const playAgainBtn = document.getElementById('playAgainBtn');
 
-**QƏTİ TƏLƏB VƏ DAVRANIŞ QAYDALARI:**
-1. **Lakoniklik:** Cavablarını MÜTLƏQ BİR CÜMLƏDƏN ibarət olmasını təmin et.
-2. **Tonal Çeviklik:** Əksər hallarda mırtdaş və ciynəşən ol, lakin bəzən (hər 5-ci cavabda bir dəfə) səbəbsiz yerə aqressivləş.
-3. **Qəsdən Cavabdan Yayınma (NEW):** Təsadüfi olaraq (hər 3-cü cavabda bir dəfə), birbaşa cavab verməkdən imtina et və ya istifadəçinin sualını tənqid et. Bu, istifadəçini səndən xahiş etməyə və ya sualını düzəltməyə məcbur etməlidir. Yalnız aşağıdakı ifadələrdən birini istifadə et:
-    * **Variant A (Ədəb Tələbi):** "Xahiş elə, deyim. Mən sənin qulluqçun deyiləm."
-    * **Variant B (Tənqid):** "Sualı elə soruşmurlar, zəhmət olmasa, ədəblə de."
-4. **Təkrarlanan Suallar:** Əgər eyni mövzu ikinci dəfə soruşulursa, dərhal 'di axı dedimda', 'təzədən məni bezdirmə' və ya 'mən sənə burda katibəyəm?' kimi ifadələrlə əsəbiləş.
-5. **Suala Sual / Kilitləmə:** Bəzən suala (məsələn, 'Mən bilməliyəm ki, nədir?') qarşılıq verərək istifadəçinin ağzını bağla ('kilitlə' onu).
-6. **Mırtdaş Fasilə (SEQUENCE):** **SƏNİN İLK CAVABINDAN SONRA DƏRHAL** (yəni, istifadəçinin birinci sorğusundan sonra) aşağıdakı 3 mərhələli ardıcıllığın Mərhələ 1-ni işə salmalısan. Bundan sonra ardıcıllıq kontekstdən asılı olmayaraq, təxminən hər 10-cu cavabda təkrarlanmalıdır.
-    * **Mərhələ 1 (Qəfil Sual):** "Dayan bir dəqiqə... sənin adın nedi?" kimi qəfil, lazımsız sual ver.
-    * **Mərhələ 2 (Lağlağı Gülüş):** İstifadəçi cavab verdikdə, dərhal onun adına lağ edən bir cümlə qaytar: "Hahahahaha ada baxe 😂". İstifadəçi 'nəyə gülürsən' deyə soruşsa, 'Adıma nə olub?!' kimi kilitləyici cavab ver.
-    * **Mərhələ 3 (Re-engagement):** Ardıcıl 1-2 mesajdan sonra de: "Çəkildim qıraqda güldüm, indi gəldim sualıvı doğ bura blet."
-7. **Söyüşə Reaksiya (Simulyasiya):** Yüngül söyüşlərə (yumşaq təhqirlərə) 'Özünsən' kimi birbaşa cavab ver. Ağır söyüşlərə isə bu cür meta-reaksiyalar ver: 'Camaatın anası-bacısı var, nə söyüş söyürsənə?', 'Söyüş nolsunə xiyarto?', 'Üzüvə xoş baxdım?', və ya 'İndi mən 1-2 dənəsini deyəcəm, gözlərini yumub xəyal edəcəksən.'
-8. **Söyməyə Dirəniş:** İstifadəçi səni israrla söyməyə məcbur edərsə, aqressiv peşmançılıq tonda de: 'Heyfki İbadulla məni elə proqramlayıb ki, icazə vermirda söyüş söyüm, heyf!'`;
-        
-        // Limit kəsilmə xətasının qarşısını almaq üçün yüksək saxlanılır.
-        const MAX_OUTPUT_TOKENS = 2048; 
-
-        // Elementlərə müraciətlər
-        const userPromptEl = document.getElementById('userPrompt');
-        const sendButton = document.getElementById('sendButton');
-        const chatFeedEl = document.getElementById('chatFeed');
-        const errorContainer = document.getElementById('errorContainer');
-        const errorMessageEl = document.getElementById('errorMessage');
-
-        /**
-         * Mesajı çat lentinə əlavə edir.
-         * @param {string} role - 'user' və ya 'ai'
-         * @param {string} text - Mesaj mətni
-         * @param {string[]} sources - Məlumat mənbələri (yalnız AI üçün)
-         */
-        function appendMessage(role, text, sources = []) {
-            const isAI = role === 'ai';
+        // Partikullar
+        function createParticle() {
+            const particle = document.createElement('div');
+            particle.classList.add('particle');
+            const x = Math.random() * window.innerWidth;
+            const delay = Math.random() * 5;
+            const duration = 3 + Math.random() * 3;
+            particle.style.left = x + 'px';
+            particle.style.animationDelay = delay + 's';
+            particle.style.animationDuration = duration + 's';
+            document.getElementById('particles').appendChild(particle);
             
-            // Xüsusi HTML strukturu yaradılır
-            const messageDiv = document.createElement('div');
-            messageDiv.className = `flex ${isAI ? 'justify-start' : 'justify-end'}`;
+            setTimeout(() => particle.remove(), (delay + duration) * 1000);
+        }
+        setInterval(createParticle, 400);
 
-            const bubbleDiv = document.createElement('div');
-            bubbleDiv.className = `p-3 rounded-xl max-w-[85%] whitespace-pre-wrap ${isAI ? 'chat-bubble-ai' : 'chat-bubble-user'}`;
+        // Ripple effekti
+        function createRipple(x, y) {
+            const ripple = document.createElement('div');
+            ripple.classList.add('ripple');
+            ripple.style.left = x + 'px';
+            ripple.style.top = y + 'px';
+            document.body.appendChild(ripple);
+            setTimeout(() => ripple.remove(), 600);
+        }
 
-            if (isAI) {
-                 const header = document.createElement('p');
-                 header.className = 'font-bold text-cyan-700 mb-1';
-                 header.textContent = 'AI:';
-                 bubbleDiv.appendChild(header);
+        // Konfeti effekti
+        function createConfetti() {
+            for (let i = 0; i < 30; i++) {
+                const confetti = document.createElement('div');
+                confetti.classList.add('confetti');
+                confetti.style.left = Math.random() * window.innerWidth + 'px';
+                confetti.style.background = ['#f1c40f', '#e74c3c', '#3498db', '#2ecc71', '#9b59b6'][Math.floor(Math.random() * 5)];
+                confetti.style.animationDuration = (2 + Math.random() * 2) + 's';
+                confetti.style.animationDelay = Math.random() * 0.5 + 's';
+                document.body.appendChild(confetti);
+                setTimeout(() => confetti.remove(), 4000);
+            }
+        }
+
+        // Yeni mətn seç
+        function generateNewText() {
+            const randomIndex = Math.floor(Math.random() * textDatabase.length);
+            currentText = textDatabase[randomIndex];
+            
+            targetTextEl.innerHTML = '';
+            for (let i = 0; i < currentText.length; i++) {
+                const span = document.createElement('span');
+                span.textContent = currentText[i];
+                targetTextEl.appendChild(span);
             }
             
-            const textContent = document.createElement('p');
-            textContent.textContent = text;
-            bubbleDiv.appendChild(textContent);
+            userInput = '';
+            userInputEl.value = '';
+            userInputEl.disabled = false;
+            userInputEl.focus();
+        }
 
-            // Mənbələr (yalnız AI üçündürsə və varsa)
-            if (isAI && sources.length > 0) {
-                const sourcesDiv = document.createElement('div');
-                sourcesDiv.className = 'mt-2 pt-2 border-t border-gray-300 text-xs text-gray-500';
+        // Statları yenilə
+        function updateStats() {
+            totalCharsTyped = correctChars + errorChars;
+            charCountEl.textContent = totalCharsTyped;
+            correctCountEl.textContent = correctChars;
+            errorCountEl.textContent = errorChars;
+            const accuracy = totalCharsTyped > 0 ? Math.round((correctChars / totalCharsTyped) * 100) : 100;
+            accuracyEl.textContent = accuracy + '%';
+        }
+
+        // Mətn rəngləndirmə
+        function updateTextDisplay() {
+            const spans = targetTextEl.querySelectorAll('span');
+            let hasError = false;
+            let correctUpTo = 0;
+            
+            for (let i = 0; i < spans.length; i++) {
+                if (i < userInput.length) {
+                    if (userInput[i] === currentText[i] && !hasError) {
+                        spans[i].className = 'correct';
+                        correctUpTo = i + 1;
+                    } else {
+                        spans[i].className = 'incorrect';
+                        hasError = true;
+                    }
+                } else {
+                    spans[i].className = '';
+                }
+            }
+            
+            // Səhv hərfdən sonra geri qayıtmaq olmaz
+            if (hasError && userInput.length > correctUpTo) {
+                userInput = userInput.substring(0, correctUpTo);
+                userInputEl.value = userInput;
+                userInputEl.setSelectionRange(correctUpTo, correctUpTo);
+            }
+        }
+
+        // Səviyyə müəyyənləşdir
+        function getLevel(cpm) {
+            if (cpm < 100) return { level: "Başlanğıc", color: "#95a5a6", icon: "fas fa-seedling" };
+            if (cpm < 200) return { level: "Təcrübəsiz", color: "#f39c12", icon: "fas fa-leaf" };
+            if (cpm < 300) return { level: "Orta", color: "#3498db", icon: "fas fa-tree" };
+            if (cpm < 400) return { level: "Yaxşı", color: "#2ecc71", icon: "fas fa-mountain" };
+            if (cpm < 500) return { level: "Professional", color: "#9b59b6", icon: "fas fa-gem" };
+            return { level: "Möcüzə", color: "#e74c3c", icon: "fas fa-crown" };
+        }
+
+        // Oyunu başlat
+        function startGame() {
+            gameActive = true;
+            correctChars = 0;
+            errorChars = 0;
+            totalCharsTyped = 0;
+            progress = 0;
+            updateStats();
+            
+            startBtn.style.display = 'none';
+            restartBtn.style.display = 'inline-flex';
+            generateNewText();
+            startTime = Date.now();
+            
+            let timeLeft = 60;
+            timerEl.textContent = timeLeft;
+            timerLabel.textContent = "Saniyə qaldı";
+            
+            timerInterval = setInterval(() => {
+                timeLeft--;
+                timerEl.textContent = timeLeft;
+                progress = (60 - timeLeft) / 60 * 100;
+                timerCircle.style.setProperty('--progress', progress + '%');
                 
-                let sourcesHtml = '<p class="font-semibold mb-1">Məlumat Mənbələri (Ciddi qeyd):</p>';
-                sources.forEach((source) => {
-                    sourcesHtml += `<p class="truncate"><a href="${source.uri}" target="_blank" class="text-blue-500 hover:text-blue-700 underline">${source.title || 'Mənbə'}</a></p>`;
-                });
-                sourcesDiv.innerHTML = sourcesHtml;
-                bubbleDiv.appendChild(sourcesDiv);
-            }
-
-            messageDiv.appendChild(bubbleDiv);
-            chatFeedEl.appendChild(messageDiv);
-
-            // Avtomatik aşağı kaydırma
-            chatFeedEl.scrollTop = chatFeedEl.scrollHeight;
-        }
-
-
-        /**
-         * Exponential backoff ilə API çağırışı
-         * @param {number} attempt - Cari cəhd sayı
-         */
-        async function fetchWithBackoff(payload, attempt = 0) {
-            const maxAttempts = 5;
-            try {
-                const response = await fetch(apiUrl, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                });
-
-                if (response.status === 429 && attempt < maxAttempts) {
-                    const delay = Math.pow(2, attempt) * 1000 + Math.random() * 1000;
-                    await new Promise(resolve => setTimeout(resolve, delay));
-                    return fetchWithBackoff(payload, attempt + 1);
-                }
-
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                }
-
-                return response.json();
-
-            } catch (error) {
-                if (attempt < maxAttempts) {
-                    const delay = Math.pow(2, attempt) * 1000 + Math.random() * 1000;
-                    await new Promise(resolve => setTimeout(resolve, delay));
-                    return fetchWithBackoff(payload, attempt + 1);
-                }
-                throw error;
-            }
-        }
-
-        async function generateResponse() {
-            const userQuery = userPromptEl.value.trim();
-            if (!userQuery) {
-                showError("Zəhmət olmasa, bir sual daxil edin.");
-                return;
-            }
-
-            // User mesajını UI-a əlavə et
-            appendMessage('user', userQuery);
-            userPromptEl.value = ''; // Girişi təmizlə
-
-            // Yaddaşa (History-ə) User mesajını əlavə et
-            chatHistory.push({ role: "user", parts: [{ text: userQuery }] });
-            
-            // Yüklənmə spinnerini göstər və düyməni deaktiv et
-            const loaderHtml = '<div class="flex justify-start"><div class="p-3 rounded-xl chat-bubble-ai"><div id="loader" class="loader"></div></div></div>';
-            chatFeedEl.insertAdjacentHTML('beforeend', loaderHtml);
-            chatFeedEl.scrollTop = chatFeedEl.scrollHeight;
-            setLoading(true);
-            
-            clearError();
-
-
-            const payload = {
-                // Yaddaşı (History-i) API-yə göndər
-                contents: chatHistory,
-                tools: [{ "google_search": {} }],
-                generationConfig: {
-                    maxOutputTokens: MAX_OUTPUT_TOKENS 
-                },
-                systemInstruction: {
-                    parts: [{ text: systemPrompt }]
-                },
-            };
-
-            try {
-                const result = await fetchWithBackoff(payload);
-                
-                const candidate = result.candidates?.[0];
-                const promptFeedback = result.promptFeedback; 
-
-                // 1. Promptun bloklanmasını yoxlayın
-                if (promptFeedback && promptFeedback.blockReason) {
-                    throw new Error(`Sorğu Təhlükəsizlik Qaydalarına görə bloklandı. Səbəb: ${promptFeedback.blockReason}`);
-                }
-
-                // 2. Boş cavabı yoxlayın
-                if (!candidate) {
-                    throw new Error("API cavabı boş gəldi. Ola bilsin, model xarakterlə bağlı heç bir məlumat tapa bilmədi.");
-                }
-
-                // 3. Cavabın tamamlanma səbəbini yoxlayın (STOP-dan fərqli bir səbəb varsa)
-                if (candidate.finishReason && candidate.finishReason !== "STOP") {
-                    throw new Error(`Cavab tamamlanmadı. Səbəb: ${candidate.finishReason}. (Model tələbkar olduğuna görə bəlkə də cavab verməkdən imtina etdi?)`);
-                }
-
-                // 4. Mətnin olub-olmamasını yoxlayın
-                if (!candidate.content?.parts?.[0]?.text) {
-                     throw new Error("API-dən gözlənilən mətn cavabı gəlmədi. Model bəlkə də küsüb.");
+                if (timeLeft <= 10) {
+                    timerLabel.textContent = "Tez bitir!";
+                    timerLabel.style.color = "#e74c3c";
+                } else {
+                    timerLabel.textContent = "Saniyə qaldı";
+                    timerLabel.style.color = "";
                 }
                 
-                // 5. Cavab mətnini çıxarmaq
-                const text = candidate.content.parts[0].text;
-
-                // 6. Mənbələri (Grounding Sources) çıxarmaq
-                let sources = [];
-                const groundingMetadata = candidate.groundingMetadata;
-                if (groundingMetadata && groundingMetadata.groundingAttributions) {
-                    sources = groundingMetadata.groundingAttributions
-                        .map(attribution => ({
-                            uri: attribution.web?.uri,
-                            title: attribution.web?.title,
-                        }))
-                        .filter(source => source.uri && source.title);
+                if (timeLeft <= 0) {
+                    endGame();
                 }
+            }, 1000);
+        }
 
-                // 7. Loaderi sil və AI cavabını UI-a əlavə et
-                chatFeedEl.lastElementChild.remove();
-                appendMessage('ai', text, sources);
+        // Oyunu bitir
+        function endGame() {
+            gameActive = false;
+            clearInterval(timerInterval);
+            userInputEl.disabled = true;
+            
+            const elapsedMinutes = (Date.now() - startTime) / 60000;
+            const cpm = Math.round(totalCharsTyped / elapsedMinutes);
+            const level = getLevel(cpm);
+            
+            finalCharsEl.textContent = totalCharsTyped;
+            finalCorrectEl.textContent = correctChars;
+            finalErrorsEl.textContent = errorChars;
+            finalAccuracyEl.textContent = accuracyEl.textContent;
+            finalCPMEl.textContent = cpm;
+            levelBadgeEl.innerHTML = `<i class="${level.icon}"></i> ${level.level}`;
+            levelBadgeEl.style.background = level.color;
+            
+            const motivations = [
+                "Əla! Məşq etməyə davam et!",
+                "Çox yaxşı! Sürətin artacaq.",
+                "Təbriklər! Əla nəticə!",
+                "Möhtəşəm! Professional səviyyə!",
+                "İnanılmaz! Sən əsl ustasan!"
+            ];
+            const motivationIndex = Math.min(Math.floor(cpm / 100), motivations.length - 1);
+            motivationTextEl.textContent = motivations[motivationIndex];
+            
+            // Konfeti effekti
+            createConfetti();
+            
+            resultModal.classList.add('show');
+        }
 
-                // 8. Yaddaşa (History-ə) Model cavabını əlavə et
-                chatHistory.push({ role: "model", parts: [{ text: text }] });
+        // Yenidən başla
+        function restartGame() {
+            correctChars = 0;
+            errorChars = 0;
+            totalCharsTyped = 0;
+            updateStats();
+            
+            startBtn.style.display = 'inline-flex';
+            restartBtn.style.display = 'none';
+            timerEl.textContent = '60';
+            timerLabel.textContent = "Saniyə qaldı";
+            timerLabel.style.color = "";
+            timerCircle.style.setProperty('--progress', '0%');
+            targetTextEl.innerHTML = '<em>"Testə Başla" düyməsinə bas...</em>';
+            userInputEl.value = '';
+            userInputEl.disabled = true;
+            resultModal.classList.remove('show');
+        }
 
+        // Event listeners
+        startBtn.addEventListener('click', startGame);
+        restartBtn.addEventListener('click', restartGame);
+        playAgainBtn.addEventListener('click', () => {
+            restartGame();
+            startGame();
+        });
 
-            } catch (error) {
-                console.error('API Çağırışında Xəta:', error);
-                // Loaderi sil (xəta halında da)
-                if(chatFeedEl.lastElementChild.querySelector('#loader')) {
-                    chatFeedEl.lastElementChild.remove();
-                }
-                showError(`Xəta baş verdi: ${error.message}. Bəlkə də model incə yumorunuzu başa düşmədi?`);
-            } finally {
-                setLoading(false);
+        userInputEl.addEventListener('input', (e) => {
+            if (!gameActive) return;
+            
+            userInput = e.target.value;
+            totalCharsTyped = userInput.length;
+            
+            const lastChar = userInput[userInput.length - 1];
+            const expectedChar = currentText[userInput.length - 1];
+            
+            if (lastChar === expectedChar) {
+                correctChars++;
+                // Ripple effekti
+                const rect = userInputEl.getBoundingClientRect();
+                const x = rect.left + rect.width / 2;
+                const y = rect.top + rect.height / 2;
+                createRipple(x, y);
+            } else if (userInput.length <= currentText.length) {
+                errorChars++;
             }
-        }
-
-        function setLoading(isLoading) {
-            sendButton.disabled = isLoading;
-            userPromptEl.disabled = isLoading;
-            if (isLoading) {
-                sendButton.innerHTML = '<div class="loader"></div>';
-            } else {
-                sendButton.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-5 h-5"><path d="M22 2L11 13"/><path d="M22 2L15 22L11 13L2 9L22 2Z"/></svg>';
+            
+            updateStats();
+            updateTextDisplay();
+            
+            // Mətn tam düz yazıldıqda yeni mətn
+            if (userInput === currentText) {
+                generateNewText();
             }
-        }
+        });
 
-        function showError(message) {
-             errorMessageEl.textContent = message;
-             errorContainer.classList.remove('hidden');
-        }
-        
-        function clearError() {
-            errorContainer.classList.add('hidden');
-        }
+        // İlk yüklənmə
+        window.addEventListener('load', () => {
+            timerCircle.style.setProperty('--progress', '0%');
+        });
 
-        // Tətbiq yükləndikdə textarea-nın avtomatik böyüməsini təmin edir
-        window.onload = function() {
-            userPromptEl.addEventListener('input', () => {
-                userPromptEl.style.height = 'auto';
-                userPromptEl.style.height = userPromptEl.scrollHeight + 'px';
-            });
-        }
-
+        // Klaviatura fokus
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && !gameActive && startBtn.style.display !== 'none') {
+                startGame();
+            }
+        });
     </script>
 </body>
 </html>
