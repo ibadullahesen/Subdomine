@@ -100,6 +100,7 @@
             overflow: hidden;
             margin: 0 auto;
             border: 6px solid #fff;
+            cursor: pointer; /* Kliklənə bilən olduğunu göstərir */
         }
         #preview-profile-pic {
             width: 100%;
@@ -245,6 +246,8 @@
                         <input type="text" id="phone-input" data-target="#preview-phone" placeholder="Telefon" class="w-full bg-gray-700 border border-gray-600 rounded-md p-2 text-white placeholder-gray-400" data-i18n-key="phone" data-i18n-placeholder>
                         <input type="text" id="email-input" data-target="#preview-email" placeholder="Email" class="w-full bg-gray-700 border border-gray-600 rounded-md p-2 text-white placeholder-gray-400" data-i18n-key="email" data-i18n-placeholder>
                         <input type="text" id="address-input" data-target="#preview-address" placeholder="Ünvan" class="w-full bg-gray-700 border border-gray-600 rounded-md p-2 text-white placeholder-gray-400" data-i18n-key="address" data-i18n-placeholder>
+                        <!-- YENİ ƏLAVƏ EDİLDİ: Vebsayt inputu -->
+                        <input type="text" id="website-input" data-target="#preview-website" placeholder="Vebsayt" class="w-full bg-gray-700 border border-gray-600 rounded-md p-2 text-white placeholder-gray-400" data-i18n-key="website" data-i18n-placeholder>
                     </div>
                 </div>
                 
@@ -326,58 +329,12 @@
                                 <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-3 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clip-rule="evenodd" /></svg>
                                 <span id="preview-address" class="break-all">Ünvan</span>
                             </div>
-                        </div>
-                    </section>
-                    
-                    <!-- Bacarıqlar -->
-                    <section class="mb-10">
-                        <h5 class="cv-section-title" data-i18n-key="skillsSection">Bacarıqlar</h5>
-                        <ul id="preview-skills-list" class="list-disc list-inside space-y-2 text-sm">
-                            <!-- Nümunə -->
-                            <li>SQL Database Management</li>
-                            <li>Linux/Unix Command line</li>
-                        </ul>
-                    </section>
-                    
-                    <!-- Dillər -->
-                    <section>
-                        <h5 class="cv-section-title" data-i18n-key="languagesSection">Dillər</h5>
-                        <ul id="preview-languages-list" class="space-y-2 text-sm">
-                            <!-- Nümunə -->
-                            <li><span class="font-medium">English:</span> Proficient</li>
-                            <li><span class="font-medium">Hindi:</span> Proficient</li>
-                        </ul>
-                    </section>
-                </div>
-                
-                <!-- CV Sağ Sütun (Açıq) -->
-                <div class="cv-right-column" id="cv-right-col">
-                    <!-- Profil -->
-                    <section class="mb-10">
-                        <h5 class="cv-section-title" data-i18n-key="profileSection">Profil</h5>
-                        <p id="preview-profile" class="text-sm leading-relaxed" style="line-height: 1.6;">
-                            I am a software engineer with experience in a variety of programming languages and a track record of delivering high-quality code. I am skilled in problem-solving and have a strong background in computer science. I am a strong communicator and enjoy working collaboratively with others.
-                        </p>
-                    </section>
-                    
-                    <!-- Təcrübə -->
-                    <section class="mb-10">
-                        <h5 class="cv-section-title" data-i18n-key="experienceSection">İş Təcrübəsi</h5>
-                        <div id="preview-experience-list" class="space-y-6">
-                            <!-- Nümunə -->
-                            <div class="flex">
-                                <div class="w-1/4 text-sm font-medium text-gray-700">
-                                    Jan 2022 – Dec 2023
-                                </div>
-                                <div class="w-3/4">
-                                    <h6 class="text-base font-bold">Senior Software Developer</h6>
-                                    <p class="text-sm font-medium text-gray-600 mb-2">Company – Country</p>
-                                    <ul class="list-disc list-inside text-sm space-y-1" style="line-height: 1.6;">
-                                        <li>Developed and maintained software using Java, Python, and C++.</li>
-                                        <li>Led cross-functional teams to deliver successful software projects.</li>
-                                        <li>Write a work experience of a senior software engineer in bullet points.</li>
-                                    </ul>
-                                </div>
+                            <!-- YENİ ƏLAVƏ EDİLDİ: Vebsayt linki -->
+                            <div class="flex items-center">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-3 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
+                                    <path fill-rule="evenodd" d="M12.586 4.586a2 2 0 112.828 2.828l-3 3a2 2 0 01-2.828 0 1 1 0 00-1.414 1.414 4 4 0 005.656 0l3-3a4 4 0 00-5.656-5.656l-1.5 1.5a1 1 0 101.414 1.414l1.5-1.5zm-5 5a2 2 0 012.828 0 1 1 0 101.414-1.414 4 4 0 00-5.656 0l-3 3a4 4 0 005.656 5.656l1.5-1.5a1 1 0 10-1.414-1.414l-1.5 1.5a2 2 0 11-2.828-2.828l3-3z" clip-rule="evenodd" />
+                                </svg>
+                                <span id="preview-website" class="break-all">Vebsayt</span>
                             </div>
                         </div>
                     </section>
@@ -464,7 +421,8 @@
                 langName: "Dil (məs: İngilis dili)",
                 langLevel: "Səviyyə (məs: Əla)",
                 remove: "Sil",
-                downloading: "Yüklənir..."
+                downloading: "Yüklənir...",
+                website: "Vebsayt" // Yeni tərcümə
             },
             tr: {
                 mainTitle: "Premium CV",
@@ -508,7 +466,8 @@
                 langName: "Dil (örn: İngilizce)",
                 langLevel: "Seviye (örn: İleri Düzey)",
                 remove: "Kaldır",
-                downloading: "İndiriliyor..."
+                downloading: "İndiriliyor...",
+                website: "Web Sitesi" // Yeni tərcümə
             },
             en: {
                 mainTitle: "Premium CV",
@@ -552,12 +511,14 @@
                 langName: "Language (e.g: English)",
                 langLevel: "Level (e.g: Proficient)",
                 remove: "Remove",
-                downloading: "Downloading..."
+                downloading: "Downloading...",
+                website: "Website" // Yeni tərcümə
             }
         };
 
         let currentLang = 'az';
         let cropper;
+        let originalImageData = null; // Orijinal şəkli yadda saxlamaq üçün
 
         const langSelect = document.getElementById('language-select');
         const imageUpload = document.getElementById('image-upload');
@@ -640,7 +601,8 @@
             if (files && files.length > 0) {
                 const reader = new FileReader();
                 reader.onload = (e) => {
-                    cropperImage.src = e.target.result;
+                    originalImageData = e.target.result; // Orijinal şəkli yadda saxla
+                    cropperImage.src = originalImageData;
                     modal.style.display = 'flex';
                     
                     if (cropper) {
@@ -678,6 +640,7 @@
                     height: 200,
                 });
                 profilePicPreview.src = canvas.toDataURL('image/jpeg');
+                // originalImageData burada dəyişdirilmir, çünki yenidən kəsmək üçün orijinalı saxlamalıyıq.
                 modal.style.display = 'none';
                 cropper.destroy();
             }
@@ -938,6 +901,33 @@
             
             // Bütün inputları dinlə
             setupInputListeners();
+
+            // Profil şəklinə klikləyəndə yenidən kəsmə modalını aç
+            const profilePicContainer = document.getElementById('preview-profile-pic-container');
+            profilePicContainer.addEventListener('click', () => {
+                if (originalImageData) {
+                    cropperImage.src = originalImageData;
+                    modal.style.display = 'flex';
+                    
+                    if (cropper) {
+                        cropper.destroy();
+                    }
+                    
+                    cropper = new Cropper(cropperImage, {
+                        aspectRatio: 1 / 1,
+                        viewMode: 1,
+                        background: false,
+                        responsive: true,
+                        autoCropArea: 0.8,
+                        zoomable: true,
+                        movable: true,
+                        cropBoxResizable: true
+                    });
+                } else {
+                    // Əgər hələ şəkil yoxdursa, yükləmə düyməsinə kliklə
+                    uploadButton.click();
+                }
+            });
             
             // Başlanğıc üçün boş listələrə elementlər əlavə et
             // previewExperienceList.innerHTML = '';
