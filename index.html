@@ -1,929 +1,963 @@
 <!DOCTYPE html>
-<html lang="tr">
+<html lang="az">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Premium CV Generator</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- jsPDF (PDF Yükləmək üçün) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    
+    <!-- html2canvas (Elementi şəklə çevirmək üçün) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    
+    <!-- Cropper.js (Şəkil kəsmək üçün) -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.css" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.js"></script>
+    
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Roboto:wght@400;500;700&family=Merriweather:wght@400;700&display=swap" rel="stylesheet">
+    
     <style>
-        :root {
-            --primary-color: #3498db;
-            --secondary-color: #2c3e50;
-            --background-color: #f5f7fa;
-            --text-color: #333;
-            --border-color: #ddd;
-        }
-
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-        }
-
+        /* Əsas Səhifə Stili */
         body {
-            background-color: var(--background-color);
-            color: var(--text-color);
-            display: flex;
-            flex-direction: column;
-            height: 100vh;
-            overflow: hidden;
+            font-family: 'Inter', sans-serif;
         }
 
-        .header {
-            background-color: var(--secondary-color);
-            color: white;
-            padding: 15px 20px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        /* Editor panelinin scrollbarı */
+        #editor-pane::-webkit-scrollbar {
+            width: 8px;
+        }
+        #editor-pane::-webkit-scrollbar-thumb {
+            background-color: #4f46e5; /* premium rəng */
+            border-radius: 10px;
+        }
+        #editor-pane::-webkit-scrollbar-track {
+            background-color: #1f2937; /* arxa fon */
         }
 
-        .logo {
-            font-size: 24px;
-            font-weight: bold;
+        /* Preview panelinin scrollbarı */
+        #preview-pane::-webkit-scrollbar {
+            width: 8px;
         }
-
-        .language-selector {
-            display: flex;
-            gap: 10px;
+        #preview-pane::-webkit-scrollbar-thumb {
+            background-color: #d1d5db;
+            border-radius: 10px;
         }
-
-        .lang-btn {
-            background: none;
-            border: 1px solid rgba(255,255,255,0.3);
-            color: white;
-            padding: 5px 10px;
-            border-radius: 4px;
-            cursor: pointer;
-            transition: all 0.3s;
-        }
-
-        .lang-btn.active {
-            background-color: var(--primary-color);
-            border-color: var(--primary-color);
-        }
-
-        .main-container {
-            display: flex;
-            flex: 1;
-            overflow: hidden;
-        }
-
-        .editor-panel {
-            width: 40%;
-            background-color: white;
-            padding: 20px;
-            overflow-y: auto;
-            box-shadow: 2px 0 5px rgba(0,0,0,0.1);
-            display: flex;
-            flex-direction: column;
-            gap: 20px;
-        }
-
-        .preview-panel {
-            width: 60%;
-            background-color: #e9ecef;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            padding: 20px;
-            position: relative;
-            overflow: auto;
-        }
-
-        .a4-container {
-            background-color: white;
+        
+        /* A4 Kağız Görünüşü */
+        #cv-preview {
             width: 210mm;
             min-height: 297mm;
-            box-shadow: 0 0 10px rgba(0,0,0,0.1);
-            padding: 20mm;
-            position: relative;
-            transition: transform 0.3s;
+            /* Yüklənən şəkildəki kimi sol tünd, sağ açıq rəng */
+            display: flex;
+        }
+        
+        /* Çap edilərkən rənglərin görünməsi üçün */
+        @media print {
+            body {
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+            }
+            #controls, #editor-pane {
+                display: none !important;
+            }
+            #preview-pane {
+                width: 100% !important;
+                height: 100% !important;
+                overflow: visible !important;
+            }
+            #cv-preview {
+                box-shadow: none !important;
+                margin: 0 !important;
+            }
         }
 
-        .section {
-            margin-bottom: 20px;
+        /* Cropper.js modalı üçün */
+        #image-cropper-modal {
+            display: none; /* Standart olaraq gizli */
         }
-
-        .section-title {
-            font-size: 18px;
-            font-weight: bold;
-            margin-bottom: 10px;
-            color: var(--secondary-color);
-            border-bottom: 1px solid var(--border-color);
-            padding-bottom: 5px;
-        }
-
-        .form-group {
-            margin-bottom: 15px;
-        }
-
-        label {
-            display: block;
-            margin-bottom: 5px;
-            font-weight: 500;
-        }
-
-        input, textarea, select {
+        #cropper-image-container {
             width: 100%;
-            padding: 8px 10px;
-            border: 1px solid var(--border-color);
-            border-radius: 4px;
-            font-size: 14px;
+            height: 400px;
         }
-
-        textarea {
-            min-height: 80px;
-            resize: vertical;
-        }
-
-        .image-upload {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 10px;
-            margin-bottom: 15px;
-        }
-
-        .image-preview {
-            width: 150px;
-            height: 150px;
-            border-radius: 50%;
-            overflow: hidden;
-            border: 2px solid var(--border-color);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            background-color: #f8f9fa;
-        }
-
-        .image-preview img {
+        #cropper-image-container img {
+            display: block;
             max-width: 100%;
-            max-height: 100%;
-            object-fit: cover;
         }
-
-        .image-controls {
-            display: flex;
-            gap: 10px;
-            flex-wrap: wrap;
-            justify-content: center;
-        }
-
-        .btn {
-            padding: 8px 15px;
-            background-color: var(--primary-color);
-            color: white;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-            transition: background-color 0.3s;
-            font-size: 14px;
-        }
-
-        .btn:hover {
-            background-color: #2980b9;
-        }
-
-        .btn-secondary {
-            background-color: #6c757d;
-        }
-
-        .btn-secondary:hover {
-            background-color: #5a6268;
-        }
-
-        .download-btn {
-            position: fixed;
-            bottom: 20px;
-            right: 20px;
-            padding: 12px 25px;
-            background-color: #27ae60;
-            font-size: 16px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
-        }
-
-        .download-btn:hover {
-            background-color: #219653;
-        }
-
-        .controls-group {
-            display: flex;
-            gap: 10px;
-            align-items: center;
-        }
-
-        .controls-group input[type="range"] {
-            flex: 1;
-        }
-
-        .value-display {
-            min-width: 40px;
-            text-align: center;
-        }
-
-        .color-picker {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-
-        .color-input {
-            width: 40px !important;
-            height: 40px;
-            padding: 0;
-            border: none;
-            cursor: pointer;
-        }
-
-        .resume-header {
-            display: flex;
-            align-items: center;
-            margin-bottom: 20px;
-        }
-
-        .resume-photo {
-            width: 120px;
-            height: 120px;
+        
+        /* CV-dəki profil şəkli üçün */
+        #preview-profile-pic-container {
+            width: 180px;
+            height: 180px;
             border-radius: 50%;
+            background-color: #e0e0e0; /* Placeholder */
             overflow: hidden;
-            margin-right: 20px;
-            border: 2px solid var(--border-color);
+            margin: 0 auto;
+            border: 6px solid #fff;
         }
-
-        .resume-photo img {
+        #preview-profile-pic {
             width: 100%;
             height: 100%;
             object-fit: cover;
         }
-
-        .resume-info {
-            flex: 1;
+        
+        /* Sol tünd sütun stilləri */
+        .cv-left-column {
+            width: 35%;
+            background-color: #2c3e50; /* Tünd göy rəng */
+            color: #ffffff;
+            padding: 2.5rem;
         }
-
-        .resume-name {
-            font-size: 28px;
-            font-weight: bold;
-            margin-bottom: 5px;
+        
+        /* Sağ açıq sütun stilləri */
+        .cv-right-column {
+            width: 65%;
+            background-color: #ffffff;
+            color: #333;
+            padding: 2.5rem;
         }
-
-        .resume-title {
-            font-size: 18px;
-            color: var(--primary-color);
-            margin-bottom: 10px;
+        
+        /* CV başlıqları */
+        .cv-section-title {
+            font-size: 1.25rem; /* 20px */
+            font-weight: 700;
+            padding-bottom: 0.5rem; /* 8px */
+            margin-bottom: 1rem; /* 16px */
+            text-transform: uppercase;
+            letter-spacing: 1px;
         }
-
-        .resume-contact {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 15px;
-            font-size: 14px;
+        
+        .cv-left-column .cv-section-title {
+            border-bottom: 2px solid #ffffff;
         }
-
-        .resume-section {
-            margin-bottom: 20px;
+        .cv-right-column .cv-section-title {
+            border-bottom: 2px solid #2c3e50;
         }
-
-        .resume-section-title {
-            font-size: 18px;
-            font-weight: bold;
-            margin-bottom: 10px;
-            color: var(--secondary-color);
-            border-bottom: 1px solid var(--border-color);
-            padding-bottom: 5px;
+        
+        /* Yükləmə spinneri */
+        #loader {
+            display: none;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            border: 8px solid #f3f3f3;
+            border-top: 8px solid #4f46e5;
+            border-radius: 50%;
+            width: 60px;
+            height: 60px;
+            animation: spin 1s linear infinite;
+            z-index: 10000;
         }
-
-        .resume-item {
-            margin-bottom: 15px;
+        @keyframes spin {
+            0% { transform: translate(-50%, -50%) rotate(0deg); }
+            100% { transform: translate(-50%, -50%) rotate(360deg); }
         }
-
-        .resume-item-title {
-            font-weight: bold;
-            margin-bottom: 5px;
-        }
-
-        .resume-item-subtitle {
-            font-style: italic;
-            color: #666;
-            margin-bottom: 5px;
-        }
-
-        .resume-item-date {
-            color: #888;
-            font-size: 14px;
-            margin-bottom: 5px;
-        }
-
-        .resume-skills {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 10px;
-        }
-
-        .skill-tag {
-            background-color: var(--primary-color);
-            color: white;
-            padding: 5px 10px;
-            border-radius: 15px;
-            font-size: 14px;
-        }
-
-        @media print {
-            body * {
-                visibility: hidden;
-            }
-            .a4-container, .a4-container * {
-                visibility: visible;
-            }
-            .a4-container {
-                position: absolute;
-                left: 0;
-                top: 0;
-                width: 100%;
-                box-shadow: none;
-            }
+        #loader-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 9999;
         }
     </style>
 </head>
-<body>
-    <div class="header">
-        <div class="logo">Premium CV Generator</div>
-        <div class="language-selector">
-            <button class="lang-btn active" data-lang="az">AZ</button>
-            <button class="lang-btn" data-lang="tr">TR</button>
-            <button class="lang-btn" data-lang="en">EN</button>
-        </div>
-    </div>
+<body class="bg-gray-900 text-white">
 
-    <div class="main-container">
-        <div class="editor-panel">
-            <div class="section">
-                <div class="section-title" data-key="personalInfo">Şəxsi Məlumatlar</div>
-                <div class="form-group">
-                    <label for="fullName" data-key="fullName">Ad Soyad</label>
-                    <input type="text" id="fullName" placeholder="Adınızı və soyadınızı daxil edin">
-                </div>
-                <div class="form-group">
-                    <label for="jobTitle" data-key="jobTitle">İş Titulu</label>
-                    <input type="text" id="jobTitle" placeholder="Məsələn: Veb Developer">
-                </div>
-                <div class="form-group">
-                    <label for="email" data-key="email">E-poçt</label>
-                    <input type="email" id="email" placeholder="example@mail.com">
-                </div>
-                <div class="form-group">
-                    <label for="phone" data-key="phone">Telefon</label>
-                    <input type="text" id="phone" placeholder="+994 XX XXX XX XX">
-                </div>
-                <div class="form-group">
-                    <label for="address" data-key="address">Ünvan</label>
-                    <input type="text" id="address" placeholder="Yaşadığınız ünvan">
-                </div>
-            </div>
+    <!-- Yükləmə Spinneri -->
+    <div id="loader-overlay"></div>
+    <div id="loader"></div>
+    
+    <!-- Əsas Layout -->
+    <div class="flex flex-col lg:flex-row h-screen">
+        
+        <!-- Sol: Editor Paneli -->
+        <div id="editor-pane" class="w-full lg:w-1/3 xl:w-1/4 h-1/2 lg:h-screen bg-gray-800 p-6 overflow-y-auto shadow-lg">
+            
+            <!-- Üst Kontrol Paneli -->
+            <div class="mb-6 pb-6 border-b border-gray-700">
+                <h1 class="text-3xl font-bold text-indigo-400" data-i18n-key="mainTitle">Premium CV</h1>
+                <p class="text-gray-400" data-i18n-key="mainSubtitle">Məlumatları daxil edin və CV-nizi real-time görün.</p>
 
-            <div class="section">
-                <div class="section-title" data-key="profilePhoto">Profil Şəkli</div>
-                <div class="image-upload">
-                    <div class="image-preview">
-                        <img id="photoPreview" src="" alt="Profil şəkli" style="display: none;">
-                        <span data-key="noPhoto">Şəkil yoxdur</span>
-                    </div>
-                    <input type="file" id="photoUpload" accept="image/*" style="display: none;">
-                    <button class="btn" id="uploadBtn" data-key="selectPhoto">Şəkil Seç</button>
-                    <div class="image-controls">
-                        <button class="btn btn-secondary" id="zoomInBtn">Böyüt</button>
-                        <button class="btn btn-secondary" id="zoomOutBtn">Kiçilt</button>
-                        <button class="btn btn-secondary" id="cropBtn">Kırp</button>
-                        <button class="btn btn-secondary" id="resetPhotoBtn">Sıfırla</button>
-                    </div>
-                </div>
-            </div>
-
-            <div class="section">
-                <div class="section-title" data-key="professionalSummary">Peşəkar Xülasə</div>
-                <div class="form-group">
-                    <textarea id="summary" placeholder="Özünüz haqqında qısa məlumat"></textarea>
-                </div>
-            </div>
-
-            <div class="section">
-                <div class="section-title" data-key="workExperience">İş Təcrübəsi</div>
-                <div class="form-group">
-                    <label for="company" data-key="company">Şirkət</label>
-                    <input type="text" id="company" placeholder="Şirkət adı">
-                </div>
-                <div class="form-group">
-                    <label for="position" data-key="position">Vəzifə</label>
-                    <input type="text" id="position" placeholder="İşlədiyiniz vəzifə">
-                </div>
-                <div class="form-group">
-                    <label for="workDate" data-key="workPeriod">İşləmə Müddəti</label>
-                    <input type="text" id="workDate" placeholder="Məsələn: 2020-2022">
-                </div>
-                <div class="form-group">
-                    <label for="workDescription" data-key="description">Təsvir</label>
-                    <textarea id="workDescription" placeholder="İş təcrübənizin təsviri"></textarea>
-                </div>
-                <button class="btn" id="addExperienceBtn" data-key="addExperience">Təcrübə Əlavə Et</button>
-            </div>
-
-            <div class="section">
-                <div class="section-title" data-key="education">Təhsil</div>
-                <div class="form-group">
-                    <label for="school" data-key="school">Təhsil Müəssisəsi</label>
-                    <input type="text" id="school" placeholder="Universitet və ya məktəb adı">
-                </div>
-                <div class="form-group">
-                    <label for="degree" data-key="degree">Dərəcə</label>
-                    <input type="text" id="degree" placeholder="Məsələn: Bakalavr">
-                </div>
-                <div class="form-group">
-                    <label for="educationDate" data-key="educationPeriod">Təhsil Müddəti</label>
-                    <input type="text" id="educationDate" placeholder="Məsələn: 2016-2020">
-                </div>
-                <button class="btn" id="addEducationBtn" data-key="addEducation">Təhsil Əlavə Et</button>
-            </div>
-
-            <div class="section">
-                <div class="section-title" data-key="skills">Bacarıqlar</div>
-                <div class="form-group">
-                    <label for="skillInput" data-key="skill">Bacarıq</label>
-                    <input type="text" id="skillInput" placeholder="Məsələn: JavaScript">
-                </div>
-                <button class="btn" id="addSkillBtn" data-key="addSkill">Bacarıq Əlavə Et</button>
-            </div>
-
-            <div class="section">
-                <div class="section-title" data-key="designSettings">Dizayn Parametrləri</div>
-                <div class="form-group">
-                    <label for="fontFamily" data-key="fontFamily">Şrift Növü</label>
-                    <select id="fontFamily">
-                        <option value="Arial, sans-serif">Arial</option>
-                        <option value="'Times New Roman', serif">Times New Roman</option>
-                        <option value="'Segoe UI', Tahoma, Geneva, Verdana, sans-serif">Segoe UI</option>
-                        <option value="Georgia, serif">Georgia</option>
-                        <option value="'Courier New', monospace">Courier New</option>
+                <!-- Dil Seçimi -->
+                <div class="mt-4">
+                    <label for="language-select" class="block text-sm font-medium text-gray-300" data-i18n-key="language">Dil</label>
+                    <select id="language-select" class="mt-1 block w-full bg-gray-700 border border-gray-600 rounded-md shadow-sm py-2 px-3 text-white focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                        <option value="az">Azərbaycanca</option>
+                        <option value="tr">Türkçe</option>
+                        <option value="en">English</option>
                     </select>
                 </div>
-                <div class="form-group">
-                    <label for="fontSize" data-key="fontSize">Şrift Ölçüsü</label>
-                    <div class="controls-group">
-                        <input type="range" id="fontSize" min="10" max="24" value="14">
-                        <span class="value-display" id="fontSizeValue">14px</span>
+                
+                <!-- Yükləmə Düyməsi -->
+                <button id="download-pdf" class="mt-6 w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-4 rounded-lg transition duration-300 ease-in-out flex items-center justify-center space-x-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clip-rule="evenodd" />
+                    </svg>
+                    <span data-i18n-key="downloadPDF">PDF olaraq Yüklə</span>
+                </button>
+            </div>
+
+            <!-- Stil Ayarları (Accordion) -->
+            <div class="space-y-4">
+                <!-- Rəng Ayarları -->
+                <div>
+                    <h3 class="text-xl font-semibold mb-3" data-i18n-key="styleSettings">Stil Ayarları</h3>
+                    <div>
+                        <label for="color-picker" class="block text-sm font-medium text-gray-300" data-i18n-key="primaryColor">Əsas Rəng (Sol Sütun)</label>
+                        <input type="color" id="color-picker" value="#2c3e50" class="mt-1 w-full h-10 p-1 border border-gray-600 rounded-md">
+                    </div>
+                     <div class="mt-2">
+                        <label for="font-family-select" class="block text-sm font-medium text-gray-300" data-i18n-key="fontFamily">Şrift Ailəsi</label>
+                        <select id="font-family-select" class="mt-1 block w-full bg-gray-700 border border-gray-600 rounded-md shadow-sm py-2 px-3 text-white focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                            <option value="'Inter', sans-serif">Inter (Standard)</option>
+                            <option value="'Roboto', sans-serif">Roboto</option>
+                            <option value="'Merriweather', serif">Merriweather (Serif)</option>
+                            <option value="'Times New Roman', Times, serif">Times New Roman</option>
+                        </select>
+                    </div>
+                    <div class="mt-2">
+                        <label for="font-size-slider" class="block text-sm font-medium text-gray-300" data-i18n-key="fontSize">Əsas Mətn Ölçüsü (px)</label>
+                        <input type="range" id="font-size-slider" min="12" max="18" value="14" class="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer">
+                        <span id="font-size-value" class="text-sm text-gray-400">14px</span>
                     </div>
                 </div>
-                <div class="form-group">
-                    <label for="lineHeight" data-key="lineHeight">Sətir Hündürlüyü</label>
-                    <div class="controls-group">
-                        <input type="range" id="lineHeight" min="1" max="2" step="0.1" value="1.4">
-                        <span class="value-display" id="lineHeightValue">1.4</span>
+
+                <!-- Şəxsi Məlumatlar -->
+                <div>
+                    <h3 class="text-xl font-semibold mb-3" data-i18n-key="personalInfo">Şəxsi Məlumatlar</h3>
+                    <div class="space-y-3">
+                        <button id="upload-image-button" class="w-full bg-gray-700 hover:bg-gray-600 text-white font-medium py-2 px-4 rounded-lg transition duration-300" data-i18n-key="uploadImage">Profil Şəkli Yüklə</button>
+                        <input type="file" id="image-upload" accept="image/*" class="hidden">
+                        
+                        <input type="text" id="name-input" data-target="#preview-name" placeholder="Ad Soyad" class="w-full bg-gray-700 border border-gray-600 rounded-md p-2 text-white placeholder-gray-400" data-i18n-key="fullName" data-i18n-placeholder>
+                        <input type="text" id="title-input" data-target="#preview-title" placeholder="Peşə / Vəzifə" class="w-full bg-gray-700 border border-gray-600 rounded-md p-2 text-white placeholder-gray-400" data-i18n-key="jobTitle" data-i18n-placeholder>
+                        
+                        <input type="text" id="phone-input" data-target="#preview-phone" placeholder="Telefon" class="w-full bg-gray-700 border border-gray-600 rounded-md p-2 text-white placeholder-gray-400" data-i18n-key="phone" data-i18n-placeholder>
+                        <input type="text" id="email-input" data-target="#preview-email" placeholder="Email" class="w-full bg-gray-700 border border-gray-600 rounded-md p-2 text-white placeholder-gray-400" data-i18n-key="email" data-i18n-placeholder>
+                        <input type="text" id="address-input" data-target="#preview-address" placeholder="Ünvan" class="w-full bg-gray-700 border border-gray-600 rounded-md p-2 text-white placeholder-gray-400" data-i18n-key="address" data-i18n-placeholder>
                     </div>
                 </div>
-                <div class="form-group">
-                    <label for="primaryColor" data-key="primaryColor">Əsas Rəng</label>
-                    <div class="color-picker">
-                        <input type="color" id="primaryColor" class="color-input" value="#3498db">
-                        <span id="primaryColorValue">#3498db</span>
-                    </div>
+                
+                <!-- Profil (Haqqında) -->
+                <div>
+                    <h3 class="text-xl font-semibold mb-3" data-i18n-key="profileSection">Profil</h3>
+                    <textarea id="profile-input" data-target="#preview-profile" rows="5" placeholder="Özünüz haqqında qısa məlumat..." class="w-full bg-gray-700 border border-gray-600 rounded-md p-2 text-white placeholder-gray-400" data-i18n-key="profilePlaceholder" data-i18n-placeholder></textarea>
                 </div>
-                <div class="form-group">
-                    <label for="secondaryColor" data-key="secondaryColor">İkinci Rəng</label>
-                    <div class="color-picker">
-                        <input type="color" id="secondaryColor" class="color-input" value="#2c3e50">
-                        <span id="secondaryColorValue">#2c3e50</span>
+                
+                <!-- Təcrübə -->
+                <div>
+                    <h3 class="text-xl font-semibold mb-3" data-i18n-key="experienceSection">İş Təcrübəsi</h3>
+                    <div id="experience-list" class="space-y-3">
+                        <!-- Təcrübə Nümunəsi (Dinamik əlavə olunacaq) -->
                     </div>
+                    <button id="add-experience" class="mt-3 w-full bg-gray-700 hover:bg-gray-600 text-white font-medium py-2 px-4 rounded-lg transition duration-300" data-i18n-key="addExperience">Təcrübə Əlavə Et</button>
                 </div>
+                
+                <!-- Təhsil -->
+                <div>
+                    <h3 class="text-xl font-semibold mb-3" data-i18n-key="educationSection">Təhsil</h3>
+                    <div id="education-list" class="space-y-3">
+                        <!-- Təhsil Nümunəsi (Dinamik əlavə olunacaq) -->
+                    </div>
+                    <button id="add-education" class="mt-3 w-full bg-gray-700 hover:bg-gray-600 text-white font-medium py-2 px-4 rounded-lg transition duration-300" data-i18n-key="addEducation">Təhsil Əlavə Et</button>
+                </div>
+                
+                <!-- Bacarıqlar (Sol Sütun) -->
+                <div>
+                    <h3 class="text-xl font-semibold mb-3" data-i18n-key="skillsSection">Bacarıqlar</h3>
+                    <div id="skills-list" class="space-y-3">
+                        <!-- Bacarıq Nümunəsi -->
+                    </div>
+                    <button id="add-skill" class="mt-3 w-full bg-gray-700 hover:bg-gray-600 text-white font-medium py-2 px-4 rounded-lg transition duration-300" data-i18n-key="addSkill">Bacarıq Əlavə Et</button>
+                </div>
+                
+                <!-- Dillər (Sol Sütun) -->
+                <div>
+                    <h3 class="text-xl font-semibold mb-3" data-i18n-key="languagesSection">Dillər</h3>
+                    <div id="languages-list" class="space-y-3">
+                        <!-- Dil Nümunəsi -->
+                    </div>
+                    <button id="add-language" class="mt-3 w-full bg-gray-700 hover:bg-gray-600 text-white font-medium py-2 px-4 rounded-lg transition duration-300" data-i18n-key="addLanguage">Dil Əlavə Et</button>
+                </div>
+
             </div>
         </div>
 
-        <div class="preview-panel">
-            <div class="a4-container" id="resumePreview">
-                <div class="resume-header">
-                    <div class="resume-photo">
-                        <img id="resumePhoto" src="" alt="" style="display: none;">
+        <!-- Sağ: Real-time CV Önizləmə -->
+        <div id="preview-pane" class="w-full lg:w-2/3 xl:w-3/4 h-1/2 lg:h-screen bg-gray-900 p-8 overflow-y-auto">
+            <div id="cv-preview" class="bg-white text-black shadow-2xl mx-auto rounded-lg overflow-hidden">
+                
+                <!-- CV Sol Sütun (Tünd) -->
+                <div class="cv-left-column" id="cv-left-col">
+                    <!-- Profil Şəkli -->
+                    <div id="preview-profile-pic-container" class="mb-8">
+                        <img id="preview-profile-pic" src="https://placehold.co/180x180/e0e0e0/999999?text=Şəkil+Yüklə" alt="Profil Şəkli">
                     </div>
-                    <div class="resume-info">
-                        <div class="resume-name" id="previewName">Ad Soyad</div>
-                        <div class="resume-title" id="previewTitle">İş Titulu</div>
-                        <div class="resume-contact">
-                            <div id="previewEmail">example@mail.com</div>
-                            <div id="previewPhone">+994 XX XXX XX XX</div>
-                            <div id="previewAddress">Ünvan</div>
+                    
+                    <!-- Ad və Vəzifə -->
+                    <div class="text-center mb-10">
+                        <h2 id="preview-name" class="text-3xl font-bold break-words">Ad Soyad</h2>
+                        <h4 id="preview-title" class="text-xl font-light text-gray-300 break-words">Peşə / Vəzifə</h4>
+                    </div>
+
+                    <!-- Əlaqə -->
+                    <section class="mb-10">
+                        <h5 class="cv-section-title" data-i18n-key="contactSection">Əlaqə</h5>
+                        <div class="space-y-3 text-sm">
+                            <div class="flex items-center">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-3 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor"><path d="M2 3a1 1 0 011-1h2.153a1 1 0 01.986.836l.74 4.435a1 1 0 01-.54 1.06l-1.548.773a11.037 11.037 0 006.105 6.105l.774-1.548a1 1 0 011.059-.54l4.435.74a1 1 0 01.836.986V17a1 1 0 01-1 1h-2C7.82 18 2 12.18 2 5V3z" /></svg>
+                                <span id="preview-phone" class="break-all">Telefon</span>
+                            </div>
+                            <div class="flex items-center">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-3 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor"><path d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z" /><path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z" /></svg>
+                                <span id="preview-email" class="break-all">Email</span>
+                            </div>
+                            <div class="flex items-center">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-3 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clip-rule="evenodd" /></svg>
+                                <span id="preview-address" class="break-all">Ünvan</span>
+                            </div>
                         </div>
-                    </div>
+                    </section>
+                    
+                    <!-- Bacarıqlar -->
+                    <section class="mb-10">
+                        <h5 class="cv-section-title" data-i18n-key="skillsSection">Bacarıqlar</h5>
+                        <ul id="preview-skills-list" class="list-disc list-inside space-y-2 text-sm">
+                            <!-- Nümunə -->
+                            <li>SQL Database Management</li>
+                            <li>Linux/Unix Command line</li>
+                        </ul>
+                    </section>
+                    
+                    <!-- Dillər -->
+                    <section>
+                        <h5 class="cv-section-title" data-i18n-key="languagesSection">Dillər</h5>
+                        <ul id="preview-languages-list" class="space-y-2 text-sm">
+                            <!-- Nümunə -->
+                            <li><span class="font-medium">English:</span> Proficient</li>
+                            <li><span class="font-medium">Hindi:</span> Proficient</li>
+                        </ul>
+                    </section>
                 </div>
-
-                <div class="resume-section">
-                    <div class="resume-section-title" data-key="professionalSummary">Peşəkar Xülasə</div>
-                    <div class="resume-item">
-                        <div id="previewSummary">Burada peşəkar xülasəniz görünəcək.</div>
-                    </div>
-                </div>
-
-                <div class="resume-section">
-                    <div class="resume-section-title" data-key="workExperience">İş Təcrübəsi</div>
-                    <div id="previewExperience">
-                        <div class="resume-item">
-                            <div class="resume-item-title">Şirkət Adı</div>
-                            <div class="resume-item-subtitle">Vəzifə</div>
-                            <div class="resume-item-date">İşləmə Müddəti</div>
-                            <div>İş təsviri burada görünəcək.</div>
+                
+                <!-- CV Sağ Sütun (Açıq) -->
+                <div class="cv-right-column" id="cv-right-col">
+                    <!-- Profil -->
+                    <section class="mb-10">
+                        <h5 class="cv-section-title" data-i18n-key="profileSection">Profil</h5>
+                        <p id="preview-profile" class="text-sm leading-relaxed" style="line-height: 1.6;">
+                            I am a software engineer with experience in a variety of programming languages and a track record of delivering high-quality code. I am skilled in problem-solving and have a strong background in computer science. I am a strong communicator and enjoy working collaboratively with others.
+                        </p>
+                    </section>
+                    
+                    <!-- Təcrübə -->
+                    <section class="mb-10">
+                        <h5 class="cv-section-title" data-i18n-key="experienceSection">İş Təcrübəsi</h5>
+                        <div id="preview-experience-list" class="space-y-6">
+                            <!-- Nümunə -->
+                            <div class="flex">
+                                <div class="w-1/4 text-sm font-medium text-gray-700">
+                                    Jan 2022 – Dec 2023
+                                </div>
+                                <div class="w-3/4">
+                                    <h6 class="text-base font-bold">Senior Software Developer</h6>
+                                    <p class="text-sm font-medium text-gray-600 mb-2">Company – Country</p>
+                                    <ul class="list-disc list-inside text-sm space-y-1" style="line-height: 1.6;">
+                                        <li>Developed and maintained software using Java, Python, and C++.</li>
+                                        <li>Led cross-functional teams to deliver successful software projects.</li>
+                                        <li>Write a work experience of a senior software engineer in bullet points.</li>
+                                    </ul>
+                                </div>
+                            </div>
                         </div>
-                    </div>
-                </div>
-
-                <div class="resume-section">
-                    <div class="resume-section-title" data-key="education">Təhsil</div>
-                    <div id="previewEducation">
-                        <div class="resume-item">
-                            <div class="resume-item-title">Təhsil Müəssisəsi</div>
-                            <div class="resume-item-subtitle">Dərəcə</div>
-                            <div class="resume-item-date">Təhsil Müddəti</div>
+                    </section>
+                    
+                    <!-- Təhsil -->
+                    <section>
+                        <h5 class="cv-section-title" data-i18n-key="educationSection">Təhsil</h5>
+                        <div id="preview-education-list" class="space-y-6">
+                            <!-- Nümunə -->
+                             <div class="flex">
+                                <div class="w-1/4 text-sm font-medium text-gray-700">
+                                    Jan 2019 – Dec 2020
+                                </div>
+                                <div class="w-3/4">
+                                    <h6 class="text-base font-bold">Masters in Software Engineering</h6>
+                                    <p class="text-sm font-medium text-gray-600 mb-2">XYX University, Bangalore</p>
+                                </div>
+                            </div>
                         </div>
-                    </div>
+                    </section>
                 </div>
 
-                <div class="resume-section">
-                    <div class="resume-section-title" data-key="skills">Bacarıqlar</div>
-                    <div class="resume-skills" id="previewSkills">
-                        <div class="skill-tag">Nümunə Bacarıq</div>
-                    </div>
-                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Şəkil Kəsmə Modalı (Cropper.js) -->
+    <div id="image-cropper-modal" class="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
+        <div class="bg-gray-800 rounded-lg shadow-xl p-6 w-full max-w-2xl">
+            <h3 class="text-2xl font-semibold mb-4" data-i18n-key="cropImageTitle">Şəkli Tənzimləyin</h3>
+            <p class="text-gray-400 mb-4" data-i18n-key="cropImageSubtitle">İstədiyiniz sahəni seçin, böyüdüb-kiçildin və təsdiqləyin.</p>
+            <div id="cropper-image-container">
+                <img id="cropper-image" src="">
+            </div>
+            <div class="flex justify-end space-x-4 mt-6">
+                <button id="cancel-crop" class="bg-gray-600 hover:bg-gray-700 text-white font-medium py-2 px-6 rounded-lg transition duration-300" data-i18n-key="cancel">Ləğv Et</button>
+                <button id="confirm-crop" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-6 rounded-lg transition duration-300" data-i18n-key="confirm">Təsdiqlə</button>
             </div>
         </div>
     </div>
 
-    <button class="btn download-btn" id="downloadBtn" data-key="downloadCV">CV-ni Yüklə</button>
-
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-    <script>
-        // Dil dəyişdirmə funksionallığı
+    <script type="module">
+        // Tərcümə Məlumatları
         const translations = {
             az: {
+                mainTitle: "Premium CV",
+                mainSubtitle: "Məlumatları daxil edin və CV-nizi real-time görün.",
+                language: "Dil",
+                downloadPDF: "PDF olaraq Yüklə",
+                styleSettings: "Stil Ayarları",
+                primaryColor: "Əsas Rəng (Sol Sütun)",
+                fontFamily: "Şrift Ailəsi",
+                fontSize: "Əsas Mətn Ölçüsü (px)",
                 personalInfo: "Şəxsi Məlumatlar",
+                uploadImage: "Profil Şəkli Yüklə",
                 fullName: "Ad Soyad",
-                jobTitle: "İş Titulu",
-                email: "E-poçt",
+                jobTitle: "Peşə / Vəzifə",
                 phone: "Telefon",
+                email: "Email",
                 address: "Ünvan",
-                profilePhoto: "Profil Şəkli",
-                noPhoto: "Şəkil yoxdur",
-                selectPhoto: "Şəkil Seç",
-                professionalSummary: "Peşəkar Xülasə",
-                workExperience: "İş Təcrübəsi",
-                company: "Şirkət",
-                position: "Vəzifə",
-                workPeriod: "İşləmə Müddəti",
-                description: "Təsvir",
+                profileSection: "Profil",
+                profilePlaceholder: "Özünüz haqqında qısa məlumat...",
+                experienceSection: "İş Təcrübəsi",
                 addExperience: "Təcrübə Əlavə Et",
-                education: "Təhsil",
-                school: "Təhsil Müəssisəsi",
-                degree: "Dərəcə",
-                educationPeriod: "Təhsil Müddəti",
+                educationSection: "Təhsil",
                 addEducation: "Təhsil Əlavə Et",
-                skills: "Bacarıqlar",
-                skill: "Bacarıq",
+                skillsSection: "Bacarıqlar",
                 addSkill: "Bacarıq Əlavə Et",
-                designSettings: "Dizayn Parametrləri",
-                fontFamily: "Şrift Növü",
-                fontSize: "Şrift Ölçüsü",
-                lineHeight: "Sətir Hündürlüyü",
-                primaryColor: "Əsas Rəng",
-                secondaryColor: "İkinci Rəng",
-                downloadCV: "CV-ni Yüklə"
+                languagesSection: "Dillər",
+                addLanguage: "Dil Əlavə Et",
+                contactSection: "Əlaqə",
+                cropImageTitle: "Şəkli Tənzimləyin",
+                cropImageSubtitle: "İstədiyiniz sahəni seçin, böyüdüb-kiçildin və təsdiqləyin.",
+                cancel: "Ləğv Et",
+                confirm: "Təsdiqlə",
+                expJobTitle: "Vəzifə",
+                expCompany: "Şirkət, Ölkə",
+                expDates: "Tarixlər (məs: Yan 2020 - Fev 2022)",
+                expDesc: "Açıqlama (hər bənd yeni sətirdə)",
+                eduDegree: "İxtisas / Dərəcə",
+                eduUni: "Universitet, Ölkə",
+                eduDates: "Tarixlər (məs: Sen 2018 - İyn 2022)",
+                skillName: "Bacarıq (məs: JavaScript)",
+                langName: "Dil (məs: İngilis dili)",
+                langLevel: "Səviyyə (məs: Əla)",
+                remove: "Sil",
+                downloading: "Yüklənir..."
             },
             tr: {
+                mainTitle: "Premium CV",
+                mainSubtitle: "Bilgileri girin ve CV'nizi gerçek zamanlı görün.",
+                language: "Dil",
+                downloadPDF: "PDF Olarak İndir",
+                styleSettings: "Stil Ayarları",
+                primaryColor: "Ana Renk (Sol Sütun)",
+                fontFamily: "Yazı Tipi Ailesi",
+                fontSize: "Ana Metin Boyutu (px)",
                 personalInfo: "Kişisel Bilgiler",
+                uploadImage: "Profil Fotoğrafı Yükle",
                 fullName: "Ad Soyad",
-                jobTitle: "İş Unvanı",
-                email: "E-posta",
+                jobTitle: "Unvan / Pozisyon",
                 phone: "Telefon",
+                email: "E-posta",
                 address: "Adres",
-                profilePhoto: "Profil Fotoğrafı",
-                noPhoto: "Fotoğraf yok",
-                selectPhoto: "Fotoğraf Seç",
-                professionalSummary: "Profesyonel Özet",
-                workExperience: "İş Deneyimi",
-                company: "Şirket",
-                position: "Pozisyon",
-                workPeriod: "Çalışma Süresi",
-                description: "Açıklama",
+                profileSection: "Profil",
+                profilePlaceholder: "Hakkınızda kısa bir özet...",
+                experienceSection: "İş Deneyimi",
                 addExperience: "Deneyim Ekle",
-                education: "Eğitim",
-                school: "Eğitim Kurumu",
-                degree: "Derece",
-                educationPeriod: "Eğitim Süresi",
+                educationSection: "Eğitim",
                 addEducation: "Eğitim Ekle",
-                skills: "Yetenekler",
-                skill: "Yetenek",
-                addSkill: "Yetenek Ekle",
-                designSettings: "Tasarım Ayarları",
-                fontFamily: "Yazı Tipi",
-                fontSize: "Yazı Boyutu",
-                lineHeight: "Satır Yüksekliği",
-                primaryColor: "Ana Renk",
-                secondaryColor: "İkinci Renk",
-                downloadCV: "CV'yi İndir"
+                skillsSection: "Beceriler",
+                addSkill: "Beceri Ekle",
+                languagesSection: "Diller",
+                addLanguage: "Dil Ekle",
+                contactSection: "İletişim",
+                cropImageTitle: "Resmi Düzenle",
+                cropImageSubtitle: "İstediğiniz alanı seçin, yeniden boyutlandırın ve onaylayın.",
+                cancel: "İptal",
+                confirm: "Onayla",
+                expJobTitle: "Pozisyon",
+                expCompany: "Şirket, Ülke",
+                expDates: "Tarihler (örn: Oca 2020 - Şub 2022)",
+                expDesc: "Açıklama (her madde yeni satırda)",
+                eduDegree: "Bölüm / Derece",
+                eduUni: "Üniversite, Ülke",
+                eduDates: "Tarihler (örn: Eyl 2018 - Haz 2022)",
+                skillName: "Beceri (örn: JavaScript)",
+                langName: "Dil (örn: İngilizce)",
+                langLevel: "Seviye (örn: İleri Düzey)",
+                remove: "Kaldır",
+                downloading: "İndiriliyor..."
             },
             en: {
-                personalInfo: "Personal Information",
-                fullName: "Full Name",
-                jobTitle: "Job Title",
-                email: "Email",
-                phone: "Phone",
-                address: "Address",
-                profilePhoto: "Profile Photo",
-                noPhoto: "No photo",
-                selectPhoto: "Select Photo",
-                professionalSummary: "Professional Summary",
-                workExperience: "Work Experience",
-                company: "Company",
-                position: "Position",
-                workPeriod: "Work Period",
-                description: "Description",
-                addExperience: "Add Experience",
-                education: "Education",
-                school: "School",
-                degree: "Degree",
-                educationPeriod: "Education Period",
-                addEducation: "Add Education",
-                skills: "Skills",
-                skill: "Skill",
-                addSkill: "Add Skill",
-                designSettings: "Design Settings",
+                mainTitle: "Premium CV",
+                mainSubtitle: "Enter your details and see your CV in real-time.",
+                language: "Language",
+                downloadPDF: "Download as PDF",
+                styleSettings: "Style Settings",
+                primaryColor: "Primary Color (Left Column)",
                 fontFamily: "Font Family",
-                fontSize: "Font Size",
-                lineHeight: "Line Height",
-                primaryColor: "Primary Color",
-                secondaryColor: "Secondary Color",
-                downloadCV: "Download CV"
+                fontSize: "Base Font Size (px)",
+                personalInfo: "Personal Info",
+                uploadImage: "Upload Profile Picture",
+                fullName: "Full Name",
+                jobTitle: "Job Title / Position",
+                phone: "Phone",
+                email: "Email",
+                address: "Address",
+                profileSection: "Profile",
+                profilePlaceholder: "A brief summary about yourself...",
+                experienceSection: "Work Experience",
+                addExperience: "Add Experience",
+                educationSection: "Education",
+                addEducation: "Add Education",
+                skillsSection: "Skills",
+                addSkill: "Add Skill",
+                languagesSection: "Languages",
+                addLanguage: "Add Language",
+                contactSection: "Contact",
+                cropImageTitle: "Adjust Image",
+                cropImageSubtitle: "Select your desired area, resize, and confirm.",
+                cancel: "Cancel",
+                confirm: "Confirm",
+                expJobTitle: "Job Title",
+                expCompany: "Company, Country",
+                expDates: "Dates (e.g: Jan 2020 - Feb 2022)",
+                expDesc: "Description (each item on a new line)",
+                eduDegree: "Degree / Field of Study",
+                eduUni: "University, Country",
+                eduDates: "Dates (e.g: Sep 2018 - Jun 2022)",
+                skillName: "Skill (e.g: JavaScript)",
+                langName: "Language (e.g: English)",
+                langLevel: "Level (e.g: Proficient)",
+                remove: "Remove",
+                downloading: "Downloading..."
             }
         };
 
         let currentLang = 'az';
+        let cropper;
+
+        const langSelect = document.getElementById('language-select');
+        const imageUpload = document.getElementById('image-upload');
+        const uploadButton = document.getElementById('upload-image-button');
+        const modal = document.getElementById('image-cropper-modal');
+        const cropperImage = document.getElementById('cropper-image');
+        const cancelCropBtn = document.getElementById('cancel-crop');
+        const confirmCropBtn = document.getElementById('confirm-crop');
+        const profilePicPreview = document.getElementById('preview-profile-pic');
+        const downloadPdfBtn = document.getElementById('download-pdf');
         
-        // Dil dəyişdirmə funksiyası
+        // --- DİL FUNKSİYASI ---
         function changeLanguage(lang) {
             currentLang = lang;
+            document.documentElement.lang = lang;
             
-            // Dil düymələrini yenilə
-            document.querySelectorAll('.lang-btn').forEach(btn => {
-                btn.classList.remove('active');
-                if (btn.getAttribute('data-lang') === lang) {
-                    btn.classList.add('active');
+            // Bütün tərcümə ediləcək elementləri tap
+            document.querySelectorAll('[data-i18n-key]').forEach(el => {
+                const key = el.getAttribute('data-i18n-key');
+                const translation = translations[lang][key];
+                
+                if (el.hasAttribute('data-i18n-placeholder')) {
+                    el.placeholder = translation;
+                } else {
+                    el.innerText = translation;
                 }
             });
-            
-            // Mətnləri yenilə
-            document.querySelectorAll('[data-key]').forEach(element => {
-                const key = element.getAttribute('data-key');
-                if (translations[lang][key]) {
-                    if (element.tagName === 'INPUT' || element.tagName === 'TEXTAREA') {
-                        element.placeholder = translations[lang][key];
-                    } else {
-                        element.textContent = translations[lang][key];
+        }
+
+        // --- REAL-TIME YENİLƏMƏ FUNKSİYASI ---
+        function setupInputListeners() {
+            // Sadə inputlar
+            document.querySelectorAll('input[data-target], textarea[data-target]').forEach(input => {
+                input.addEventListener('input', (e) => {
+                    const targetElement = document.querySelector(e.target.dataset.target);
+                    if (targetElement) {
+                        targetElement.innerText = e.target.value;
                     }
-                }
+                });
+            });
+
+            // Stil dəyişiklikləri
+            const colorPicker = document.getElementById('color-picker');
+            const leftCol = document.getElementById('cv-left-col');
+            const rightColTitleBorders = document.querySelectorAll('#cv-right-col .cv-section-title');
+            
+            colorPicker.addEventListener('input', (e) => {
+                leftCol.style.backgroundColor = e.target.value;
+                // Sağ tərəfdəki başlıqların alt xətt rəngini də dəyiş
+                rightColTitleBorders.forEach(title => {
+                    title.style.borderColor = e.target.value;
+                });
+            });
+
+            const fontFamilySelect = document.getElementById('font-family-select');
+            const cvPreview = document.getElementById('cv-preview');
+            fontFamilySelect.addEventListener('change', (e) => {
+                cvPreview.style.fontFamily = e.target.value;
+            });
+            
+            const fontSizeSlider = document.getElementById('font-size-slider');
+            const fontSizeValue = document.getElementById('font-size-value');
+            const rightColText = document.querySelector('#cv-right-col');
+            
+            fontSizeSlider.addEventListener('input', (e) => {
+                const size = e.target.value;
+                // Əsas mətn ölçüsünü dəyiş (sağ sütun)
+                rightColText.style.fontSize = `${size}px`;
+                fontSizeValue.innerText = `${size}px`;
+                // Sol sütundakı mətnləri də uyğunlaşdıra bilərik (biraz daha kiçik)
+                leftCol.style.fontSize = `${size - 1}px`;
             });
         }
-
-        // Dil dəyişdirmə hadisələri
-        document.querySelectorAll('.lang-btn').forEach(btn => {
-            btn.addEventListener('click', function() {
-                changeLanguage(this.getAttribute('data-lang'));
-            });
-        });
-
-        // Real-time yeniləmə funksiyaları
-        function updatePreview() {
-            // Şəxsi məlumatlar
-            document.getElementById('previewName').textContent = document.getElementById('fullName').value || 'Ad Soyad';
-            document.getElementById('previewTitle').textContent = document.getElementById('jobTitle').value || 'İş Titulu';
-            document.getElementById('previewEmail').textContent = document.getElementById('email').value || 'example@mail.com';
-            document.getElementById('previewPhone').textContent = document.getElementById('phone').value || '+994 XX XXX XX XX';
-            document.getElementById('previewAddress').textContent = document.getElementById('address').value || 'Ünvan';
-            
-            // Peşəkar xülasə
-            document.getElementById('previewSummary').textContent = document.getElementById('summary').value || 'Burada peşəkar xülasəniz görünəcək.';
-        }
-
-        // Giriş sahələri üçün real-time yeniləmə
-        document.querySelectorAll('#fullName, #jobTitle, #email, #phone, #address, #summary').forEach(input => {
-            input.addEventListener('input', updatePreview);
-        });
-
-        // Şəkil yükləmə
-        document.getElementById('uploadBtn').addEventListener('click', function() {
-            document.getElementById('photoUpload').click();
-        });
-
-        document.getElementById('photoUpload').addEventListener('change', function(e) {
-            if (e.target.files && e.target.files[0]) {
-                const reader = new FileReader();
-                
-                reader.onload = function(e) {
-                    document.getElementById('photoPreview').src = e.target.result;
-                    document.getElementById('photoPreview').style.display = 'block';
-                    document.querySelector('.image-preview span').style.display = 'none';
-                    
-                    document.getElementById('resumePhoto').src = e.target.result;
-                    document.getElementById('resumePhoto').style.display = 'block';
-                }
-                
-                reader.readAsDataURL(e.target.files[0]);
-            }
-        });
-
-        // Şəkil idarəetmə düymələri
-        document.getElementById('zoomInBtn').addEventListener('click', function() {
-            const img = document.getElementById('resumePhoto');
-            const currentWidth = parseInt(window.getComputedStyle(img).width);
-            img.style.width = (currentWidth + 20) + 'px';
-        });
-
-        document.getElementById('zoomOutBtn').addEventListener('click', function() {
-            const img = document.getElementById('resumePhoto');
-            const currentWidth = parseInt(window.getComputedStyle(img).width);
-            if (currentWidth > 50) {
-                img.style.width = (currentWidth - 20) + 'px';
-            }
-        });
-
-        document.getElementById('cropBtn').addEventListener('click', function() {
-            alert('Kırpma funksionallığı aktivləşdirildi. Bu, tam bir həyata keçirmə tələb edən bir xüsusiyyətdir.');
-        });
-
-        document.getElementById('resetPhotoBtn').addEventListener('click', function() {
-            document.getElementById('photoPreview').src = '';
-            document.getElementById('photoPreview').style.display = 'none';
-            document.querySelector('.image-preview span').style.display = 'block';
-            
-            document.getElementById('resumePhoto').src = '';
-            document.getElementById('resumePhoto').style.display = 'none';
-            document.getElementById('photoUpload').value = '';
-        });
-
-        // Təcrübə əlavə et
-        document.getElementById('addExperienceBtn').addEventListener('click', function() {
-            const company = document.getElementById('company').value;
-            const position = document.getElementById('position').value;
-            const workDate = document.getElementById('workDate').value;
-            const workDescription = document.getElementById('workDescription').value;
-            
-            if (company && position) {
-                const experienceDiv = document.createElement('div');
-                experienceDiv.className = 'resume-item';
-                experienceDiv.innerHTML = `
-                    <div class="resume-item-title">${company}</div>
-                    <div class="resume-item-subtitle">${position}</div>
-                    <div class="resume-item-date">${workDate}</div>
-                    <div>${workDescription}</div>
-                `;
-                
-                document.getElementById('previewExperience').appendChild(experienceDiv);
-                
-                // Giriş sahələrini təmizlə
-                document.getElementById('company').value = '';
-                document.getElementById('position').value = '';
-                document.getElementById('workDate').value = '';
-                document.getElementById('workDescription').value = '';
-            } else {
-                alert('Zəhmət olmasa şirkət və vəzifə məlumatlarını daxil edin.');
-            }
-        });
-
-        // Təhsil əlavə et
-        document.getElementById('addEducationBtn').addEventListener('click', function() {
-            const school = document.getElementById('school').value;
-            const degree = document.getElementById('degree').value;
-            const educationDate = document.getElementById('educationDate').value;
-            
-            if (school && degree) {
-                const educationDiv = document.createElement('div');
-                educationDiv.className = 'resume-item';
-                educationDiv.innerHTML = `
-                    <div class="resume-item-title">${school}</div>
-                    <div class="resume-item-subtitle">${degree}</div>
-                    <div class="resume-item-date">${educationDate}</div>
-                `;
-                
-                document.getElementById('previewEducation').appendChild(educationDiv);
-                
-                // Giriş sahələrini təmizlə
-                document.getElementById('school').value = '';
-                document.getElementById('degree').value = '';
-                document.getElementById('educationDate').value = '';
-            } else {
-                alert('Zəhmət olmasa təhsil müəssisəsi və dərəcə məlumatlarını daxil edin.');
-            }
-        });
-
-        // Bacarıq əlavə et
-        document.getElementById('addSkillBtn').addEventListener('click', function() {
-            const skill = document.getElementById('skillInput').value;
-            
-            if (skill) {
-                const skillTag = document.createElement('div');
-                skillTag.className = 'skill-tag';
-                skillTag.textContent = skill;
-                
-                document.getElementById('previewSkills').appendChild(skillTag);
-                
-                // Giriş sahəsini təmizlə
-                document.getElementById('skillInput').value = '';
-            } else {
-                alert('Zəhmət olmasa bir bacarıq daxil edin.');
-            }
-        });
-
-        // Dizayn parametrləri
-        document.getElementById('fontFamily').addEventListener('change', function() {
-            document.getElementById('resumePreview').style.fontFamily = this.value;
-        });
-
-        document.getElementById('fontSize').addEventListener('input', function() {
-            const fontSize = this.value + 'px';
-            document.getElementById('resumePreview').style.fontSize = fontSize;
-            document.getElementById('fontSizeValue').textContent = fontSize;
-        });
-
-        document.getElementById('lineHeight').addEventListener('input', function() {
-            document.getElementById('resumePreview').style.lineHeight = this.value;
-            document.getElementById('lineHeightValue').textContent = this.value;
-        });
-
-        document.getElementById('primaryColor').addEventListener('input', function() {
-            const color = this.value;
-            document.documentElement.style.setProperty('--primary-color', color);
-            document.getElementById('primaryColorValue').textContent = color;
-        });
-
-        document.getElementById('secondaryColor').addEventListener('input', function() {
-            const color = this.value;
-            document.documentElement.style.setProperty('--secondary-color', color);
-            document.getElementById('secondaryColorValue').textContent = color;
-        });
-
-        // PDF yükləmə
-        document.getElementById('downloadBtn').addEventListener('click', function() {
-            const { jsPDF } = window.jspdf;
-            const element = document.getElementById('resumePreview');
-            
-            html2canvas(element, {
-                scale: 2,
-                useCORS: true,
-                logging: false
-            }).then(canvas => {
-                const imgData = canvas.toDataURL('image/png');
-                const pdf = new jsPDF('p', 'mm', 'a4');
-                const imgWidth = 210;
-                const pageHeight = 295;
-                const imgHeight = canvas.height * imgWidth / canvas.width;
-                let heightLeft = imgHeight;
-                let position = 0;
-
-                pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
-                heightLeft -= pageHeight;
-
-                while (heightLeft >= 0) {
-                    position = heightLeft - imgHeight;
-                    pdf.addPage();
-                    pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
-                    heightLeft -= pageHeight;
-                }
-
-                pdf.save('my-cv.pdf');
-            });
-        });
-
-        // A4 sənədini sürükləmə
-        let isDragging = false;
-        let startY;
-        let scrollTop;
         
-        document.querySelector('.preview-panel').addEventListener('mousedown', function(e) {
-            isDragging = true;
-            startY = e.pageY - this.offsetTop;
-            scrollTop = this.scrollTop;
+        // --- ŞƏKİL YÜKLƏMƏ VƏ KƏSMƏ ---
+        uploadButton.addEventListener('click', () => imageUpload.click());
+
+        imageUpload.addEventListener('change', (e) => {
+            const files = e.target.files;
+            if (files && files.length > 0) {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    cropperImage.src = e.target.result;
+                    modal.style.display = 'flex';
+                    
+                    if (cropper) {
+                        cropper.destroy();
+                    }
+                    
+                    cropper = new Cropper(cropperImage, {
+                        aspectRatio: 1 / 1, // Kvadrat
+                        viewMode: 1,
+                        background: false,
+                        responsive: true,
+                        autoCropArea: 0.8,
+                        zoomable: true,
+                        movable: true,
+                        cropBoxResizable: true
+                    });
+                };
+                reader.readAsDataURL(files[0]);
+            }
+            // Inputu sıfırla ki, eyni şəkli təkrar seçmək işləsin
+            e.target.value = null;
         });
 
-        document.addEventListener('mousemove', function(e) {
-            if (!isDragging) return;
-            e.preventDefault();
-            const y = e.pageY - document.querySelector('.preview-panel').offsetTop;
-            const walk = (y - startY) * 2;
-            document.querySelector('.preview-panel').scrollTop = scrollTop - walk;
+        cancelCropBtn.addEventListener('click', () => {
+            modal.style.display = 'none';
+            if (cropper) {
+                cropper.destroy();
+            }
         });
 
-        document.addEventListener('mouseup', function() {
-            isDragging = false;
+        confirmCropBtn.addEventListener('click', () => {
+            if (cropper) {
+                const canvas = cropper.getCroppedCanvas({
+                    width: 200,
+                    height: 200,
+                });
+                profilePicPreview.src = canvas.toDataURL('image/jpeg');
+                modal.style.display = 'none';
+                cropper.destroy();
+            }
         });
 
-        // İlkin dəyərləri təyin et
-        updatePreview();
+        // --- DİNAMİK LİSTƏLƏR ---
+        
+        // Təcrübə
+        const addExperienceBtn = document.getElementById('add-experience');
+        const experienceList = document.getElementById('experience-list');
+        const previewExperienceList = document.getElementById('preview-experience-list');
+
+        function createExperienceItem(id) {
+            // Editor tərəfi
+            const editorDiv = document.createElement('div');
+            editorDiv.className = 'p-3 bg-gray-700 rounded-md border border-gray-600 space-y-2';
+            editorDiv.innerHTML = `
+                <input type="text" data-id="${id}" data-field="title" placeholder="${translations[currentLang].expJobTitle}" class="w-full bg-gray-600 p-2 rounded-md text-sm">
+                <input type="text" data-id="${id}" data-field="company" placeholder="${translations[currentLang].expCompany}" class="w-full bg-gray-600 p-2 rounded-md text-sm">
+                <input type="text" data-id="${id}" data-field="dates" placeholder="${translations[currentLang].expDates}" class="w-full bg-gray-600 p-2 rounded-md text-sm">
+                <textarea data-id="${id}" data-field="desc" rows="3" placeholder="${translations[currentLang].expDesc}" class="w-full bg-gray-600 p-2 rounded-md text-sm"></textarea>
+                <button data-remove-id="${id}" class="text-red-400 text-xs hover:text-red-300" data-i18n-key="remove">${translations[currentLang].remove}</button>
+            `;
+            experienceList.appendChild(editorDiv);
+            
+            // Preview tərəfi
+            const previewDiv = document.createElement('div');
+            previewDiv.className = 'flex';
+            previewDiv.id = `exp-${id}`;
+            previewDiv.innerHTML = `
+                <div class="w-1/4 text-sm font-medium text-gray-700" data-target="dates"></div>
+                <div class="w-3/4">
+                    <h6 class="text-base font-bold" data-target="title"></h6>
+                    <p class="text-sm font-medium text-gray-600 mb-2" data-target="company"></p>
+                    <ul class="list-disc list-inside text-sm space-y-1" style="line-height: 1.6;" data-target="desc"></ul>
+                </div>
+            `;
+            previewExperienceList.appendChild(previewDiv);
+
+            // Event Listenerlər
+            editorDiv.querySelectorAll('input, textarea').forEach(input => {
+                input.addEventListener('input', (e) => {
+                    const field = e.target.dataset.field;
+                    const target = previewDiv.querySelector(`[data-target="${field}"]`);
+                    if (field === 'desc') {
+                        // Açıqlamanı list item olaraq göstər
+                        target.innerHTML = e.target.value.split('\n').map(item => `<li>${item}</li>`).join('');
+                    } else {
+                        target.innerText = e.target.value;
+                    }
+                });
+            });
+
+            editorDiv.querySelector(`[data-remove-id="${id}"]`).addEventListener('click', () => {
+                editorDiv.remove();
+                previewDiv.remove();
+            });
+        }
+        addExperienceBtn.addEventListener('click', () => createExperienceItem(Date.now()));
+
+
+        // Təhsil
+        const addEducationBtn = document.getElementById('add-education');
+        const educationList = document.getElementById('education-list');
+        const previewEducationList = document.getElementById('preview-education-list');
+
+        function createEducationItem(id) {
+            // Editor
+            const editorDiv = document.createElement('div');
+            editorDiv.className = 'p-3 bg-gray-700 rounded-md border border-gray-600 space-y-2';
+            editorDiv.innerHTML = `
+                <input type="text" data-id="${id}" data-field="degree" placeholder="${translations[currentLang].eduDegree}" class="w-full bg-gray-600 p-2 rounded-md text-sm">
+                <input type="text" data-id="${id}" data-field="uni" placeholder="${translations[currentLang].eduUni}" class="w-full bg-gray-600 p-2 rounded-md text-sm">
+                <input type="text" data-id="${id}" data-field="dates" placeholder="${translations[currentLang].eduDates}" class="w-full bg-gray-600 p-2 rounded-md text-sm">
+                <button data-remove-id="${id}" class="text-red-400 text-xs hover:text-red-300" data-i18n-key="remove">${translations[currentLang].remove}</button>
+            `;
+            educationList.appendChild(editorDiv);
+
+            // Preview
+            const previewDiv = document.createElement('div');
+            previewDiv.className = 'flex';
+            previewDiv.id = `edu-${id}`;
+            previewDiv.innerHTML = `
+                <div class="w-1/4 text-sm font-medium text-gray-700" data-target="dates"></div>
+                <div class="w-3/4">
+                    <h6 class="text-base font-bold" data-target="degree"></h6>
+                    <p class="text-sm font-medium text-gray-600 mb-2" data-target="uni"></p>
+                </div>
+            `;
+            previewEducationList.appendChild(previewDiv);
+            
+            // Listeners
+            editorDiv.querySelectorAll('input').forEach(input => {
+                input.addEventListener('input', (e) => {
+                    const field = e.target.dataset.field;
+                    const target = previewDiv.querySelector(`[data-target="${field}"]`);
+                    target.innerText = e.target.value;
+                });
+            });
+            editorDiv.querySelector(`[data-remove-id="${id}"]`).addEventListener('click', () => {
+                editorDiv.remove();
+                previewDiv.remove();
+            });
+        }
+        addEducationBtn.addEventListener('click', () => createEducationItem(Date.now()));
+
+        // Bacarıqlar
+        const addSkillBtn = document.getElementById('add-skill');
+        const skillsList = document.getElementById('skills-list');
+        const previewSkillsList = document.getElementById('preview-skills-list');
+
+        function createSkillItem(id) {
+            // Editor
+            const editorDiv = document.createElement('div');
+            editorDiv.className = 'flex items-center space-x-2';
+            editorDiv.innerHTML = `
+                <input type="text" data-id="${id}" data-field="name" placeholder="${translations[currentLang].skillName}" class="w-full bg-gray-600 p-2 rounded-md text-sm">
+                <button data-remove-id="${id}" class="text-red-400 p-1 rounded-full hover:bg-gray-600" title="${translations[currentLang].remove}">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM7 9a1 1 0 000 2h6a1 1 0 100-2H7z" clip-rule="evenodd" /></svg>
+                </button>
+            `;
+            skillsList.appendChild(editorDiv);
+
+            // Preview
+            const previewLi = document.createElement('li');
+            previewLi.id = `skill-${id}`;
+            previewLi.innerText = "";
+            previewSkillsList.appendChild(previewLi);
+
+            // Listeners
+            const input = editorDiv.querySelector('input');
+            input.addEventListener('input', (e) => {
+                previewLi.innerText = e.target.value;
+            });
+            editorDiv.querySelector(`[data-remove-id="${id}"]`).addEventListener('click', () => {
+                editorDiv.remove();
+                previewLi.remove();
+            });
+        }
+        addSkillBtn.addEventListener('click', () => createSkillItem(Date.now()));
+
+        // Dillər
+        const addLanguageBtn = document.getElementById('add-language');
+        const languagesList = document.getElementById('languages-list');
+        const previewLanguagesList = document.getElementById('preview-languages-list');
+
+        function createLanguageItem(id) {
+            // Editor
+            const editorDiv = document.createElement('div');
+            editorDiv.className = 'flex items-center space-x-2';
+            editorDiv.innerHTML = `
+                <input type="text" data-id="${id}" data-field="lang" placeholder="${translations[currentLang].langName}" class="w-1/2 bg-gray-600 p-2 rounded-md text-sm">
+                <input type="text" data-id="${id}" data-field="level" placeholder="${translations[currentLang].langLevel}" class="w-1/2 bg-gray-600 p-2 rounded-md text-sm">
+                <button data-remove-id="${id}" class="text-red-400 p-1 rounded-full hover:bg-gray-600" title="${translations[currentLang].remove}">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM7 9a1 1 0 000 2h6a1 1 0 100-2H7z" clip-rule="evenodd" /></svg>
+                </button>
+            `;
+            languagesList.appendChild(editorDiv);
+            
+            // Preview
+            const previewLi = document.createElement('li');
+            previewLi.id = `lang-${id}`;
+            previewLi.innerHTML = `<span class="font-medium" data-target="lang"></span>: <span data-target="level"></span>`;
+            previewLanguagesList.appendChild(previewLi);
+
+            // Listeners
+            const langInput = editorDiv.querySelector('[data-field="lang"]');
+            const levelInput = editorDiv.querySelector('[data-field="level"]');
+            
+            const updatePreview = () => {
+                previewLi.querySelector('[data-target="lang"]').innerText = langInput.value;
+                previewLi.querySelector('[data-target="level"]').innerText = levelInput.value;
+            };
+            
+            langInput.addEventListener('input', updatePreview);
+            levelInput.addEventListener('input', updatePreview);
+            
+            editorDiv.querySelector(`[data-remove-id="${id}"]`).addEventListener('click', () => {
+                editorDiv.remove();
+                previewLi.remove();
+            });
+        }
+        addLanguageBtn.addEventListener('click', () => createLanguageItem(Date.now()));
+
+
+        // --- PDF YÜKLƏMƏ ---
+        downloadPdfBtn.addEventListener('click', async () => {
+            const cvElement = document.getElementById('cv-preview');
+            const loader = document.getElementById('loader');
+            const overlay = document.getElementById('loader-overlay');
+            const originalButtonText = downloadPdfBtn.innerHTML;
+
+            // Yükləməyə başla
+            loader.style.display = 'block';
+            overlay.style.display = 'block';
+            downloadPdfBtn.disabled = true;
+            downloadPdfBtn.innerHTML = `<span data-i18n-key="downloading">${translations[currentLang].downloading}</span>`;
+
+            try {
+                // html2canvas ilə A4 elementinin şəklini çək
+                const canvas = await html2canvas(cvElement, {
+                    scale: 3, // Keyfiyyəti artırmaq üçün
+                    useCORS: true, // Əgər şəkillər xarici qaynaqdandırsa
+                    logging: false,
+                    onclone: (clonedDoc) => {
+                        // Klonlanmış sənəddə kölgəni və sərhədi ləğv et
+                        const clonedCv = clonedDoc.getElementById('cv-preview');
+                        if(clonedCv) {
+                            clonedCv.style.boxShadow = 'none';
+                            clonedCv.style.margin = '0';
+                            clonedCv.style.borderRadius = '0';
+                        }
+                    }
+                });
+
+                const imgData = canvas.toDataURL('image/png');
+
+                // jsPDF A4 ölçüləri (mm)
+                const pdfWidth = 210;
+                const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+                
+                // jsPDF obyektini yarat
+                const { jsPDF } = window.jspdf;
+                const pdf = new jsPDF({
+                    orientation: 'portrait',
+                    unit: 'mm',
+                    format: 'a4'
+                });
+
+                // Şəkli PDF-ə əlavə et
+                pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+                
+                // PDF-i yüklə
+                pdf.save('cv.pdf');
+
+            } catch (error) {
+                console.error("PDF yaratma xətası:", error);
+                alert("PDF yaradılarkən xəta baş verdi. Zəhmət olmasa, konsola baxın.");
+            } finally {
+                // Yükləməni bitir
+                loader.style.display = 'none';
+                overlay.style.display = 'none';
+                downloadPdfBtn.disabled = false;
+                downloadPdfBtn.innerHTML = originalButtonText;
+                // Dil dəyişmiş ola bilər deyə, düymə mətnini yenidən tərcümə et
+                changeLanguage(currentLang);
+            }
+        });
+
+
+        // --- BAŞLANĞIC ---
+        function init() {
+            // Dili dəyişəndə funksiyanı çağır
+            langSelect.addEventListener('change', (e) => changeLanguage(e.target.value));
+            
+            // Başlanğıc dilini təyin et
+            changeLanguage(currentLang);
+            
+            // Bütün inputları dinlə
+            setupInputListeners();
+            
+            // Başlanğıc üçün boş listələrə elementlər əlavə et
+            // previewExperienceList.innerHTML = '';
+            // previewEducationList.innerHTML = '';
+            // previewSkillsList.innerHTML = '';
+            // previewLanguagesList.innerHTML = '';
+            
+            // Nümunə məlumatları sil (əgər istifadəçi özü daxil etsin deyiriksə)
+            // Ancaq istifadəçinin gördüyü nümunəyə uyğun olması üçün saxlayırıq.
+            // Əgər tam boş başlasın istəsəniz, aşağıdakı 4 sətri aktiv edin.
+            // document.getElementById('preview-profile').innerText = '';
+            // document.getElementById('preview-experience-list').innerHTML = '';
+            // document.getElementById('preview-education-list').innerHTML = '';
+            // document.getElementById('preview-skills-list').innerHTML = '';
+            // document.getElementById('preview-languages-list').innerHTML = '';
+        }
+
+        // Səhifə yüklənəndə başlat
+        document.addEventListener('DOMContentLoaded', init);
+
     </script>
 </body>
 </html>
