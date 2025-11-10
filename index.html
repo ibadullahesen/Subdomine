@@ -92,9 +92,15 @@
             page-break-after: always;
         }
 
+        /* Template switching styles */
+        #cv-container.template-1 { --accent-color: #2c3e50; }
+        #cv-container.template-2 { --accent-color: #1a5f7a; }
+        #cv-container.template-3 { --accent-color: #8b2d54; }
+        #cv-container.template-4 { --accent-color: #4a4a4a; }
+
         .cv-left {
             width: 40%;
-            background: linear-gradient(180deg, #2c3e50 0%, #34495e 100%);
+            background: linear-gradient(180deg, var(--accent-color) 0%, color-mix(in srgb, var(--accent-color) 85%, black));
             color: white;
             padding: 2.5rem 1.8rem;
             overflow-y: auto;
@@ -137,8 +143,8 @@
         }
 
         .cv-right .section-title {
-            border-bottom: 3px solid #667eea;
-            color: #2c3e50;
+            border-bottom: 3px solid var(--accent-color);
+            color: var(--accent-color);
         }
 
         /* Profil Şəkli */
@@ -190,6 +196,13 @@
             color: #999;
         }
 
+        /* Required field indicator (*) */
+        .input-group label.required::after {
+            content: ' *';
+            color: #e74c3c;
+            font-weight: 700;
+        }
+
         .input-group input,
         .input-group textarea,
         .input-group select {
@@ -197,11 +210,16 @@
             padding: 0.6rem;
             background: #2a2a3e;
             border: 1px solid #404050;
-            color: #e0e0e0;
+            color: #000 !important;
             border-radius: 4px;
             font-size: 0.9rem;
             font-family: 'Inter', sans-serif;
             transition: all 0.3s ease;
+        }
+
+        .input-group input::placeholder,
+        .input-group textarea::placeholder {
+            color: #666;
         }
 
         .input-group input:focus,
@@ -252,6 +270,37 @@
         .btn-secondary:hover {
             background: #353550;
             border-color: #667eea;
+        }
+
+        /* Template selector buttons */
+        .template-selector {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 0.8rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .template-btn {
+            padding: 0.8rem;
+            border: 2px solid #404050;
+            background: #2a2a3e;
+            color: #e0e0e0;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 0.85rem;
+            transition: all 0.3s ease;
+        }
+
+        .template-btn:hover {
+            border-color: #667eea;
+            background: #353550;
+        }
+
+        .template-btn.active {
+            border-color: #667eea;
+            background: #667eea;
+            color: white;
         }
 
         /* List Items */
@@ -392,7 +441,7 @@
 
         .exp-dates {
             font-size: 0.85rem;
-            color: #667eea;
+            color: var(--accent-color);
             font-weight: 600;
             margin-bottom: 0.3rem;
         }
@@ -499,6 +548,17 @@
                 </button>
             </div>
 
+            <!-- Template selector -->
+            <div style="margin-bottom: 2rem; padding-bottom: 1.5rem; border-bottom: 1px solid #404050;">
+                <h3 style="font-size: 1.1rem; font-weight: 700; margin-bottom: 1rem;" data-i18n="selectTemplate">Şablon Seçin</h3>
+                <div class="template-selector">
+                    <button class="template-btn active" onclick="switchTemplate(1)" data-i18n="template1">Modern</button>
+                    <button class="template-btn" onclick="switchTemplate(2)" data-i18n="template2">Klassik</button>
+                    <button class="template-btn" onclick="switchTemplate(3)" data-i18n="template3">Tənəzzüllü</button>
+                    <button class="template-btn" onclick="switchTemplate(4)" data-i18n="template4">Minimal</button>
+                </div>
+            </div>
+
             <!-- Stil Ayarları -->
             <div style="margin-bottom: 2rem; padding-bottom: 1.5rem; border-bottom: 1px solid #404050;">
                 <h3 style="font-size: 1.1rem; font-weight: 700; margin-bottom: 1rem;" data-i18n="styleSettings">Stil Ayarları</h3>
@@ -506,6 +566,22 @@
                 <div class="input-group">
                     <label data-i18n="primaryColor">Əsas Rəng</label>
                     <input type="color" id="color-picker" value="#2c3e50" class="color-picker">
+                </div>
+
+                <!-- Typography controls: font size, line height, spacing -->
+                <div class="input-group">
+                    <label data-i18n="fontSize">Mətn Ölçüsü: <span id="font-size-value">14</span>px</label>
+                    <input type="range" id="font-size-slider" min="12" max="16" value="14" style="cursor: pointer;">
+                </div>
+
+                <div class="input-group">
+                    <label data-i18n="lineHeight">Sətir Aralığı: <span id="line-height-value">1.5</span></label>
+                    <input type="range" id="line-height-slider" min="1" max="2" step="0.1" value="1.5" style="cursor: pointer;">
+                </div>
+
+                <div class="input-group">
+                    <label data-i18n="spacing">Elementlər Arası Boşluq: <span id="spacing-value">1.5</span>rem</label>
+                    <input type="range" id="spacing-slider" min="0.5" max="3" step="0.5" value="1.5" style="cursor: pointer;">
                 </div>
 
                 <div class="input-group">
@@ -517,11 +593,6 @@
                         <option value="'Georgia', serif">Georgia</option>
                     </select>
                 </div>
-
-                <div class="input-group">
-                    <label data-i18n="fontSize">Mətn Ölçüsü: <span id="font-size-value">14</span>px</label>
-                    <input type="range" id="font-size-slider" min="12" max="16" value="14" style="cursor: pointer;">
-                </div>
             </div>
 
             <!-- Şəxsi Məlumatlar -->
@@ -532,22 +603,22 @@
                 <input type="file" id="image-upload" accept="image/*" class="hidden">
 
                 <div class="input-group">
-                    <label data-i18n="fullName">Ad Soyad</label>
+                    <label class="required" data-i18n="fullName">Ad Soyad</label>
                     <input type="text" id="name-input" placeholder="Adınız Soyadınız">
                 </div>
 
                 <div class="input-group">
-                    <label data-i18n="jobTitle">Peşə / Vəzifə</label>
+                    <label class="required" data-i18n="jobTitle">Peşə / Vəzifə</label>
                     <input type="text" id="title-input" placeholder="Məs: Senior Developer">
                 </div>
 
                 <div class="input-group">
-                    <label data-i18n="email">Email</label>
+                    <label class="required" data-i18n="email">Email</label>
                     <input type="email" id="email-input" placeholder="email@example.com">
                 </div>
 
                 <div class="input-group">
-                    <label data-i18n="phone">Telefon</label>
+                    <label class="required" data-i18n="phone">Telefon</label>
                     <input type="tel" id="phone-input" placeholder="+994 50 123 45 67">
                 </div>
 
@@ -598,7 +669,7 @@
 
         <!-- Preview Paneli -->
         <div id="preview-pane">
-            <div id="cv-container">
+            <div id="cv-container" class="template-1">
                 <!-- Sol Sütun -->
                 <div class="cv-left" id="cv-left">
                     <!-- Profil Şəkli -->
@@ -705,10 +776,17 @@
         const translations = {
             az: {
                 downloadPDF: "PDF olaraq Yüklə",
+                selectTemplate: "Şablon Seçin",
+                template1: "Modern",
+                template2: "Klassik",
+                template3: "Tənəzzüllü",
+                template4: "Minimal",
                 styleSettings: "Stil Ayarları",
                 primaryColor: "Əsas Rəng",
                 fontFamily: "Şrift Ailəsi",
                 fontSize: "Mətn Ölçüsü",
+                lineHeight: "Sətir Aralığı",
+                spacing: "Elementlər Arası Boşluq",
                 personalInfo: "Şəxsi Məlumatlar",
                 uploadImage: "Profil Şəkli Yüklə",
                 fullName: "Ad Soyad",
@@ -735,10 +813,17 @@
             },
             tr: {
                 downloadPDF: "PDF Olarak İndir",
+                selectTemplate: "Şablon Seçin",
+                template1: "Modern",
+                template2: "Klasik",
+                template3: "Zarif",
+                template4: "Minimal",
                 styleSettings: "Stil Ayarları",
                 primaryColor: "Ana Renk",
                 fontFamily: "Yazı Tipi Ailesi",
                 fontSize: "Metin Boyutu",
+                lineHeight: "Satır Aralığı",
+                spacing: "Elementler Arası Boşluk",
                 personalInfo: "Kişisel Bilgiler",
                 uploadImage: "Profil Fotoğrafı Yükle",
                 fullName: "Ad Soyad",
@@ -765,10 +850,17 @@
             },
             en: {
                 downloadPDF: "Download as PDF",
+                selectTemplate: "Select Template",
+                template1: "Modern",
+                template2: "Classic",
+                template3: "Elegant",
+                template4: "Minimal",
                 styleSettings: "Style Settings",
                 primaryColor: "Primary Color",
                 fontFamily: "Font Family",
                 fontSize: "Font Size",
+                lineHeight: "Line Height",
+                spacing: "Element Spacing",
                 personalInfo: "Personal Information",
                 uploadImage: "Upload Profile Picture",
                 fullName: "Full Name",
@@ -796,8 +888,28 @@
         };
 
         let currentLang = 'az';
+        let currentTemplate = 1;
         let cropper = null;
         let originalImageData = null;
+
+        function switchTemplate(templateNum) {
+            currentTemplate = templateNum;
+            const cv = document.getElementById('cv-container');
+            cv.className = `template-${templateNum}`;
+            
+            document.querySelectorAll('.template-btn').forEach((btn, idx) => {
+                btn.classList.toggle('active', idx + 1 === templateNum);
+            });
+
+            // Change accent colors for each template
+            const colors = {
+                1: '#2c3e50',
+                2: '#1a5f7a',
+                3: '#8b2d54',
+                4: '#4a4a4a'
+            };
+            cv.style.setProperty('--accent-color', colors[templateNum]);
+        }
 
         // Dil dəyişimi
         function changeLanguage(lang) {
@@ -808,6 +920,25 @@
                 if (translations[lang][key]) {
                     el.textContent = translations[lang][key];
                 }
+            });
+        }
+
+        function updateTypography() {
+            const fontSize = document.getElementById('font-size-slider').value;
+            const lineHeight = document.getElementById('line-height-slider').value;
+            const spacing = document.getElementById('spacing-slider').value;
+
+            document.getElementById('font-size-value').textContent = fontSize;
+            document.getElementById('line-height-value').textContent = lineHeight;
+            document.getElementById('spacing-value').textContent = spacing;
+
+            const cvRight = document.getElementById('cv-right');
+            cvRight.style.fontSize = fontSize + 'px';
+            cvRight.style.lineHeight = lineHeight;
+
+            const sections = cvRight.querySelectorAll('.exp-item');
+            sections.forEach(section => {
+                section.style.marginBottom = (spacing * 1) + 'rem';
             });
         }
 
@@ -855,14 +986,12 @@
 
             // Stil dəyişiklikləri
             document.getElementById('color-picker').addEventListener('input', (e) => {
-                document.getElementById('cv-left').style.background = `linear-gradient(180deg, ${e.target.value} 0%, ${e.target.value}cc 100%)`;
+                document.getElementById('cv-container').style.setProperty('--accent-color', e.target.value);
             });
 
-            document.getElementById('font-size-slider').addEventListener('input', (e) => {
-                const size = e.target.value;
-                document.getElementById('font-size-value').textContent = size;
-                document.getElementById('cv-right').style.fontSize = size + 'px';
-            });
+            document.getElementById('font-size-slider').addEventListener('input', updateTypography);
+            document.getElementById('line-height-slider').addEventListener('input', updateTypography);
+            document.getElementById('spacing-slider').addEventListener('input', updateTypography);
         }
 
         // Şəkil yükləmə
@@ -944,7 +1073,6 @@
             `;
             document.getElementById('experience-list').appendChild(item);
             
-            // Event listeners
             item.querySelectorAll('input, textarea').forEach(el => {
                 el.addEventListener('input', updateExperiencePreview);
             });
