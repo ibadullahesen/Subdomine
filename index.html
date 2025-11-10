@@ -1,1055 +1,929 @@
 <!DOCTYPE html>
-<html lang="az">
+<html lang="tr">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AxtarGet - Gələcəyin Rəqəmsal Həlləri</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Manrope:wght@700;800&display=swap" rel="stylesheet">
-    
-    <!-- === LOQO DÜZƏLİŞLƏRİ BAŞLAYIR === -->
-    <link rel="icon" type="image/png" href="https://i.postimg.cc/1zQS7wYc/Whats-App-Image-2025-10-31-at-12-00-55.jpg">
-    <link rel="apple-touch-icon" href="https://i.postimg.cc/1zQS7wYc/Whats-App-Image-2025-10-31-at-12-00-55.jpg">
-
-    <!-- Google axtarış nəticələrində loqonun görünməsi üçün schema kodu -->
-    <script type="application/ld+json">
-    {
-      "@context": "https://schema.org",
-      "@type": "Organization",
-      "name": "AxtarGet",
-      "url": "https://axtarget.xyz/",
-      "logo": "https://i.postimg.cc/1zQS7wYc/Whats-App-Image-2025-10-31-at-12-00-55.jpg"
-    }
-    </script>
-    <!-- === LOQO DÜZƏLİŞLƏRİ BİTİR === -->
-
+    <title>Premium CV Generator</title>
     <style>
         :root {
-            --background: #05080E;
-            --glass-bg: rgba(15, 23, 42, 0.5);
-            --border: rgba(56, 229, 183, 0.2);
-            --text-primary: #F1F5F9;
-            --text-muted: #94A3B8;
-            --primary: #38E5B7;
-            --primary-hover: #10B981;
-            --font-body: 'Inter', sans-serif;
-            --font-heading: 'Manrope', sans-serif;
+            --primary-color: #3498db;
+            --secondary-color: #2c3e50;
+            --background-color: #f5f7fa;
+            --text-color: #333;
+            --border-color: #ddd;
         }
 
-        html { scroll-behavior: smooth; }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
         body {
-            font-family: var(--font-body);
-            background-color: var(--background);
-            color: var(--text-primary);
-            overflow-x: hidden;
+            background-color: var(--background-color);
+            color: var(--text-color);
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            overflow: hidden;
         }
 
-        #matrix-canvas {
-            position: fixed;
-            top: 0;
-            left: 0;
+        .header {
+            background-color: var(--secondary-color);
+            color: white;
+            padding: 15px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+
+        .logo {
+            font-size: 24px;
+            font-weight: bold;
+        }
+
+        .language-selector {
+            display: flex;
+            gap: 10px;
+        }
+
+        .lang-btn {
+            background: none;
+            border: 1px solid rgba(255,255,255,0.3);
+            color: white;
+            padding: 5px 10px;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .lang-btn.active {
+            background-color: var(--primary-color);
+            border-color: var(--primary-color);
+        }
+
+        .main-container {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+        }
+
+        .editor-panel {
+            width: 40%;
+            background-color: white;
+            padding: 20px;
+            overflow-y: auto;
+            box-shadow: 2px 0 5px rgba(0,0,0,0.1);
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .preview-panel {
+            width: 60%;
+            background-color: #e9ecef;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            position: relative;
+            overflow: auto;
+        }
+
+        .a4-container {
+            background-color: white;
+            width: 210mm;
+            min-height: 297mm;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+            padding: 20mm;
+            position: relative;
+            transition: transform 0.3s;
+        }
+
+        .section {
+            margin-bottom: 20px;
+        }
+
+        .section-title {
+            font-size: 18px;
+            font-weight: bold;
+            margin-bottom: 10px;
+            color: var(--secondary-color);
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 5px;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 500;
+        }
+
+        input, textarea, select {
             width: 100%;
-            height: 100%;
-            z-index: -1;
+            padding: 8px 10px;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            font-size: 14px;
         }
 
-        #globe-container {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            z-index: 0;
-            opacity: 0.5;
-            mask-image: radial-gradient(circle at center, white 20%, transparent 70%);
-            -webkit-mask-image: radial-gradient(circle at center, white 20%, transparent 70%);
+        textarea {
+            min-height: 80px;
+            resize: vertical;
         }
 
-        .content-overlay { position: relative; z-index: 1; }
+        .image-upload {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
 
-        /* YENİ KART DİZAYNI */
-        .feature-card {
+        .image-preview {
+            width: 150px;
+            height: 150px;
+            border-radius: 50%;
+            overflow: hidden;
+            border: 2px solid var(--border-color);
             display: flex;
             align-items: center;
-            background: var(--glass-bg);
-            backdrop-filter: blur(16px);
-            -webkit-backdrop-filter: blur(16px);
-            border: 1px solid var(--border);
-            border-radius: 1.5rem;
-            overflow: hidden;
-            transition: transform 0.4s ease, box-shadow 0.4s ease, border-color 0.4s ease;
-            position: relative;
-            margin-bottom: 2rem;
+            justify-content: center;
+            background-color: #f8f9fa;
         }
-        
-        .feature-card:before {
-            content: '';
-            position: absolute;
-            top: -50%;
-            left: -50%;
-            width: 200%;
-            height: 200%;
-            background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0) 70%);
-            transform: scale(0);
-            transition: transform 0.6s ease;
-            pointer-events: none;
+
+        .image-preview img {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: cover;
         }
-        
-        .feature-card:hover:before {
-            transform: scale(1);
+
+        .image-controls {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            justify-content: center;
         }
-        
-        .feature-card:hover {
-            transform: translateY(-10px) scale(1.02);
-            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.4);
-            border-color: rgba(56, 229, 183, 0.5);
+
+        .btn {
+            padding: 8px 15px;
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+            font-size: 14px;
         }
-        
-        .card-content {
+
+        .btn:hover {
+            background-color: #2980b9;
+        }
+
+        .btn-secondary {
+            background-color: #6c757d;
+        }
+
+        .btn-secondary:hover {
+            background-color: #5a6268;
+        }
+
+        .download-btn {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            padding: 12px 25px;
+            background-color: #27ae60;
+            font-size: 16px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+        }
+
+        .download-btn:hover {
+            background-color: #219653;
+        }
+
+        .controls-group {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .controls-group input[type="range"] {
             flex: 1;
-            padding: 2.5rem;
-            position: relative;
         }
-        
-        .card-image {
-            flex: 0 0 40%;
-            height: 300px;
-            position: relative;
+
+        .value-display {
+            min-width: 40px;
+            text-align: center;
+        }
+
+        .color-picker {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .color-input {
+            width: 40px !important;
+            height: 40px;
+            padding: 0;
+            border: none;
+            cursor: pointer;
+        }
+
+        .resume-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .resume-photo {
+            width: 120px;
+            height: 120px;
+            border-radius: 50%;
             overflow: hidden;
+            margin-right: 20px;
+            border: 2px solid var(--border-color);
         }
-        
-        .card-image img {
+
+        .resume-photo img {
             width: 100%;
             height: 100%;
             object-fit: cover;
-            transition: transform 0.5s ease;
-        }
-        
-        .feature-card:hover .card-image img {
-            transform: scale(1.05);
-        }
-        
-        .card-tag {
-            display: inline-block;
-            background: linear-gradient(45deg, var(--primary) 0%, #10B981 100%);
-            color: #05080E;
-            padding: 0.5rem 1rem;
-            border-radius: 9999px;
-            font-weight: 800;
-            font-size: 0.875rem;
-            letter-spacing: 0.05em;
-            text-transform: uppercase;
-            margin-bottom: 1rem;
-            box-shadow: 0 0 15px rgba(56, 229, 183, 0.4);
-        }
-        
-        .card-title {
-            font-size: 2rem;
-            font-weight: 800;
-            font-family: var(--font-heading);
-            margin-bottom: 1rem;
-            line-height: 1.2;
-        }
-        
-        .card-description {
-            color: var(--text-muted);
-            line-height: 1.6;
-            margin-bottom: 1.5rem;
-        }
-        
-        .card-link {
-            display: inline-flex;
-            align-items: center;
-            color: var(--primary);
-            font-weight: 600;
-            transition: all 0.3s ease;
-        }
-        
-        .card-link i {
-            margin-left: 0.5rem;
-            transition: transform 0.3s ease;
-        }
-        
-        .card-link:hover {
-            color: var(--primary-hover);
-        }
-        
-        .card-link:hover i {
-            transform: translateX(5px);
-        }
-        
-        /* Alternativ kartlar (məlumat solda, şəkil sağda) */
-        .feature-card.reverse {
-            flex-direction: row-reverse;
         }
 
-        .btn-primary {
-            background-image: linear-gradient(45deg, var(--primary) 0%, #10B981 100%);
-            color: #05080E;
-            border-radius: 9999px;
-            font-weight: 700;
-            transition: all 0.3s ease;
-            box-shadow: 0 0 20px rgba(56, 229, 183, 0.4);
-        }
-        .btn-primary:hover {
-            transform: scale(1.05);
-            box-shadow: 0 0 35px rgba(56, 229, 183, 0.7);
+        .resume-info {
+            flex: 1;
         }
 
-        ::-webkit-scrollbar { width: 8px; }
-        ::-webkit-scrollbar-track { background: #111827; }
-        ::-webkit-scrollbar-thumb { background: var(--primary); border-radius: 4px; }
-        ::-webkit-scrollbar-thumb:hover { background: var(--primary-hover); }
+        .resume-name {
+            font-size: 28px;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
 
-        .fade-in {
-            opacity: 0;
-            transform: translateY(50px);
-            transition: opacity 1s ease-out, transform 1s cubic-bezier(0.2, 0.8, 0.2, 1);
+        .resume-title {
+            font-size: 18px;
+            color: var(--primary-color);
+            margin-bottom: 10px;
         }
-        .fade-in.appear {
-            opacity: 1;
-            transform: translateY(0);
-        }
-        
-        /* Mobile Side-Panel Menu */
-        .mobile-menu-container {
-            position: fixed; 
-            top: 0; 
-            right: 0; 
-            width: 320px; 
-            max-width: 80vw;
-            height: 100vh;
-            background: rgba(5, 8, 14, 0.8);
-            backdrop-filter: blur(20px);
-            -webkit-backdrop-filter: blur(20px);
-            border-left: 1px solid var(--border);
-            z-index: 100;
-            transform: translateX(100%); 
-            transition: transform 0.5s cubic-bezier(0.6, 0.05, 0.28, 0.91);
+
+        .resume-contact {
             display: flex;
-            flex-direction: column;
-            overflow-y: auto;
-        }
-        .mobile-menu-container.open { 
-            transform: translateX(0); 
-        }
-        .mobile-menu-container nav {
-            padding-top: 6rem;
-            flex-grow: 1;
-        }
-        .mobile-menu-container a {
-            display: block;
-            padding: 1rem 2.5rem;
-            font-family: var(--font-heading);
-            font-size: 1.25rem; 
-            font-weight: 700;
-            color: var(--text-muted);
-            transition: color 0.3s ease, background-color 0.3s ease;
-            border-bottom: 1px solid var(--border);
-        }
-        .mobile-menu-container a:hover { 
-            color: var(--primary); 
-            background-color: rgba(56, 229, 183, 0.05);
+            flex-wrap: wrap;
+            gap: 15px;
+            font-size: 14px;
         }
 
-        .service-icon-wrapper {
-            width: 80px; height: 80px;
-            background: linear-gradient(135deg, rgba(56, 229, 183, 0.1), rgba(56, 229, 183, 0));
-            border-radius: 1.25rem;
-            border: 1px solid var(--border);
-            display: flex; align-items: center; justify-content: center;
-            font-size: 2rem; color: var(--primary);
-            transition: all 0.4s ease;
+        .resume-section {
+            margin-bottom: 20px;
         }
-        .glass-card:hover .service-icon-wrapper {
-            transform: rotate(15deg) scale(1.1);
-            box-shadow: 0 0 20px rgba(56, 229, 183, 0.5);
+
+        .resume-section-title {
+            font-size: 18px;
+            font-weight: bold;
+            margin-bottom: 10px;
+            color: var(--secondary-color);
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 5px;
         }
-        
-        /* Axtarış motoru üçün yeni stillər - Nəticələr Ön Planda və Düymədən Sonra */
-        .search-container {
-            position: relative;
-            max-width: 500px;
-            margin: 0 auto;
+
+        .resume-item {
+            margin-bottom: 15px;
         }
-        
-        .search-box {
-            background: var(--glass-bg);
-            backdrop-filter: blur(16px);
-            -webkit-backdrop-filter: blur(16px);
-            border: 1px solid var(--border);
-            border-radius: 9999px;
-            padding: 0.75rem 1.5rem;
-            color: var(--text-primary);
-            width: 100%;
-            font-size: 1rem;
-            transition: all 0.3s ease;
-            z-index: 100;
+
+        .resume-item-title {
+            font-weight: bold;
+            margin-bottom: 5px;
         }
-        
-        .search-box:focus {
-            outline: none;
-            border-color: var(--primary);
-            box-shadow: 0 0 15px rgba(56, 229, 183, 0.3);
+
+        .resume-item-subtitle {
+            font-style: italic;
+            color: #666;
+            margin-bottom: 5px;
         }
-        
-        .search-results {
-            position: absolute;
-            top: 100%;
-            left: 0;
-            right: 0;
-            background: var(--glass-bg);
-            backdrop-filter: blur(16px);
-            -webkit-backdrop-filter: blur(16px);
-            border: 1px solid var(--border);
-            border-radius: 1rem;
-            margin-top: 0.5rem;
-            max-height: 300px;
-            overflow-y: auto;
-            z-index: 1000; /* Yüksək z-index ilə ön planda */
-            display: none;
+
+        .resume-item-date {
+            color: #888;
+            font-size: 14px;
+            margin-bottom: 5px;
         }
-        
-        .search-result-item {
-            padding: 0.75rem 1.5rem;
-            border-bottom: 1px solid rgba(56, 229, 183, 0.1);
-            cursor: pointer;
-            transition: background-color 0.2s ease;
+
+        .resume-skills {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
         }
-        
-        .search-result-item:hover {
-            background-color: rgba(56, 229, 183, 0.1);
+
+        .skill-tag {
+            background-color: var(--primary-color);
+            color: white;
+            padding: 5px 10px;
+            border-radius: 15px;
+            font-size: 14px;
         }
-        
-        .search-result-item:last-child {
-            border-bottom: none;
-        }
-        
-        .search-result-title {
-            font-weight: 600;
-            color: var(--text-primary);
-            margin-bottom: 0.25rem;
-        }
-        
-        .search-result-description {
-            font-size: 0.875rem;
-            color: var(--text-muted);
-        }
-        
-        .no-results {
-            padding: 1rem;
-            text-align: center;
-            color: var(--text-muted);
-        }
-        
-        .search-icon {
-            position: absolute;
-            right: 1.5rem;
-            top: 50%;
-            transform: translateY(-50%);
-            color: var(--text-muted);
-            cursor: pointer;
-            z-index: 101;
-        }
-        
-        .search-icon:hover {
-            color: var(--primary);
-        }
-        
-        /* Hero bölməsində axtarış nəticələrinin ön planda olması */
-        #hero .search-results {
-            z-index: 1000;
-        }
-        
-        /* Hero bölməsində axtarış konteyneri - nəticələr düymədən sonra */
-        #hero .search-container {
-            margin-bottom: 1.5rem;
-        }
-        
-        /* Responsive üçün düzəlişlər */
-        @media (max-width: 1024px) {
-            .feature-card, .feature-card.reverse {
-                flex-direction: column;
+
+        @media print {
+            body * {
+                visibility: hidden;
             }
-            
-            .card-image {
-                flex: 0 0 250px;
+            .a4-container, .a4-container * {
+                visibility: visible;
+            }
+            .a4-container {
+                position: absolute;
+                left: 0;
+                top: 0;
                 width: 100%;
+                box-shadow: none;
             }
         }
     </style>
 </head>
-<body class="antialiased">
-    
-    <canvas id="matrix-canvas"></canvas>
-
-    <!-- Header -->
-    <header id="header" class="fixed top-0 left-0 w-full p-4 z-50 transition-all duration-300">
-        <div class="container mx-auto flex justify-between items-center max-w-7xl px-4">
-            <a href="index.html" class="flex items-center gap-3">
-                <img src="https://i.postimg.cc/1zQS7wYc/Whats-App-Image-2025-10-31-at-12-00-55.jpg" alt="AxtarGet Logo" class="w-10 h-10 rounded-full border-2 border-primary shadow-lg shadow-primary/20">
-                <span class="text-2xl font-bold font-heading text-white">AxtarGet</span>
-            </a>
-            
-            <nav class="hidden md:flex items-center gap-6 text-sm font-semibold">
-                <a href="#services" class="text-gray-300 hover:text-primary transition-colors">Niyə Biz?</a>
-                <a href="follower-service.html" class="text-gray-300 hover:text-primary transition-colors">Takipçi Xidməti</a>
-                <a href="https://ai.axtarget.xyz" target="_blank" class="text-gray-300 hover:text-primary transition-colors">AxtarGet AI</a>
-                <a href="digital-products.html" class="text-gray-300 hover:text-primary transition-colors">Rəqəmsal Məhsullar</a>
-                <a href="#contact" class="text-gray-300 hover:text-primary transition-colors">Əlaqə</a>
-            </nav>
-            <button id="hamburger-button" class="md:hidden text-2xl text-white">
-                <i class="fas fa-bars-staggered"></i>
-            </button>
-        </div>
-    </header>
-
-    <!-- Mobile Side-Panel Menu -->
-    <div id="mobile-menu-container" class="mobile-menu-container">
-        <button id="mobile-menu-close-button" class="absolute top-6 right-6 text-3xl text-gray-400 hover:text-red-500 transition-transform duration-300 hover:rotate-90">
-            <i class="fas fa-times"></i>
-        </button>
-        <nav>
-            <a href="#hero">Ana Səhifə</a>
-            <a href="#products">Xidmətlər</a>
-            <a href="#services">Niyə Biz?</a>
-            <a href="share-business.html">Biznesini Paylaş</a>
-            <a href="prmiumCV.html">CV Hazırla</a>
-            <a href="follower-service.html">Takipçi Xidməti</a>
-            <a href="https://ai.axtarget.xyz" target="_blank">AxtarGet AI</a>
-            <a href="digital-products.html">Rəqəmsal Məhsullar</a>
-            <a href="#contact">Əlaqə</a>
-            
-            <!-- Mobil menyuda axtarış -->
-            <div class="p-4 border-b border-gray-800">
-                <div class="search-container">
-                    <input type="text" id="mobile-search-input" class="search-box" placeholder="Axtar Get...">
-                    <div class="search-icon" id="mobile-search-button">
-                        <i class="fas fa-search"></i>
-                    </div>
-                    <div id="mobile-search-results" class="search-results"></div>
-                </div>
-            </nav>
+<body>
+    <div class="header">
+        <div class="logo">Premium CV Generator</div>
+        <div class="language-selector">
+            <button class="lang-btn active" data-lang="az">AZ</button>
+            <button class="lang-btn" data-lang="tr">TR</button>
+            <button class="lang-btn" data-lang="en">EN</button>
         </div>
     </div>
 
-    <main>
-        <!-- Hero Section -->
-        <section id="hero" class="relative h-screen flex items-center justify-center overflow-hidden">
-            <div id="globe-container"></div>
-            <div class="content-overlay container mx-auto px-6 lg:px-8 max-w-7xl text-center">
-                <h1 class="text-5xl md:text-7xl lg:text-8xl font-extrabold font-heading text-white leading-tight mb-6 fade-in" style="text-shadow: 0 5px 30px rgba(0,0,0,0.5);">
-                    Gələcəyi <span class="text-primary">Kodlaşdırırıq</span>
-                </h1>
-                <p class="text-lg md:text-xl text-text-muted max-w-3xl mx-auto mb-10 fade-in" style="transition-delay: 0.2s;">
-                    Biznesiniz üçün sadəcə bir veb-sayt deyil, rəqəmsal dünyada unudulmaz bir imza yaradırıq. İnnovasiya, strategiya və texnologiyanın vəhdəti ilə tanış olun.
-                </p>
-                
-                <!-- Hero bölməsində axtarış - Nəticələr Ön Planda və Düymədən Sonra -->
-                <div class="fade-in" style="transition-delay: 0.4s;">
-                    <a href="#products" class="btn-primary px-10 py-4 text-lg inline-block">
-                        <i class="fas fa-rocket mr-2"></i> Xidmətlərimizə Keçid
-                    </a>
+    <div class="main-container">
+        <div class="editor-panel">
+            <div class="section">
+                <div class="section-title" data-key="personalInfo">Şəxsi Məlumatlar</div>
+                <div class="form-group">
+                    <label for="fullName" data-key="fullName">Ad Soyad</label>
+                    <input type="text" id="fullName" placeholder="Adınızı və soyadınızı daxil edin">
                 </div>
-                
-                <!-- Axtarış konteyneri düymədən sonra -->
-                <div class="search-container max-w-2xl mx-auto mt-10 fade-in" style="transition-delay: 0.6s;">
-                    <input type="text" id="hero-search-input" class="search-box" placeholder="Axtar Get...">
-                    <div class="search-icon" id="hero-search-button">
-                        <i class="fas fa-search"></i>
-                    </div>
-                    <div id="hero-search-results" class="search-results"></div>
+                <div class="form-group">
+                    <label for="jobTitle" data-key="jobTitle">İş Titulu</label>
+                    <input type="text" id="jobTitle" placeholder="Məsələn: Veb Developer">
+                </div>
+                <div class="form-group">
+                    <label for="email" data-key="email">E-poçt</label>
+                    <input type="email" id="email" placeholder="example@mail.com">
+                </div>
+                <div class="form-group">
+                    <label for="phone" data-key="phone">Telefon</label>
+                    <input type="text" id="phone" placeholder="+994 XX XXX XX XX">
+                </div>
+                <div class="form-group">
+                    <label for="address" data-key="address">Ünvan</label>
+                    <input type="text" id="address" placeholder="Yaşadığınız ünvan">
                 </div>
             </div>
-        </section>
 
-        <!-- Products Section -->
-        <section id="products" class="py-24 content-overlay">
-            <div class="container mx-auto px-6 lg:px-8 max-w-7xl">
-                <div class="text-center mb-16">
-                    <h2 class="text-4xl md:text-5xl font-extrabold font-heading text-white fade-in">Xidmət Ekosistemimiz</h2>
-                    <p class="text-lg text-text-muted mt-4 max-w-3xl mx-auto fade-in" style="transition-delay: 0.1s;">
-                        Rəqəmsal dünyada ehtiyacınız olan hər şey bir ünvanda.
-                    </p>
-                </div>
-                
-                <!-- Yeni Kart Dizaynı -->
-                <div class="space-y-12">
-                    <!-- Premium CV Hazırla -->
-                    <div class="feature-card fade-in">
-                        <div class="card-content">
-                            <span class="card-tag">Premium</span>
-                            <h3 class="card-title">Premium CV Hazırla</h3>
-                            <p class="card-description">Arzuladığınız işə qəbul üçün peşəkar CV lazımdır? Düzgün ünvandasınız. Rəqiblərinizdən fərqlənin, premium keyfiyyətli CV ilə ilk təəssüratdan qalib olun.</p>
-                            <a href="prmiumCV.html" class="card-link">
-                                Daha ətraflı <i class="fas fa-arrow-right"></i>
-                            </a>
-                        </div>
-                        <div class="card-image">
-                            <img src="https://i.postimg.cc/qvztVKYZ/rush-resume-template-2.jpg" alt="Premium CV Hazırlama">
-                        </div>
+            <div class="section">
+                <div class="section-title" data-key="profilePhoto">Profil Şəkli</div>
+                <div class="image-upload">
+                    <div class="image-preview">
+                        <img id="photoPreview" src="" alt="Profil şəkli" style="display: none;">
+                        <span data-key="noPhoto">Şəkil yoxdur</span>
                     </div>
-                    
-                    <!-- Şəkil Redaktəsi Xidməti -->
-                    <div class="feature-card reverse fade-in">
-                        <div class="card-content">
-                            <span class="card-tag">Dizayn</span>
-                            <h3 class="card-title">Şəkil Redaktəsi Xidməti</h3>
-                            <p class="card-description">Şəkillərinizi peşəkar səviyyəyə qaldırın! Rəng korreksiyası, arxa fonun silinməsi, retuş və digər qrafik dizayn xidmətləri ilə fotolarınıza unikal görünüş bəxş edin.</p>
-                            <a href="photo.html" class="card-link">
-                                Daha ətraflı <i class="fas fa-arrow-right"></i>
-                            </a>
-                        </div>
-                        <div class="card-image">
-                            <img src="https://i.postimg.cc/sfbfQL0N/cerceveli-poster-renkli-geometrik-sekillerle-arka-plan-jpg.png" alt="Şəkil Redaktəsi">
-                        </div>
-                    </div>
-                    
-                    <!-- Takipçi Xidməti -->
-                    <div class="feature-card fade-in">
-                        <div class="card-content">
-                            <span class="card-tag">SMM</span>
-                            <h3 class="card-title">Takipçi Xidməti</h3>
-                            <p class="card-description">Fenomen olmaq bir addım uzaqlıqda! İzlənmə, bəyəni və digər SMM xidmətləri ilə sosial media gücünüzü ən sərfəli qiymətlərlə zirvəyə daşıyın.</p>
-                            <a href="follower-service.html" class="card-link">
-                                Daha ətraflı <i class="fas fa-arrow-right"></i>
-                            </a>
-                        </div>
-                        <div class="card-image">
-                            <img src="https://i.postimg.cc/L6S7bBJb/2025032713351869129.jpg" alt="Takipçi Xidməti">
-                        </div>
-                    </div>
-                    
-                    <!-- AxtarGet AI -->
-                    <div class="feature-card reverse fade-in">
-                        <div class="card-content">
-                            <span class="card-tag">AI</span>
-                            <h3 class="card-title">AxtarGet AI</h3>
-                            <p class="card-description">AxtarGet AI-nin gücü ilə yaradıcılığınızın sərhədlərini aşın. Mətn yazın, şəkil yaradın, kompleks problemləri həll edin – süni intellekt hər an yanınızdadır.</p>
-                            <a href="https://ai.axtarget.xyz" target="_blank" class="card-link">
-                                Daha ətraflı <i class="fas fa-arrow-right"></i>
-                            </a>
-                        </div>
-                        <div class="card-image">
-                            <img src="https://i.postimg.cc/pX0ZJDzk/ai-concept-with-spin-lines-effect-background-3d-rendering-video.jpg" alt="AxtarGet AI">
-                        </div>
-                    </div>
-                    
-                    <!-- Rəqəmsal Məhsullar -->
-                    <div class="feature-card fade-in">
-                        <div class="card-content">
-                            <span class="card-tag">Premium</span>
-                            <h3 class="card-title">Rəqəmsal Məhsullar</h3>
-                            <p class="card-description">Əyləncə və məhsuldarlıq dünyasına bir addımla daxil olun. Netflix, Exxen, ChatGPT kimi premium xidmətlərin hesablarını ən münasib qiymətə əldə edin.</p>
-                            <a href="digital-products.html" class="card-link">
-                                Daha ətraflı <i class="fas fa-arrow-right"></i>
-                            </a>
-                        </div>
-                        <div class="card-image">
-                            <img src="https://i.postimg.cc/MTKH5jyQ/Bm7K3Sm-L7x-V4x-Cp-BKag-Mg-P.jpg" alt="Rəqəmsal Məhsullar">
-                        </div>
-                    </div>
-                    
-                    <!-- Biznesini Paylaş -->
-                    <div class="feature-card reverse fade-in">
-                        <div class="card-content">
-                            <span class="card-tag">Marketinq</span>
-                            <h3 class="card-title">Biznesini Paylaş</h3>
-                            <p class="card-description">Biznesinizi geniş kütlələrə tanıtmaq üçün unikal fürsət! Bizimlə paylaşın, hədəf auditoriyanıza daha sürətli və effektiv şəkildə çatmağınıza dəstək olaq.</p>
-                            <a href="share-business.html" class="card-link">
-                                Daha ətraflı <i class="fas fa-arrow-right"></i>
-                            </a>
-                        </div>
-                        <div class="card-image">
-                            <img src="https://i.postimg.cc/DysG8L5w/depositphotos-52467319-stock-photo-business-people-working-in-office.webp" alt="Biznesini Paylaş">
-                        </div>
-                    </div>
-                    
-                    <!-- QR kod yarat -->
-                    <div class="feature-card fade-in">
-                        <div class="card-content">
-                            <span class="card-tag">Tool</span>
-                            <h3 class="card-title">QR kod yarat</h3>
-                            <p class="card-description">Öz QR kodunu asanlıqla yaratmaq üçün bu səhifəyə keçid et. Sadə və sürətli.</p>
-                            <a href="qr.html" class="card-link">
-                                Daha ətraflı <i class="fas fa-arrow-right"></i>
-                            </a>
-                        </div>
-                        <div class="card-image">
-                            <img src="https://i.postimg.cc/zfPvdGp0/a-guide-to-qr-codes-and-how-to-scan-qr-codes-3.jpg" alt="QR kod yarat">
-                        </div>
-                    </div>
-                    
-                    <!-- İş Elanları -->
-                    <div class="feature-card reverse fade-in">
-                        <div class="card-content">
-                            <span class="card-tag">Karyera</span>
-                            <h3 class="card-title">İş Elanları</h3>
-                            <p class="card-description">Özünə uyğun iş tapmaq və karyerana başlamaq üçün vakansiyalarımıza bax. Yeni fürsətlər səni gözləyir!</p>
-                            <div class="mt-6">
-                                <button
-                                    onclick="window.open('https://github.com/ibadullahesen/app/releases/download/v1.0/AxtarGet.4.apk', '_blank')"
-                                    class="flex items-center bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-full transition duration-300 shadow-lg shadow-blue-600/50"
-                                >
-                                    <i class="fa-solid fa-download mr-2"></i>
-                                    Aplikasiyamızı yüklə
-                                </button>
-                            </div>
-                            <a href="https://vakansiya.axtarget.xyz" class="card-link">
-                                Daha ətraflı <i class="fas fa-arrow-right"></i>
-                            </a>
-                        </div>
-                        <div class="card-image">
-                            <img src="https://i.postimg.cc/kXnCbdvt/01JWFWAS7M72K1623JC6JDV20V.jpg" alt="İş Elanları">
-                        </div>
-                    </div>
-                    
-                    <!-- Anonim Mesajlaşma -->
-                    <div class="feature-card fade-in">
-                        <div class="card-content">
-                            <span class="card-tag">Təhlükəsizlik</span>
-                            <h3 class="card-title">Anonim Mesajlaşma</h3>
-                            <p class="card-description">Heç kimin kim olduğunu bilmədən bir-birinizlə sərbəst yazışın. Tam anonim, təhlükəsiz və sadə mesajlaşma platforması.</p>
-                            <a href="https://axtarget.xyz/anonim.html" class="card-link">
-                                Daha ətraflı <i class="fas fa-arrow-right"></i>
-                            </a>
-                        </div>
-                        <div class="card-image">
-                            <img src="https://i.postimg.cc/ZnbQCJzL/pngtree-an-anonymous-hacker-with-computer-image-16301009.jpg" alt="Anonim Mesajlaşma">
-                        </div>
+                    <input type="file" id="photoUpload" accept="image/*" style="display: none;">
+                    <button class="btn" id="uploadBtn" data-key="selectPhoto">Şəkil Seç</button>
+                    <div class="image-controls">
+                        <button class="btn btn-secondary" id="zoomInBtn">Böyüt</button>
+                        <button class="btn btn-secondary" id="zoomOutBtn">Kiçilt</button>
+                        <button class="btn btn-secondary" id="cropBtn">Kırp</button>
+                        <button class="btn btn-secondary" id="resetPhotoBtn">Sıfırla</button>
                     </div>
                 </div>
             </div>
-        </section>
 
-        <!-- Why Us Section -->
-        <section id="services" class="py-24 content-overlay">
-            <div class="container mx-auto px-6 lg:px-8 max-w-7xl">
-                <div class="text-center mb-16">
-                    <h2 class="text-4xl md:text-5xl font-extrabold font-heading text-white fade-in">Niyə Biz?</h2>
-                    <p class="text-lg text-text-muted mt-4 max-w-3xl mx-auto fade-in" style="transition-delay: 0.1s;">
-                        İdeyadan icraya, hər mərhələdə yanınızdayıq.
-                    </p>
+            <div class="section">
+                <div class="section-title" data-key="professionalSummary">Peşəkar Xülasə</div>
+                <div class="form-group">
+                    <textarea id="summary" placeholder="Özünüz haqqında qısa məlumat"></textarea>
                 </div>
-                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                    <div class="glass-card p-8 fade-in">
-                        <div class="service-icon-wrapper mb-6"><i class="fas fa-satellite-dish"></i></div>
-                        <h3 class="text-2xl font-bold font-heading mb-3">Strateji Veb Həllər</h3>
-                        <p class="text-text-muted">Brendinizin DNT-sini analiz edərək, hədəflərinizə ən uyğun veb-platformaları dizayn və inkişaf etdiririk.</p>
+            </div>
+
+            <div class="section">
+                <div class="section-title" data-key="workExperience">İş Təcrübəsi</div>
+                <div class="form-group">
+                    <label for="company" data-key="company">Şirkət</label>
+                    <input type="text" id="company" placeholder="Şirkət adı">
+                </div>
+                <div class="form-group">
+                    <label for="position" data-key="position">Vəzifə</label>
+                    <input type="text" id="position" placeholder="İşlədiyiniz vəzifə">
+                </div>
+                <div class="form-group">
+                    <label for="workDate" data-key="workPeriod">İşləmə Müddəti</label>
+                    <input type="text" id="workDate" placeholder="Məsələn: 2020-2022">
+                </div>
+                <div class="form-group">
+                    <label for="workDescription" data-key="description">Təsvir</label>
+                    <textarea id="workDescription" placeholder="İş təcrübənizin təsviri"></textarea>
+                </div>
+                <button class="btn" id="addExperienceBtn" data-key="addExperience">Təcrübə Əlavə Et</button>
+            </div>
+
+            <div class="section">
+                <div class="section-title" data-key="education">Təhsil</div>
+                <div class="form-group">
+                    <label for="school" data-key="school">Təhsil Müəssisəsi</label>
+                    <input type="text" id="school" placeholder="Universitet və ya məktəb adı">
+                </div>
+                <div class="form-group">
+                    <label for="degree" data-key="degree">Dərəcə</label>
+                    <input type="text" id="degree" placeholder="Məsələn: Bakalavr">
+                </div>
+                <div class="form-group">
+                    <label for="educationDate" data-key="educationPeriod">Təhsil Müddəti</label>
+                    <input type="text" id="educationDate" placeholder="Məsələn: 2016-2020">
+                </div>
+                <button class="btn" id="addEducationBtn" data-key="addEducation">Təhsil Əlavə Et</button>
+            </div>
+
+            <div class="section">
+                <div class="section-title" data-key="skills">Bacarıqlar</div>
+                <div class="form-group">
+                    <label for="skillInput" data-key="skill">Bacarıq</label>
+                    <input type="text" id="skillInput" placeholder="Məsələn: JavaScript">
+                </div>
+                <button class="btn" id="addSkillBtn" data-key="addSkill">Bacarıq Əlavə Et</button>
+            </div>
+
+            <div class="section">
+                <div class="section-title" data-key="designSettings">Dizayn Parametrləri</div>
+                <div class="form-group">
+                    <label for="fontFamily" data-key="fontFamily">Şrift Növü</label>
+                    <select id="fontFamily">
+                        <option value="Arial, sans-serif">Arial</option>
+                        <option value="'Times New Roman', serif">Times New Roman</option>
+                        <option value="'Segoe UI', Tahoma, Geneva, Verdana, sans-serif">Segoe UI</option>
+                        <option value="Georgia, serif">Georgia</option>
+                        <option value="'Courier New', monospace">Courier New</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="fontSize" data-key="fontSize">Şrift Ölçüsü</label>
+                    <div class="controls-group">
+                        <input type="range" id="fontSize" min="10" max="24" value="14">
+                        <span class="value-display" id="fontSizeValue">14px</span>
                     </div>
-                    <div class="glass-card p-8 fade-in" style="transition-delay: 0.15s;">
-                        <div class="service-icon-wrapper mb-6"><i class="fas fa-microchip"></i></div>
-                        <h3 class="text-2xl font-bold font-heading mb-3">AI & Avtomatlaşdırma</h3>
-                        <p class="text-text-muted">Təkrarçı işləri ağıllı botlara həvalə edin, məlumatlarınızı dərin analiz edin və müştəri təcrübəsini süni intellektlə zənginləşdirin.</p>
+                </div>
+                <div class="form-group">
+                    <label for="lineHeight" data-key="lineHeight">Sətir Hündürlüyü</label>
+                    <div class="controls-group">
+                        <input type="range" id="lineHeight" min="1" max="2" step="0.1" value="1.4">
+                        <span class="value-display" id="lineHeightValue">1.4</span>
                     </div>
-                    <div class="glass-card p-8 fade-in" style="transition-delay: 0.3s;">
-                        <div class="service-icon-wrapper mb-6"><i class="fas fa-chart-pie"></i></div>
-                        <h3 class="text-2xl font-bold font-heading mb-3">İntellektual E-Ticarət</h3>
-                        <p class="text-text-muted">Sadəcə bir onlayn mağaza deyil, fərdiləşdirilmiş təkliflər və analizlərlə satışlarınızı artıran dinamik bir ticarət platforması.</p>
+                </div>
+                <div class="form-group">
+                    <label for="primaryColor" data-key="primaryColor">Əsas Rəng</label>
+                    <div class="color-picker">
+                        <input type="color" id="primaryColor" class="color-input" value="#3498db">
+                        <span id="primaryColorValue">#3498db</span>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="secondaryColor" data-key="secondaryColor">İkinci Rəng</label>
+                    <div class="color-picker">
+                        <input type="color" id="secondaryColor" class="color-input" value="#2c3e50">
+                        <span id="secondaryColorValue">#2c3e50</span>
                     </div>
                 </div>
             </div>
-        </section>
-
-        <!-- Contact Section -->
-        <section id="contact" class="py-24 content-overlay">
-            <div class="container mx-auto px-6 lg:px-8 max-w-5xl text-center">
-                <img src="https://i.postimg.cc/1zQS7wYc/Whats-App-Image-2025-10-31-at-12-00-55.jpg" alt="AxtarGet Logo" class="w-24 h-24 rounded-full border-4 border-primary shadow-lg shadow-primary/30 mx-auto mb-8 fade-in">
-                <h2 class="text-4xl md:text-5xl font-extrabold font-heading text-white fade-in">Növbəti Böyük Addımı Birlikdə Atmağa Hazırsınız?</h2>
-                <p class="text-lg text-text-muted mt-4 mb-12 max-w-3xl mx-auto fade-in" style="transition-delay: 0.1s;">
-                    Qeyri-adi bir layihə fikriniz var? Gəlin müzakirə edək və ideyanızı rəqəmsal reallığa çevirək.
-                </p>
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-8 mt-12 fade-in" style="transition-delay: 0.2s;">
-                    <a href="https://wa.me/994606006162?text=Salam,%20veb%20sayt%20qurmaq%20istəyirəm." target="_blank" class="glass-card p-6 flex flex-col items-center justify-center gap-3">
-                        <i class="fab fa-whatsapp text-5xl text-primary"></i>
-                        <span class="text-xl font-bold">WhatsApp</span>
-                        <span class="text-text-muted text-sm">060-600-61-62</span>
-                    </a>
-                    <a href="mailto:ibadulla.hesen@gmail.com" target="_blank" class="glass-card p-6 flex flex-col items-center justify-center gap-3">
-                        <i class="fas fa-envelope-open-text text-5xl text-primary"></i>
-                        <span class="text-xl font-bold">Email</span>
-                        <span class="text-text-muted text-sm">ibadulla.hesen@gmail.com</span>
-                    </a>
-                    <a href="https://www.instagram.com/ibadulla_hasanov_official" target="_blank" class="glass-card p-6 flex flex-col items-center justify-center gap-3">
-                        <i class="fab fa-instagram text-5xl text-primary"></i>
-                        <span class="text-xl font-bold">Instagram</span>
-                        <span class="text-text-muted text-sm">@ibadulla_hasanov_official</span>
-                    </a>
-                </div>
-            </div>
-        </section>
-
-        <!-- Video Bölməsi - Əlaqədən Sonra -->
-        <section class="py-24 content-overlay">
-            <div class="container mx-auto px-6 lg:px-8 max-w-7xl">
-                <div class="text-center mb-12">
-                    <h2 class="text-4xl md:text-5xl font-extrabold font-heading text-white fade-in">AxtarGet Təqdimat Videosu</h2>
-                    <p class="text-lg text-text-muted mt-4 max-w-3xl mx-auto fade-in" style="transition-delay: 0.1s;">
-                        Bizim xidmətlərimiz və vizyonumuz haqqında daha ətraflı məlumat əldə edin.
-                    </p>
-                </div>
-                <div class="glass-card p-6 md:p-8 fade-in mx-auto max-w-5xl" style="transition-delay: 0.2s;">
-                    <div class="relative w-full" style="padding-bottom: 56.25%; height: 0; overflow: hidden;">
-                        <iframe 
-                            class="absolute top-0 left-0 w-full h-full rounded-xl"
-                            src="https://www.youtube.com/embed/qBbF_wrr73M?si=g4TGI6vfasaHyRwl&autoplay=0&rel=0&modestbranding=1&controls=1"
-                            title="AxtarGet Təqdimat Videosu"
-                            frameborder="0"
-                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                            allowfullscreen>
-                        </iframe>
-                    </div>
-                </div>
-            </div>
-        </section>
-    </main>
-
-    <!-- Footer -->
-    <footer class="border-t border-gray-800/50 mt-20 content-overlay">
-        <div class="container mx-auto max-w-7xl px-6 lg:px-8 py-8 text-center text-text-muted">
-            <p>&copy; 2025 AxtarGet. Bütün hüquqlar qorunur.</p>
-            <p class="text-sm mt-2">Ibadulla Hasanov tərəfindən hazırlandı.</p>
         </div>
-    </footer>
-    
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+        <div class="preview-panel">
+            <div class="a4-container" id="resumePreview">
+                <div class="resume-header">
+                    <div class="resume-photo">
+                        <img id="resumePhoto" src="" alt="" style="display: none;">
+                    </div>
+                    <div class="resume-info">
+                        <div class="resume-name" id="previewName">Ad Soyad</div>
+                        <div class="resume-title" id="previewTitle">İş Titulu</div>
+                        <div class="resume-contact">
+                            <div id="previewEmail">example@mail.com</div>
+                            <div id="previewPhone">+994 XX XXX XX XX</div>
+                            <div id="previewAddress">Ünvan</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="resume-section">
+                    <div class="resume-section-title" data-key="professionalSummary">Peşəkar Xülasə</div>
+                    <div class="resume-item">
+                        <div id="previewSummary">Burada peşəkar xülasəniz görünəcək.</div>
+                    </div>
+                </div>
+
+                <div class="resume-section">
+                    <div class="resume-section-title" data-key="workExperience">İş Təcrübəsi</div>
+                    <div id="previewExperience">
+                        <div class="resume-item">
+                            <div class="resume-item-title">Şirkət Adı</div>
+                            <div class="resume-item-subtitle">Vəzifə</div>
+                            <div class="resume-item-date">İşləmə Müddəti</div>
+                            <div>İş təsviri burada görünəcək.</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="resume-section">
+                    <div class="resume-section-title" data-key="education">Təhsil</div>
+                    <div id="previewEducation">
+                        <div class="resume-item">
+                            <div class="resume-item-title">Təhsil Müəssisəsi</div>
+                            <div class="resume-item-subtitle">Dərəcə</div>
+                            <div class="resume-item-date">Təhsil Müddəti</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="resume-section">
+                    <div class="resume-section-title" data-key="skills">Bacarıqlar</div>
+                    <div class="resume-skills" id="previewSkills">
+                        <div class="skill-tag">Nümunə Bacarıq</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <button class="btn download-btn" id="downloadBtn" data-key="downloadCV">CV-ni Yüklə</button>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script>
-        document.addEventListener('DOMContentLoaded', () => {
-            // Header scroll effekti
-            const header = document.getElementById('header');
-            window.addEventListener('scroll', () => {
-                if (window.scrollY > 50) {
-                    header.classList.add('glass-card');
-                } else {
-                    header.classList.remove('glass-card');
+        // Dil dəyişdirmə funksionallığı
+        const translations = {
+            az: {
+                personalInfo: "Şəxsi Məlumatlar",
+                fullName: "Ad Soyad",
+                jobTitle: "İş Titulu",
+                email: "E-poçt",
+                phone: "Telefon",
+                address: "Ünvan",
+                profilePhoto: "Profil Şəkli",
+                noPhoto: "Şəkil yoxdur",
+                selectPhoto: "Şəkil Seç",
+                professionalSummary: "Peşəkar Xülasə",
+                workExperience: "İş Təcrübəsi",
+                company: "Şirkət",
+                position: "Vəzifə",
+                workPeriod: "İşləmə Müddəti",
+                description: "Təsvir",
+                addExperience: "Təcrübə Əlavə Et",
+                education: "Təhsil",
+                school: "Təhsil Müəssisəsi",
+                degree: "Dərəcə",
+                educationPeriod: "Təhsil Müddəti",
+                addEducation: "Təhsil Əlavə Et",
+                skills: "Bacarıqlar",
+                skill: "Bacarıq",
+                addSkill: "Bacarıq Əlavə Et",
+                designSettings: "Dizayn Parametrləri",
+                fontFamily: "Şrift Növü",
+                fontSize: "Şrift Ölçüsü",
+                lineHeight: "Sətir Hündürlüyü",
+                primaryColor: "Əsas Rəng",
+                secondaryColor: "İkinci Rəng",
+                downloadCV: "CV-ni Yüklə"
+            },
+            tr: {
+                personalInfo: "Kişisel Bilgiler",
+                fullName: "Ad Soyad",
+                jobTitle: "İş Unvanı",
+                email: "E-posta",
+                phone: "Telefon",
+                address: "Adres",
+                profilePhoto: "Profil Fotoğrafı",
+                noPhoto: "Fotoğraf yok",
+                selectPhoto: "Fotoğraf Seç",
+                professionalSummary: "Profesyonel Özet",
+                workExperience: "İş Deneyimi",
+                company: "Şirket",
+                position: "Pozisyon",
+                workPeriod: "Çalışma Süresi",
+                description: "Açıklama",
+                addExperience: "Deneyim Ekle",
+                education: "Eğitim",
+                school: "Eğitim Kurumu",
+                degree: "Derece",
+                educationPeriod: "Eğitim Süresi",
+                addEducation: "Eğitim Ekle",
+                skills: "Yetenekler",
+                skill: "Yetenek",
+                addSkill: "Yetenek Ekle",
+                designSettings: "Tasarım Ayarları",
+                fontFamily: "Yazı Tipi",
+                fontSize: "Yazı Boyutu",
+                lineHeight: "Satır Yüksekliği",
+                primaryColor: "Ana Renk",
+                secondaryColor: "İkinci Renk",
+                downloadCV: "CV'yi İndir"
+            },
+            en: {
+                personalInfo: "Personal Information",
+                fullName: "Full Name",
+                jobTitle: "Job Title",
+                email: "Email",
+                phone: "Phone",
+                address: "Address",
+                profilePhoto: "Profile Photo",
+                noPhoto: "No photo",
+                selectPhoto: "Select Photo",
+                professionalSummary: "Professional Summary",
+                workExperience: "Work Experience",
+                company: "Company",
+                position: "Position",
+                workPeriod: "Work Period",
+                description: "Description",
+                addExperience: "Add Experience",
+                education: "Education",
+                school: "School",
+                degree: "Degree",
+                educationPeriod: "Education Period",
+                addEducation: "Add Education",
+                skills: "Skills",
+                skill: "Skill",
+                addSkill: "Add Skill",
+                designSettings: "Design Settings",
+                fontFamily: "Font Family",
+                fontSize: "Font Size",
+                lineHeight: "Line Height",
+                primaryColor: "Primary Color",
+                secondaryColor: "Secondary Color",
+                downloadCV: "Download CV"
+            }
+        };
+
+        let currentLang = 'az';
+        
+        // Dil dəyişdirmə funksiyası
+        function changeLanguage(lang) {
+            currentLang = lang;
+            
+            // Dil düymələrini yenilə
+            document.querySelectorAll('.lang-btn').forEach(btn => {
+                btn.classList.remove('active');
+                if (btn.getAttribute('data-lang') === lang) {
+                    btn.classList.add('active');
                 }
             });
-
-            // Mobil menyu
-            const hamburgerButton = document.getElementById('hamburger-button');
-            const mobileMenuContainer = document.getElementById('mobile-menu-container');
-            const mobileMenuCloseButton = document.getElementById('mobile-menu-close-button');
-            const mobileMenuLinks = mobileMenuContainer.querySelectorAll('a');
-
-            hamburgerButton.addEventListener('click', () => mobileMenuContainer.classList.add('open'));
-            mobileMenuCloseButton.addEventListener('click', () => mobileMenuContainer.classList.remove('open'));
             
-            mobileMenuLinks.forEach(link => {
-                link.addEventListener('click', function(e) {
-                    const href = this.getAttribute('href');
-                    if (href && href.startsWith('#')) {
-                        e.preventDefault();
-                        const targetElement = document.querySelector(href);
-                        if (targetElement) {
-                            targetElement.scrollIntoView({ behavior: 'smooth' });
-                        }
+            // Mətnləri yenilə
+            document.querySelectorAll('[data-key]').forEach(element => {
+                const key = element.getAttribute('data-key');
+                if (translations[lang][key]) {
+                    if (element.tagName === 'INPUT' || element.tagName === 'TEXTAREA') {
+                        element.placeholder = translations[lang][key];
+                    } else {
+                        element.textContent = translations[lang][key];
                     }
-                    mobileMenuContainer.classList.remove('open');
-                });
+                }
             });
+        }
 
-            // Fade-in animasiyası
-            const fadeInElements = document.querySelectorAll('.fade-in');
-            const observer = new IntersectionObserver((entries) => {
-                entries.forEach(entry => {
-                    if (entry.isIntersecting) {
-                        entry.target.classList.add('appear');
-                        observer.unobserve(entry.target);
-                    }
-                });
-            }, { threshold: 0.1 });
-            fadeInElements.forEach(element => observer.observe(element));
-
-            // Globe with continent outlines from points
-            const container = document.getElementById('globe-container');
-            if(container) {
-                const scene = new THREE.Scene();
-                const camera = new THREE.PerspectiveCamera(75, container.clientWidth / container.clientHeight, 0.1, 1000);
-                const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
-                renderer.setSize(container.clientWidth, container.clientHeight);
-                container.appendChild(renderer.domElement);
-                
-                camera.position.z = 4;
-                let globeObject = null;
-                let mouseX = 0;
-
-                const loader = new THREE.TextureLoader();
-                loader.load(
-                    'https://raw.githubusercontent.com/jeromeetienne/threex.planets/master/images/earthbump1k.jpg',
-                    function (texture) {
-                        const image = texture.image;
-                        const canvas = document.createElement('canvas');
-                        canvas.width = image.width;
-                        canvas.height = image.height;
-                        const context = canvas.getContext('2d');
-                        context.drawImage(image, 0, 0);
-                        const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
-
-                        const vertices = [];
-                        const radius = 2;
-
-                        for (let y = 0; y < canvas.height; y+=4) { // Optimallaşdırma: Daha az nöqtə
-                            for (let x = 0; x < canvas.width; x+=4) { // Optimallaşdırma: Daha az nöqtə
-                                const index = (y * canvas.width + x) * 4;
-                                const r = imageData.data[index];
-
-                                if (r > 60) {
-                                    const phi = (90 - (y / canvas.height) * 180) * (Math.PI / 180);
-                                    const theta = ((x / canvas.width) * 360 - 180) * (Math.PI / 180);
-
-                                    vertices.push(
-                                        radius * Math.sin(phi) * Math.cos(theta),
-                                        radius * Math.cos(phi),
-                                        radius * Math.sin(phi) * Math.sin(theta)
-                                    );
-                                }
-                            }
-                        }
-                        
-                        const geometry = new THREE.BufferGeometry();
-                        geometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
-                        const material = new THREE.PointsMaterial({
-                            color: 0x38E5B7,
-                            size: 0.015
-                        });
-
-                        globeObject = new THREE.Points(geometry, material);
-                        scene.add(globeObject);
-                    }
-                );
-                
-                function animate() {
-                    requestAnimationFrame(animate);
-                    if (globeObject) {
-                        globeObject.rotation.y += 0.001 + (mouseX * 0.005);
-                    }
-                    renderer.render(scene, camera);
-                }
-                animate();
-                
-                function onMouseMove(event) {
-                    mouseX = (event.clientX / window.innerWidth) - 0.5;
-                }
-                
-                function onMouseOut(event) {
-                    mouseX = 0;
-                }
-
-                window.addEventListener('mousemove', onMouseMove);
-                window.addEventListener('mouseout', onMouseOut);
-
-                window.addEventListener('resize', () => {
-                    camera.aspect = container.clientWidth / container.clientHeight;
-                    camera.updateProjectionMatrix();
-                    renderer.setSize(container.clientWidth, container.clientHeight);
-                });
-            }
-            
-            // Matrix Rain Effect
-            const matrixCanvas = document.getElementById('matrix-canvas');
-            if (matrixCanvas) {
-                const ctx = matrixCanvas.getContext('2d');
-                matrixCanvas.width = window.innerWidth;
-                matrixCanvas.height = window.innerHeight;
-
-                let katakana = 'アァカサタナハマヤャラワガザダバパイィキシチニヒミリヰギジヂビピウゥクスツヌフムユュルグズブプエェケセテネヘメレヱゲゼデベペオォコソトノホモヨョロヲゴゾドボポヴッン';
-                katakana += 'ABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890';
-                const characters = katakana.split('');
-
-                const fontSize = 16;
-                const columns = matrixCanvas.width / fontSize;
-                const drops = [];
-                for (let x = 0; x < columns; x++) {
-                    drops[x] = 1;
-                }
-
-                function drawMatrix() {
-                    ctx.fillStyle = 'rgba(5, 8, 14, 0.12)';
-                    ctx.fillRect(0, 0, matrixCanvas.width, matrixCanvas.height);
-                    ctx.fillStyle = 'rgba(56, 229, 183, 0.3)';
-                    ctx.font = fontSize + 'px monospace';
-
-                    for (let i = 0; i < drops.length; i++) {
-                        const text = characters[Math.floor(Math.random() * characters.length)];
-                        ctx.fillText(text, i * fontSize, drops[i] * fontSize);
-                        if (drops[i] * fontSize > matrixCanvas.height && Math.random() > 0.975) {
-                            drops[i] = 0;
-                        }
-                        drops[i]++;
-                    }
-                }
-
-                setInterval(drawMatrix, 40);
-
-                window.addEventListener('resize', () => {
-                    matrixCanvas.width = window.innerWidth;
-                    matrixCanvas.height = window.innerHeight;
-                });
-            }
-            
-            // Axtarış Motoru Funksionallığı
-            const searchData = [
-                {
-                    title: "Takipçi Xidməti",
-                    description: "Sosial media hesablarınız üçün izlənmə, bəyəni və digər SMM xidmətləri",
-                    url: "follower-service.html",
-                    keywords: ["takipci", "takipçi", "izlənmə", "bəyəni", "follower", "followers", "smm", "sosial media", "instagram", "tiktok", "youtube"]
-                },
-                {
-                    title: "Şəkil Redaktəsi Xidməti",
-                    description: "Şəkillərinizin peşəkar səviyyədə redaktəsi və qrafik dizayn xidmətləri",
-                    url: "photo.html",
-                    keywords: ["şəkil", "redakte", "redaktə", "foto", "photo", "edit", "redaktəsi", "redakte", "qrafik", "dizayn", "retuş", "fon silme"]
-                },
-                {
-                    title: "Premium CV Hazırla",
-                    description: "Peşəkar CV hazırlanması xidməti ilə işə qəbul şansınızı artırın",
-                    url: "prmiumCV.html",
-                    keywords: ["cv", "cv hazırla", "premium cv", "iş", "vakansiya", "karyera", "rezume", "cv yaz", "cv yarat"]
-                },
-                {
-                    title: "AxtarGet AI",
-                    description: "Süni intellekt ilə mətn yazın, şəkil yaradın və problemləri həll edin",
-                    url: "https://ai.axtarget.xyz",
-                    keywords: ["ai", "süni intellekt", "axtarget ai", "chatgpt", "mətn", "şəkil yarat", "problem həll"]
-                },
-                {
-                    title: "Rəqəmsal Məhsullar",
-                    description: "Netflix, Exxen, ChatGPT kimi premium xidmətlərin hesabları",
-                    url: "digital-products.html",
-                    keywords: ["rəqəmsal", "məhsul", "netflix", "exxen", "chatgpt", "spotify", "premium", "hesab", "abunə"]
-                },
-                {
-                    title: "Biznesini Paylaş",
-                    description: "Biznesinizi geniş auditoriyaya çatdırmaq üçün fürsət",
-                    url: "share-business.html",
-                    keywords: ["biznes", "paylaş", "tanıt", "reklam", "marketinq", "biznesini paylaş"]
-                },
-                {
-                    title: "QR kod yarat",
-                    description: "Öz QR kodunuzu asanlıqla yaradın",
-                    url: "qr.html",
-                    keywords: ["qr", "qr kod", "qrcode", "kod yarat", "qr generator"]
-                },
-                {
-                    title: "İş Elanları",
-                    description: "Özünüzə uyğun iş tapmaq üçün vakansiyalar",
-                    url: "https://vakansiya.axtarget.xyz",
-                    keywords: ["iş", "vakansiya", "elan", "karyera", "iş elanları", "iş axtarırəm"]
-                }
-            ];
-
-            // Axtarış funksiyası
-            function performSearch(query, resultsContainer) {
-                const normalizedQuery = query.toLowerCase().trim();
-                
-                if (normalizedQuery.length < 2) {
-                    resultsContainer.style.display = 'none';
-                    return;
-                }
-                
-                const results = searchData.filter(item => {
-                    // Başlıq və açıqlama üzrə axtarış
-                    if (item.title.toLowerCase().includes(normalizedQuery) || 
-                        item.description.toLowerCase().includes(normalizedQuery)) {
-                        return true;
-                    }
-                    
-                    // Açar sözlər üzrə axtarış
-                    return item.keywords.some(keyword => 
-                        keyword.toLowerCase().includes(normalizedQuery)
-                    );
-                });
-                
-                displayResults(results, resultsContainer);
-            }
-            
-            // Nəticələri göstər
-            function displayResults(results, container) {
-                container.innerHTML = '';
-                
-                if (results.length === 0) {
-                    container.innerHTML = '<div class="no-results">Heç bir nəticə tapılmadı</div>';
-                } else {
-                    results.forEach(result => {
-                        const resultElement = document.createElement('div');
-                        resultElement.className = 'search-result-item';
-                        resultElement.innerHTML = `
-                            <div class="search-result-title">${result.title}</div>
-                            <div class="search-result-description">${result.description}</div>
-                        `;
-                        
-                        resultElement.addEventListener('click', () => {
-                            if (result.url.startsWith('http')) {
-                                window.open(result.url, '_blank');
-                            } else {
-                                window.location.href = result.url;
-                            }
-                        });
-                        
-                        container.appendChild(resultElement);
-                    });
-                }
-                
-                container.style.display = 'block';
-            }
-            
-            // Axtarış konteynerləri üçün event listener-lar
-            const searchInputs = [
-                { input: 'search-input', results: 'search-results' },
-                { input: 'hero-search-input', results: 'hero-search-results' },
-                { input: 'mobile-search-input', results: 'mobile-search-results' }
-            ];
-            
-            searchInputs.forEach(({ input, results }) => {
-                const inputElement = document.getElementById(input);
-                const resultsElement = document.getElementById(results);
-                
-                if (inputElement && resultsElement) {
-                    // Yazarkən axtarış
-                    inputElement.addEventListener('input', (e) => {
-                        performSearch(e.target.value, resultsElement);
-                    });
-                    
-                    // Enter düyməsi ilə axtarış
-                    inputElement.addEventListener('keypress', (e) => {
-                        if (e.key === 'Enter') {
-                            performSearch(e.target.value, resultsElement);
-                            if (resultsElement.children.length > 0) {
-                                const firstResult = resultsElement.children[0];
-                                if (firstResult.classList.contains('search-result-item')) {
-                                    firstResult.click();
-                                }
-                            }
-                        }
-                    });
-                    
-                    // Axtarış ikonuna klik
-                    const searchButton = document.getElementById(input.replace('input', 'button'));
-                    if (searchButton) {
-                        searchButton.addEventListener('click', () => {
-                            performSearch(inputElement.value, resultsElement);
-                            if (resultsElement.children.length > 0) {
-                                const firstResult = resultsElement.children[0];
-                                if (firstResult.classList.contains('search-result-item')) {
-                                    firstResult.click();
-                                }
-                            }
-                        });
-                    }
-                    
-                    // Sənfdən kənarına klikləndikdə nəticələri gizlət
-                    document.addEventListener('click', (e) => {
-                        if (!inputElement.contains(e.target) && !resultsElement.contains(e.target)) {
-                            resultsElement.style.display = 'none';
-                        }
-                    });
-                }
+        // Dil dəyişdirmə hadisələri
+        document.querySelectorAll('.lang-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+                changeLanguage(this.getAttribute('data-lang'));
             });
         });
+
+        // Real-time yeniləmə funksiyaları
+        function updatePreview() {
+            // Şəxsi məlumatlar
+            document.getElementById('previewName').textContent = document.getElementById('fullName').value || 'Ad Soyad';
+            document.getElementById('previewTitle').textContent = document.getElementById('jobTitle').value || 'İş Titulu';
+            document.getElementById('previewEmail').textContent = document.getElementById('email').value || 'example@mail.com';
+            document.getElementById('previewPhone').textContent = document.getElementById('phone').value || '+994 XX XXX XX XX';
+            document.getElementById('previewAddress').textContent = document.getElementById('address').value || 'Ünvan';
+            
+            // Peşəkar xülasə
+            document.getElementById('previewSummary').textContent = document.getElementById('summary').value || 'Burada peşəkar xülasəniz görünəcək.';
+        }
+
+        // Giriş sahələri üçün real-time yeniləmə
+        document.querySelectorAll('#fullName, #jobTitle, #email, #phone, #address, #summary').forEach(input => {
+            input.addEventListener('input', updatePreview);
+        });
+
+        // Şəkil yükləmə
+        document.getElementById('uploadBtn').addEventListener('click', function() {
+            document.getElementById('photoUpload').click();
+        });
+
+        document.getElementById('photoUpload').addEventListener('change', function(e) {
+            if (e.target.files && e.target.files[0]) {
+                const reader = new FileReader();
+                
+                reader.onload = function(e) {
+                    document.getElementById('photoPreview').src = e.target.result;
+                    document.getElementById('photoPreview').style.display = 'block';
+                    document.querySelector('.image-preview span').style.display = 'none';
+                    
+                    document.getElementById('resumePhoto').src = e.target.result;
+                    document.getElementById('resumePhoto').style.display = 'block';
+                }
+                
+                reader.readAsDataURL(e.target.files[0]);
+            }
+        });
+
+        // Şəkil idarəetmə düymələri
+        document.getElementById('zoomInBtn').addEventListener('click', function() {
+            const img = document.getElementById('resumePhoto');
+            const currentWidth = parseInt(window.getComputedStyle(img).width);
+            img.style.width = (currentWidth + 20) + 'px';
+        });
+
+        document.getElementById('zoomOutBtn').addEventListener('click', function() {
+            const img = document.getElementById('resumePhoto');
+            const currentWidth = parseInt(window.getComputedStyle(img).width);
+            if (currentWidth > 50) {
+                img.style.width = (currentWidth - 20) + 'px';
+            }
+        });
+
+        document.getElementById('cropBtn').addEventListener('click', function() {
+            alert('Kırpma funksionallığı aktivləşdirildi. Bu, tam bir həyata keçirmə tələb edən bir xüsusiyyətdir.');
+        });
+
+        document.getElementById('resetPhotoBtn').addEventListener('click', function() {
+            document.getElementById('photoPreview').src = '';
+            document.getElementById('photoPreview').style.display = 'none';
+            document.querySelector('.image-preview span').style.display = 'block';
+            
+            document.getElementById('resumePhoto').src = '';
+            document.getElementById('resumePhoto').style.display = 'none';
+            document.getElementById('photoUpload').value = '';
+        });
+
+        // Təcrübə əlavə et
+        document.getElementById('addExperienceBtn').addEventListener('click', function() {
+            const company = document.getElementById('company').value;
+            const position = document.getElementById('position').value;
+            const workDate = document.getElementById('workDate').value;
+            const workDescription = document.getElementById('workDescription').value;
+            
+            if (company && position) {
+                const experienceDiv = document.createElement('div');
+                experienceDiv.className = 'resume-item';
+                experienceDiv.innerHTML = `
+                    <div class="resume-item-title">${company}</div>
+                    <div class="resume-item-subtitle">${position}</div>
+                    <div class="resume-item-date">${workDate}</div>
+                    <div>${workDescription}</div>
+                `;
+                
+                document.getElementById('previewExperience').appendChild(experienceDiv);
+                
+                // Giriş sahələrini təmizlə
+                document.getElementById('company').value = '';
+                document.getElementById('position').value = '';
+                document.getElementById('workDate').value = '';
+                document.getElementById('workDescription').value = '';
+            } else {
+                alert('Zəhmət olmasa şirkət və vəzifə məlumatlarını daxil edin.');
+            }
+        });
+
+        // Təhsil əlavə et
+        document.getElementById('addEducationBtn').addEventListener('click', function() {
+            const school = document.getElementById('school').value;
+            const degree = document.getElementById('degree').value;
+            const educationDate = document.getElementById('educationDate').value;
+            
+            if (school && degree) {
+                const educationDiv = document.createElement('div');
+                educationDiv.className = 'resume-item';
+                educationDiv.innerHTML = `
+                    <div class="resume-item-title">${school}</div>
+                    <div class="resume-item-subtitle">${degree}</div>
+                    <div class="resume-item-date">${educationDate}</div>
+                `;
+                
+                document.getElementById('previewEducation').appendChild(educationDiv);
+                
+                // Giriş sahələrini təmizlə
+                document.getElementById('school').value = '';
+                document.getElementById('degree').value = '';
+                document.getElementById('educationDate').value = '';
+            } else {
+                alert('Zəhmət olmasa təhsil müəssisəsi və dərəcə məlumatlarını daxil edin.');
+            }
+        });
+
+        // Bacarıq əlavə et
+        document.getElementById('addSkillBtn').addEventListener('click', function() {
+            const skill = document.getElementById('skillInput').value;
+            
+            if (skill) {
+                const skillTag = document.createElement('div');
+                skillTag.className = 'skill-tag';
+                skillTag.textContent = skill;
+                
+                document.getElementById('previewSkills').appendChild(skillTag);
+                
+                // Giriş sahəsini təmizlə
+                document.getElementById('skillInput').value = '';
+            } else {
+                alert('Zəhmət olmasa bir bacarıq daxil edin.');
+            }
+        });
+
+        // Dizayn parametrləri
+        document.getElementById('fontFamily').addEventListener('change', function() {
+            document.getElementById('resumePreview').style.fontFamily = this.value;
+        });
+
+        document.getElementById('fontSize').addEventListener('input', function() {
+            const fontSize = this.value + 'px';
+            document.getElementById('resumePreview').style.fontSize = fontSize;
+            document.getElementById('fontSizeValue').textContent = fontSize;
+        });
+
+        document.getElementById('lineHeight').addEventListener('input', function() {
+            document.getElementById('resumePreview').style.lineHeight = this.value;
+            document.getElementById('lineHeightValue').textContent = this.value;
+        });
+
+        document.getElementById('primaryColor').addEventListener('input', function() {
+            const color = this.value;
+            document.documentElement.style.setProperty('--primary-color', color);
+            document.getElementById('primaryColorValue').textContent = color;
+        });
+
+        document.getElementById('secondaryColor').addEventListener('input', function() {
+            const color = this.value;
+            document.documentElement.style.setProperty('--secondary-color', color);
+            document.getElementById('secondaryColorValue').textContent = color;
+        });
+
+        // PDF yükləmə
+        document.getElementById('downloadBtn').addEventListener('click', function() {
+            const { jsPDF } = window.jspdf;
+            const element = document.getElementById('resumePreview');
+            
+            html2canvas(element, {
+                scale: 2,
+                useCORS: true,
+                logging: false
+            }).then(canvas => {
+                const imgData = canvas.toDataURL('image/png');
+                const pdf = new jsPDF('p', 'mm', 'a4');
+                const imgWidth = 210;
+                const pageHeight = 295;
+                const imgHeight = canvas.height * imgWidth / canvas.width;
+                let heightLeft = imgHeight;
+                let position = 0;
+
+                pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+                heightLeft -= pageHeight;
+
+                while (heightLeft >= 0) {
+                    position = heightLeft - imgHeight;
+                    pdf.addPage();
+                    pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+                    heightLeft -= pageHeight;
+                }
+
+                pdf.save('my-cv.pdf');
+            });
+        });
+
+        // A4 sənədini sürükləmə
+        let isDragging = false;
+        let startY;
+        let scrollTop;
+        
+        document.querySelector('.preview-panel').addEventListener('mousedown', function(e) {
+            isDragging = true;
+            startY = e.pageY - this.offsetTop;
+            scrollTop = this.scrollTop;
+        });
+
+        document.addEventListener('mousemove', function(e) {
+            if (!isDragging) return;
+            e.preventDefault();
+            const y = e.pageY - document.querySelector('.preview-panel').offsetTop;
+            const walk = (y - startY) * 2;
+            document.querySelector('.preview-panel').scrollTop = scrollTop - walk;
+        });
+
+        document.addEventListener('mouseup', function() {
+            isDragging = false;
+        });
+
+        // İlkin dəyərləri təyin et
+        updatePreview();
     </script>
 </body>
 </html>
