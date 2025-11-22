@@ -1,1123 +1,524 @@
-<!DOCTYPE html>
-<html lang="az">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AxtarGet - Gələcəyin Rəqəmsal Həlləri</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Manrope:wght@700;800&display=swap" rel="stylesheet">
-    
-    <!-- === LOQO DÜZƏLİŞLƏRİ BAŞLAYIR === -->
-    <link rel="icon" type="image/png" href="https://i.postimg.cc/1zQS7wYc/Whats-App-Image-2025-10-31-at-12-00-55.jpg">
-    <link rel="apple-touch-icon" href="https://i.postimg.cc/1zQS7wYc/Whats-App-Image-2025-10-31-at-12-00-55.jpg">
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { initializeApp } from 'firebase/app';
+import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from 'firebase/auth';
+import { getFirestore, collection, query, limit, orderBy, onSnapshot, getDocs, startAfter, endBefore, limitToLast } from 'firebase/firestore';
+import { Copy, X, Loader, ChevronLeft, ChevronRight, LayoutGrid } from 'lucide-react';
 
-    <!-- Google SEO üçün yeni schema kodu - Google axtarışında logosu göstərilməsi üçün -->
-    <script type="application/ld+json">
-    {
-      "@context": "https://schema.org",
-      "@type": "Organization",
-      "name": "AxtarGet",
-      "url": "https://axtarget.xyz/",
-      "logo": "https://i.postimg.cc/1zQS7wYc/Whats-App-Image-2025-10-31-at-12-00-55.jpg",
-      "sameAs": [
-        "https://www.instagram.com/ibadulla_hasanov_official",
-        "https://www.facebook.com/axtarget"
-      ],
-      "contactPoint": {
-        "@type": "ContactPoint",
-        "contactType": "Customer Support",
-        "telephone": "+994606006162"
-      }
+// --- Firebase Konfiqurasiyası və İlkin Quruluş ---
+// Global dəyişənləri yoxla və təyin et
+const appId = typeof __app_id !== 'undefined' ? __app_id : 'axtargetui-default-app-id';
+const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
+const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : undefined;
+
+let app;
+let db;
+let auth;
+
+try {
+  if (Object.keys(firebaseConfig).length > 0) {
+    app = initializeApp(firebaseConfig);
+    db = getFirestore(app);
+    auth = getAuth(app);
+  } else {
+    console.error("Firebase konfiqurasiyası tapılmadı.");
+  }
+} catch (error) {
+  console.error("Firebase tətbiqini işə salarkən xəta baş verdi:", error);
+}
+
+// Firestore yolu (ictimai məlumatlar üçün)
+const getCollectionPath = () => `/artifacts/${appId}/public/data/ui_components`;
+
+// Səhifələmə üçün element sayı
+const ITEMS_PER_PAGE = 12;
+
+// --- Utility Funksiyaları ---
+
+/**
+ * Kodu panoya kopyalayır.
+ * @param {string} text Kopyalanacaq mətn.
+ * @returns {Promise<boolean>} Kopyalama uğurlu olub-olmaması.
+ */
+const copyToClipboard = async (text) => {
+  try {
+    // navigator.clipboard.writeText iFrame məhdudiyyətlərinə görə işləməyə bilər,
+    // lakin müasir brauzerlərdə üstünlük verilir. Fallback olaraq execCommand istifadə edirik.
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } else {
+      const textarea = document.createElement('textarea');
+      textarea.value = text;
+      textarea.style.position = 'fixed'; // Ekranın kənarında gizlət
+      textarea.style.opacity = 0;
+      document.body.appendChild(textarea);
+      textarea.focus();
+      textarea.select();
+      const success = document.execCommand('copy');
+      document.body.removeChild(textarea);
+      return success;
     }
-    </script>
-    
-    <!-- Open Graph meta tags - Sosial media və Google üçün -->
-    <meta property="og:title" content="AxtarGet - Gələcəyin Rəqəmsal Həlləri">
-    <meta property="og:description" content="Web sayt hazırlama, SMM, AI xidmətləri və daha çoxu">
-    <meta property="og:image" content="https://i.postimg.cc/1zQS7wYc/Whats-App-Image-2025-10-31-at-12-00-55.jpg">
-    <meta property="og:url" content="https://axtarget.xyz/">
-    <meta property="og:type" content="website">
-    <!-- === LOQO DÜZƏLİŞLƏRİ BİTİR === -->
+  } catch (err) {
+    console.error('Kopyalama uğursuz oldu: ', err);
+    return false;
+  }
+};
 
-    <script async src="https://www.googletagmanager.com/gtag/js?id=G-62M9RVVRTY"></script>
-    <script>
-        window.dataLayer = window.dataLayer || [];
-        function gtag(){dataLayer.push(arguments);}
-        gtag('js', new Date());
+// --- Komponentlər ---
 
-        gtag('config', 'G-62M9RVVRTY');
-    </script>
+/**
+ * Yüklənmə animasiyası.
+ */
+const LoadingScreen = () => (
+  <div className="fixed inset-0 bg-gray-900/90 flex flex-col items-center justify-center z-50 transition-opacity duration-300">
+    <Loader className="w-12 h-12 text-teal-400 animate-spin" />
+    <p className="mt-4 text-xl font-medium text-gray-200">
+      AxtarGetUI yüklənir...
+    </p>
+  </div>
+);
 
-    <style>
-        :root {
-            --background: #05080E;
-            --glass-bg: rgba(15, 23, 42, 0.5);
-            --border: rgba(56, 229, 183, 0.2);
-            --text-primary: #F1F5F9;
-            --text-muted: #94A3B8;
-            --primary: #38E5B7;
-            --primary-hover: #10B981;
-            --font-body: 'Inter', sans-serif;
-            --font-heading: 'Manrope', sans-serif;
-        }
+/**
+ * Əsas səhifədəki hər bir UI elementini təmsil edən kart.
+ */
+const ComponentCard = React.memo(({ component, onClick }) => {
+  // Kart üzərindəki kiçik önizləmə üçün iframe
+  const iframeContent = useMemo(() => `
+    <!DOCTYPE html>
+    <html lang="az">
+    <head>
+        <style>
+            body { margin: 0; padding: 1rem; display: flex; justify-content: center; align-items: center; min-height: 100vh; background-color: #0d1117; overflow: hidden; }
+            ${component.css}
+        </style>
+    </head>
+    <body>
+        ${component.html}
+    </body>
+    </html>
+  `, [component.html, component.css]);
 
-        html { scroll-behavior: smooth; }
-        body {
-            font-family: var(--font-body);
-            background-color: var(--background);
-            color: var(--text-primary);
-            overflow-x: hidden;
-        }
-
-        #matrix-canvas {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            z-index: -1;
-        }
-
-        #globe-container {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            z-index: 0;
-            opacity: 0.5;
-            mask-image: radial-gradient(circle at center, white 20%, transparent 70%);
-            -webkit-mask-image: radial-gradient(circle at center, white 20%, transparent 70%);
-        }
-
-        .content-overlay { position: relative; z-index: 1; }
-
-        /* YENİ KART DİZAYNI */
-        .feature-card {
-            display: flex;
-            align-items: center;
-            background: var(--glass-bg);
-            backdrop-filter: blur(16px);
-            -webkit-backdrop-filter: blur(16px);
-            border: 1px solid var(--border);
-            border-radius: 1.5rem;
-            overflow: hidden;
-            transition: transform 0.4s ease, box-shadow 0.4s ease, border-color 0.4s ease;
-            position: relative;
-            margin-bottom: 2rem;
-        }
-        
-        .feature-card:before {
-            content: '';
-            position: absolute;
-            top: -50%;
-            left: -50%;
-            width: 200%;
-            height: 200%;
-            background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0) 70%);
-            transform: scale(0);
-            transition: transform 0.6s ease;
-            pointer-events: none;
-        }
-        
-        .feature-card:hover:before {
-            transform: scale(1);
-        }
-        
-        .feature-card:hover {
-            transform: translateY(-10px) scale(1.02);
-            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.4);
-            border-color: rgba(56, 229, 183, 0.5);
-        }
-        
-        .card-content {
-            flex: 1;
-            padding: 2.5rem;
-            position: relative;
-        }
-        
-        .card-image {
-            flex: 0 0 40%;
-            height: 300px;
-            position: relative;
-            overflow: hidden;
-        }
-        
-        .card-image img {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-            transition: transform 0.5s ease;
-        }
-        
-        .feature-card:hover .card-image img {
-            transform: scale(1.05);
-        }
-        
-        .card-tag {
-            display: inline-block;
-            background: linear-gradient(45deg, var(--primary) 0%, #10B981 100%);
-            color: #05080E;
-            padding: 0.5rem 1rem;
-            border-radius: 9999px;
-            font-weight: 800;
-            font-size: 0.875rem;
-            letter-spacing: 0.05em;
-            text-transform: uppercase;
-            margin-bottom: 1rem;
-            box-shadow: 0 0 15px rgba(56, 229, 183, 0.4);
-        }
-        
-        .card-title {
-            font-size: 2rem;
-            font-weight: 800;
-            font-family: var(--font-heading);
-            margin-bottom: 1rem;
-            line-height: 1.2;
-        }
-        
-        .card-description {
-            color: var(--text-muted);
-            line-height: 1.6;
-            margin-bottom: 1.5rem;
-        }
-        
-        .card-link {
-            display: inline-flex;
-            align-items: center;
-            color: var(--primary);
-            font-weight: 600;
-            transition: all 0.3s ease;
-        }
-        
-        .card-link i {
-            margin-left: 0.5rem;
-            transition: transform 0.3s ease;
-        }
-        
-        .card-link:hover {
-            color: var(--primary-hover);
-        }
-        
-        .card-link:hover i {
-            transform: translateX(5px);
-        }
-        
-        /* Alternativ kartlar (məlumat solda, şəkil sağda) */
-        .feature-card.reverse {
-            flex-direction: row-reverse;
-        }
-
-        .btn-primary {
-            background-image: linear-gradient(45deg, var(--primary) 0%, #10B981 100%);
-            color: #05080E;
-            border-radius: 9999px;
-            font-weight: 700;
-            transition: all 0.3s ease;
-            box-shadow: 0 0 20px rgba(56, 229, 183, 0.4);
-        }
-        .btn-primary:hover {
-            transform: scale(1.05);
-            box-shadow: 0 0 35px rgba(56, 229, 183, 0.7);
-        }
-
-        ::-webkit-scrollbar { width: 8px; }
-        ::-webkit-scrollbar-track { background: #111827; }
-        ::-webkit-scrollbar-thumb { background: var(--primary); border-radius: 4px; }
-        ::-webkit-scrollbar-thumb:hover { background: var(--primary-hover); }
-
-        .fade-in {
-            opacity: 0;
-            transform: translateY(50px);
-            transition: opacity 1s ease-out, transform 1s cubic-bezier(0.2, 0.8, 0.2, 1);
-        }
-        .fade-in.appear {
-            opacity: 1;
-            transform: translateY(0);
-        }
-        
-        /* Mobile Side-Panel Menu */
-        .mobile-menu-container {
-            position: fixed; 
-            top: 0; 
-            right: 0; 
-            width: 320px; 
-            max-width: 80vw;
-            height: 100vh;
-            background: rgba(5, 8, 14, 0.8);
-            backdrop-filter: blur(20px);
-            -webkit-backdrop-filter: blur(20px);
-            border-left: 1px solid var(--border);
-            z-index: 100;
-            transform: translateX(100%); 
-            transition: transform 0.5s cubic-bezier(0.6, 0.05, 0.28, 0.91);
-            display: flex;
-            flex-direction: column;
-            overflow-y: auto;
-        }
-        .mobile-menu-container.open { 
-            transform: translateX(0); 
-        }
-        .mobile-menu-container nav {
-            padding-top: 6rem;
-            flex-grow: 1;
-        }
-        .mobile-menu-container a {
-            display: block;
-            padding: 1rem 2.5rem;
-            font-family: var(--font-heading);
-            font-size: 1.25rem; 
-            font-weight: 700;
-            color: var(--text-muted);
-            transition: color 0.3s ease, background-color 0.3s ease;
-            border-bottom: 1px solid var(--border);
-        }
-        .mobile-menu-container a:hover { 
-            color: var(--primary); 
-            background-color: rgba(56, 229, 183, 0.05);
-        }
-
-        .service-icon-wrapper {
-            width: 80px; height: 80px;
-            background: linear-gradient(135deg, rgba(56, 229, 183, 0.1), rgba(56, 229, 183, 0));
-            border-radius: 1.25rem;
-            border: 1px solid var(--border);
-            display: flex; align-items: center; justify-content: center;
-            font-size: 2rem; color: var(--primary);
-            transition: all 0.4s ease;
-        }
-        .glass-card:hover .service-icon-wrapper {
-            transform: rotate(15deg) scale(1.1);
-            box-shadow: 0 0 20px rgba(56, 229, 183, 0.5);
-        }
-        
-        /* Axtarış motoru üçün yenilənmiş stillər - nəticələr haqqında görünürlük */
-        .search-container {
-            position: relative;
-            max-width: 500px;
-            margin: 0 auto;
-        }
-        
-        .search-box {
-            background: var(--glass-bg);
-            backdrop-filter: blur(16px);
-            -webkit-backdrop-filter: blur(16px);
-            border: 1px solid var(--border);
-            border-radius: 9999px;
-            padding: 0.75rem 1.5rem;
-            color: var(--text-primary);
-            width: 100%;
-            font-size: 1rem;
-            transition: all 0.3s ease;
-            z-index: 100;
-        }
-        
-        .search-box:focus {
-            outline: none;
-            border-color: var(--primary);
-            box-shadow: 0 0 15px rgba(56, 229, 183, 0.3);
-        }
-        
-        .search-results {
-            position: absolute;
-            top: 100%;
-            left: 0;
-            right: 0;
-            background: var(--glass-bg);
-            backdrop-filter: blur(16px);
-            -webkit-backdrop-filter: blur(16px);
-            border: 1px solid var(--border);
-            border-radius: 1rem;
-            margin-top: 0.5rem;
-            max-height: 400px;
-            overflow-y: auto;
-            z-index: 1000;
-            display: none;
-            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
-        }
-        
-        .search-results.show {
-            display: block;
-        }
-        
-        .search-result-item {
-            padding: 1rem 1.5rem;
-            border-bottom: 1px solid rgba(56, 229, 183, 0.1);
-            cursor: pointer;
-            transition: all 0.2s ease;
-        }
-        
-        .search-result-item:hover {
-            background-color: rgba(56, 229, 183, 0.15);
-            padding-left: 2rem;
-        }
-        
-        .search-result-item:last-child {
-            border-bottom: none;
-        }
-        
-        .search-result-title {
-            font-weight: 600;
-            color: var(--text-primary);
-            margin-bottom: 0.25rem;
-            font-size: 0.95rem;
-        }
-        
-        .search-result-description {
-            font-size: 0.85rem;
-            color: var(--text-muted);
-            line-height: 1.4;
-        }
-        
-        .no-results {
-            padding: 1.5rem;
-            text-align: center;
-            color: var(--text-muted);
-            font-size: 0.95rem;
-        }
-        
-        .search-icon {
-            position: absolute;
-            right: 1.5rem;
-            top: 50%;
-            transform: translateY(-50%);
-            color: var(--text-muted);
-            cursor: pointer;
-            z-index: 101;
-            transition: color 0.2s ease;
-        }
-        
-        .search-icon:hover {
-            color: var(--primary);
-        }
-        
-        /* Responsive üçün düzəlişlər */
-        @media (max-width: 1024px) {
-            .feature-card, .feature-card.reverse {
-                flex-direction: column;
-            }
-            
-            .card-image {
-                flex: 0 0 250px;
-                width: 100%;
-            }
-        }
-    </style>
-</head>
-<body class="antialiased">
-    
-    <canvas id="matrix-canvas"></canvas>
-
-    <!-- Header -->
-    <header id="header" class="fixed top-0 left-0 w-full p-4 z-50 transition-all duration-300">
-        <div class="container mx-auto flex justify-between items-center max-w-7xl px-4">
-            <a href="index.html" class="flex items-center gap-3">
-                <img src="https://i.postimg.cc/1zQS7wYc/Whats-App-Image-2025-10-31-at-12-00-55.jpg" alt="AxtarGet Logo" class="w-10 h-10 rounded-full border-2 border-primary shadow-lg shadow-primary/20">
-                <span class="text-2xl font-bold font-heading text-white">AxtarGet</span>
-            </a>
-            
-            <nav class="hidden md:flex items-center gap-6 text-sm font-semibold">
-                <a href="#services" class="text-gray-300 hover:text-primary transition-colors">Niyə Biz?</a>
-                <a href="follower-service.html" class="text-gray-300 hover:text-primary transition-colors">Takipçi Xidməti</a>
-                <a href="https://ai.axtarget.xyz" target="_blank" class="text-gray-300 hover:text-primary transition-colors">AxtarGet AI</a>
-                <a href="digital-products.html" class="text-gray-300 hover:text-primary transition-colors">Rəqəmsal Məhsullar</a>
-                <a href="#contact" class="text-gray-300 hover:text-primary transition-colors">Əlaqə</a>
-            </nav>
-            <button id="hamburger-button" class="md:hidden text-2xl text-white">
-                <i class="fas fa-bars-staggered"></i>
-            </button>
-        </div>
-    </header>
-
-    <!-- Mobile Side-Panel Menu -->
-    <div id="mobile-menu-container" class="mobile-menu-container">
-        <button id="mobile-menu-close-button" class="absolute top-6 right-6 text-3xl text-gray-400 hover:text-red-500 transition-transform duration-300 hover:rotate-90">
-            <i class="fas fa-times"></i>
-        </button>
-        <nav>
-            <a href="#hero">Ana Səhifə</a>
-            <a href="#products">Xidmətlər</a>
-            <a href="#services">Niyə Biz?</a>
-            <a href="share-business.html">Biznesini Paylaş</a>
-            <a href="prmiumCV.html">CV Hazırla</a>
-            <a href="follower-service.html">Takipçi Xidməti</a>
-            <a href="https://ai.axtarget.xyz" target="_blank">AxtarGet AI</a>
-            <a href="digital-products.html">Rəqəmsal Məhsullar</a>
-            <a href="#contact">Əlaqə</a>
-            
-            <!-- Mobil menyuda axtarış -->
-            <div class="p-4 border-b border-gray-800">
-                <div class="search-container">
-                    <input type="text" id="mobile-search-input" class="search-box" placeholder="Axtar Get...">
-                    <div class="search-icon" id="mobile-search-button">
-                        <i class="fas fa-search"></i>
-                    </div>
-                    <div id="mobile-search-results" class="search-results"></div>
-                </div>
-            </nav>
-        </div>
+  return (
+    <div
+      onClick={() => onClick(component)}
+      className="bg-gray-800 rounded-xl shadow-lg hover:shadow-teal-500/50 transition duration-300 cursor-pointer overflow-hidden transform hover:scale-[1.02] border border-gray-700 hover:border-teal-500"
+    >
+      <div className="p-4">
+        <h3 className="text-lg font-semibold text-gray-100 truncate">{component.title}</h3>
+        <p className="text-sm text-teal-400 mt-1">{component.category}</p>
+      </div>
+      <div className="h-48 w-full bg-[#0d1117] flex items-center justify-center border-t border-gray-700">
+        <iframe
+          title={`Önizləmə: ${component.title}`}
+          srcDoc={iframeContent}
+          className="w-full h-full border-none pointer-events-none"
+          sandbox="allow-scripts"
+        />
+      </div>
     </div>
+  );
+});
 
-    <main>
-        <!-- Hero Section -->
-        <section id="hero" class="relative h-screen flex items-center justify-center overflow-hidden">
-            <div id="globe-container"></div>
-            <div class="content-overlay container mx-auto px-6 lg:px-8 max-w-7xl text-center">
-                <h1 class="text-5xl md:text-7xl lg:text-8xl font-extrabold font-heading text-white leading-tight mb-6 fade-in" style="text-shadow: 0 5px 30px rgba(0,0,0,0.5);">
-                    Gələcəyi <span class="text-primary">Kodlaşdırırıq</span>
-                </h1>
-                <p class="text-lg md:text-xl text-text-muted max-w-3xl mx-auto mb-10 fade-in" style="transition-delay: 0.2s;">
-                    Biznesiniz üçün sadəcə bir veb-sayt deyil, rəqəmsal dünyada unudulmaz bir imza yaradırıq. İnnovasiya, strategiya və texnologiyanın vəhdəti ilə tanış olun.
-                </p>
-                
-                <div class="fade-in" style="transition-delay: 0.4s;">
-                    <a href="#products" class="btn-primary px-10 py-4 text-lg inline-block">
-                        <i class="fas fa-rocket mr-2"></i> Xidmətlərimizə Keçid
-                    </a>
-                </div>
-                
-                <!-- Axtarış konteyneri - anında nəticə göstərmə -->
-                <div class="search-container max-w-2xl mx-auto mt-10 fade-in" style="transition-delay: 0.6s;">
-                    <input type="text" id="hero-search-input" class="search-box" placeholder="Axtar Get...">
-                    <div class="search-icon" id="hero-search-button">
-                        <i class="fas fa-search"></i>
-                    </div>
-                    <div id="hero-search-results" class="search-results"></div>
-                </div>
-            </div>
-        </section>
+/**
+ * Seçilmiş UI elementinin detallı görünüşü (önizləmə + kod).
+ */
+const DetailView = ({ component, onClose }) => {
+  const [copied, setCopied] = useState(false);
 
-        <!-- Products Section -->
-        <section id="products" class="py-24 content-overlay">
-            <div class="container mx-auto px-6 lg:px-8 max-w-7xl">
-                <div class="text-center mb-16">
-                    <h2 class="text-4xl md:text-5xl font-extrabold font-heading text-white fade-in">Xidmət Ekosistemimiz</h2>
-                    <p class="text-lg text-text-muted mt-4 max-w-3xl mx-auto fade-in" style="transition-delay: 0.1s;">
-                        Rəqəmsal dünyada ehtiyacınız olan hər şey bir ünvanda.
-                    </p>
-                </div>
-                
-                <!-- Yeni Kart Dizaynı -->
-                <div class="feature-card reverse fade-in">
-                    <div class="card-content">
-                        <span class="card-tag">Dizayn</span>
-                        <h3 class="card-title">Web sayt hazırlama xidməti</h3>
-                        <p class="card-description">web saytınızı biz hazırlayaq. Güclü seo, güclü dizayn, ucuz qiymət. Sayıtınızın qiymətini hesablayıb dərhal sifariş verə bilərsiniz</p>
-                        <a href="https://web.axtarget.xyz" class="card-link">
-                            Daha ətraflı <i class="fas fa-arrow-right"></i>
-                        </a>
-                    </div>
-                    <div class="card-image">
-                        <img src="https://i.postimg.cc/FsqjkjvZ/opt1-scaled.jpg" alt="Şəkil Redaktəsi">
-                    </div>
-                </div>
-                
-                <div class="space-y-12">
-                    <!-- Premium CV Hazırla -->
-                    <div class="feature-card fade-in">
-                        <div class="card-content">
-                            <span class="card-tag">Premium</span>
-                            <h3 class="card-title">Premium CV Hazırla</h3>
-                            <p class="card-description">Arzuladığınız işə qəbul üçün peşəkar CV lazımdır? Düzgün ünvandasınız. Rəqiblərinizdən fərqlənin, premium keyfiyyətli CV ilə ilk təəssüratdan qalib olun.</p>
-                            <a href="prmiumCV.html" class="card-link">
-                                Daha ətraflı <i class="fas fa-arrow-right"></i>
-                            </a>
-                        </div>
-                        <div class="card-image">
-                            <img src="https://i.postimg.cc/qvztVKYZ/rush-resume-template-2.jpg" alt="Premium CV Hazırlama">
-                        </div>
-                    </div>
-                    
-                    <!-- Şəkil Redaktəsi Xidməti -->
-                    <div class="feature-card reverse fade-in">
-                        <div class="card-content">
-                            <span class="card-tag">Dizayn</span>
-                            <h3 class="card-title">Şəkil Redaktəsi Xidməti</h3>
-                            <p class="card-description">Şəkillərinizi peşəkar səviyyəyə qaldırın! Rəng korreksiyası, arxa fonun silinməsi, retuş və digər qrafik dizayn xidmətləri ilə fotolarınıza unikal görünüş bəxş edin.</p>
-                            <a href="photo.html" class="card-link">
-                                Daha ətraflı <i class="fas fa-arrow-right"></i>
-                            </a>
-                        </div>
-                        <div class="card-image">
-                            <img src="https://i.postimg.cc/sfbfQL0N/cerceveli-poster-renkli-geometrik-sekillerle-arka-plan-jpg.png" alt="Şəkil Redaktəsi">
-                        </div>
-                    </div>
-                    
-                    <!-- Takipçi Xidməti -->
-                    <div class="feature-card fade-in">
-                        <div class="card-content">
-                            <span class="card-tag">SMM</span>
-                            <h3 class="card-title">Takipçi Xidməti</h3>
-                            <p class="card-description">Fenomen olmaq bir addım uzaqlıqda! İzlənmə, bəyəni və digər SMM xidmətləri ilə sosial media gücünüzü ən sərfəli qiymətlərlə zirvəyə daşıyın.</p>
-                            <a href="follower-service.html" class="card-link">
-                                Daha ətraflı <i class="fas fa-arrow-right"></i>
-                            </a>
-                        </div>
-                        <div class="card-image">
-                            <img src="https://i.postimg.cc/L6S7bBJb/2025032713351869129.jpg" alt="Takipçi Xidməti">
-                        </div>
-                    </div>
-                    
-                    <!-- AxtarGet AI -->
-                    <div class="feature-card reverse fade-in">
-                        <div class="card-content">
-                            <span class="card-tag">AI</span>
-                            <h3 class="card-title">AxtarGet AI</h3>
-                            <p class="card-description">AxtarGet AI-nin gücü ilə yaradıcılığınızın sərhədlərini aşın. Mətn yazın, şəkil yaradın, kompleks problemləri həll edin – süni intellekt hər an yanınızdadır.</p>
-                            <a href="https://ai.axtarget.xyz" target="_blank" class="card-link">
-                                Daha ətraflı <i class="fas fa-arrow-right"></i>
-                            </a>
-                        </div>
-                        <div class="card-image">
-                            <img src="https://i.postimg.cc/pX0ZJDzk/ai-concept-with-spin-lines-effect-background-3d-rendering-video.jpg" alt="AxtarGet AI">
-                        </div>
-                    </div>
-                    
-                    <!-- Rəqəmsal Məhsullar -->
-                    <div class="feature-card fade-in">
-                        <div class="card-content">
-                            <span class="card-tag">Premium</span>
-                            <h3 class="card-title">Rəqəmsal Məhsullar</h3>
-                            <p class="card-description">Əyləncə və məhsuldarlıq dünyasına bir addımla daxil olun. Netflix, Exxen, ChatGPT kimi premium xidmətlərin hesablarını ən münasib qiymətə əldə edin.</p>
-                            <a href="digital-products.html" class="card-link">
-                                Daha ətraflı <i class="fas fa-arrow-right"></i>
-                            </a>
-                        </div>
-                        <div class="card-image">
-                            <img src="https://i.postimg.cc/MTKH5jyQ/Bm7K3Sm-L7x-V4x-Cp-BKag-Mg-P.jpg" alt="Rəqəmsal Məhsullar">
-                        </div>
-                    </div>
-                    
-                    <!-- Biznesini Paylaş -->
-                    <div class="feature-card reverse fade-in">
-                        <div class="card-content">
-                            <span class="card-tag">Marketinq</span>
-                            <h3 class="card-title">Biznesini Paylaş</h3>
-                            <p class="card-description">Biznesinizi geniş kütlələrə tanıtmaq üçün unikal fürsət! Bizimlə paylaşın, hədəf auditoriyanıza daha sürətli və effektiv şəkildə çatmağınıza dəstək olaq.</p>
-                            <a href="share-business.html" class="card-link">
-                                Daha ətraflı <i class="fas fa-arrow-right"></i>
-                            </a>
-                        </div>
-                        <div class="card-image">
-                            <img src="https://i.postimg.cc/DysG8L5w/depositphotos-52467319-stock-photo-business-people-working-in-office.webp" alt="Biznesini Paylaş">
-                        </div>
-                    </div>
-                    
-                    <!-- QR kod yarat -->
-                    <div class="feature-card fade-in">
-                        <div class="card-content">
-                            <span class="card-tag">Tool</span>
-                            <h3 class="card-title">QR kod yarat</h3>
-                            <p class="card-description">Öz QR kodunu asanlıqla yaratmaq üçün bu səhifəyə keçid et. Sadə və sürətli.</p>
-                            <a href="qr.html" class="card-link">
-                                Daha ətraflı <i class="fas fa-arrow-right"></i>
-                            </a>
-                        </div>
-                        <div class="card-image">
-                            <img src="https://i.postimg.cc/zfPvdGp0/a-guide-to-qr-codes-and-how-to-scan-qr-codes-3.jpg" alt="QR kod yarat">
-                        </div>
-                    </div>
-                    
-                    <!-- İş Elanları -->
-                    <div class="feature-card reverse fade-in">
-                        <div class="card-content">
-                            <span class="card-tag">Karyera</span>
-                            <h3 class="card-title">İş Elanları</h3>
-                            <p class="card-description">Özünə uyğun iş tapmaq və karyerana başlamaq üçün vakansiyalarımıza bax. Yeni fürsətlər səni gözləyir!</p>
-                            <div class="mt-6">
-                                <button
-                                    onclick="window.open('https://github.com/ibadullahesen/app/releases/download/v1.0/AxtarGet.4.apk', '_blank')"
-                                    class="flex items-center bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-full transition duration-300 shadow-lg shadow-blue-600/50"
-                                >
-                                    <i class="fa-solid fa-download mr-2"></i>
-                                    Aplikasiyamızı yüklə
-                                </button>
-                            </div>
-                            <a href="https://vakansiya.axtarget.xyz" class="card-link">
-                                Daha ətraflı <i class="fas fa-arrow-right"></i>
-                            </a>
-                        </div>
-                        <div class="card-image">
-                            <img src="https://i.postimg.cc/kXnCbdvt/01JWFWAS7M72K1623JC6JDV20V.jpg" alt="İş Elanları">
-                        </div>
-                    </div>
-                    
-                    <!-- Anonim Mesajlaşma -->
-                    <div class="feature-card fade-in">
-                        <div class="card-content">
-                            <span class="card-tag">Təhlükəsizlik</span>
-                            <h3 class="card-title">Anonim Mesajlaşma</h3>
-                            <p class="card-description">Heç kimin kim olduğunu bilmədən bir-birinizlə sərbəst yazışın. Tam anonim, təhlükəsiz və sadə mesajlaşma platforması.</p>
-                            <a href="https://axtarget.xyz/anonim.html" class="card-link">
-                                Daha ətraflı <i class="fas fa-arrow-right"></i>
-                            </a>
-                        </div>
-                        <div class="card-image">
-                            <img src="https://i.postimg.cc/ZnbQCJzL/pngtree-an-anonymous-hacker-with-computer-image-16301009.jpg" alt="Anonim Mesajlaşma">
-                        </div>
-                    </div>
+  const fullCode = useMemo(() => `
+<!-- ${component.title} - HTML -->
+${component.html}
 
-                    <div class="feature-card reverse fade-in">
-                        <div class="card-content">
-                            <span class="card-tag">dizayn</span>
-                            <h3 class="card-title">HTML/CSS/JavaScript Redaktoru</h3>
-                            <p class="card-description">HTML,CSS,JavaScript Redaktoru ilə siz hazırladığınız faylın önizləməsinə baxa və düzəlişlər edə biləsiniz. Tamamilə pulsuz şekildə isdifadə edin.</p>
-                            <a href="html.html" class="card-link">
-                                Daha ətraflı <i class="fas fa-arrow-right"></i>
-                            </a>
-                        </div>
-                        <div class="card-image">
-                            <img src="https://i.postimg.cc/jS6xhkXm/programming-3173456-1920.jpg" alt="Biznesini Paylaş">
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </section>
+/* ${component.title} - CSS */
+${component.css}
+`, [component.html, component.css, component.title]);
 
-        <!-- Why Us Section -->
-        <section id="services" class="py-24 content-overlay">
-            <div class="container mx-auto px-6 lg:px-8 max-w-7xl">
-                <div class="text-center mb-16">
-                    <h2 class="text-4xl md:text-5xl font-extrabold font-heading text-white fade-in">Niyə Biz?</h2>
-                    <p class="text-lg text-text-muted mt-4 max-w-3xl mx-auto fade-in" style="transition-delay: 0.1s;">
-                        İdeyadan icraya, hər mərhələdə yanınızdayıq.
-                    </p>
-                </div>
-                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                    <div class="glass-card p-8 fade-in">
-                        <div class="service-icon-wrapper mb-6"><i class="fas fa-satellite-dish"></i></div>
-                        <h3 class="text-2xl font-bold font-heading mb-3">Strateji Veb Həllər</h3>
-                        <p class="text-text-muted">Brendinizin DNT-sini analiz edərək, hədəflərinizə ən uyğun veb-platformaları dizayn və inkişaf etdiririk.</p>
-                    </div>
-                    <div class="glass-card p-8 fade-in" style="transition-delay: 0.15s;">
-                        <div class="service-icon-wrapper mb-6"><i class="fas fa-microchip"></i></div>
-                        <h3 class="text-2xl font-bold font-heading mb-3">AI & Avtomatlaşdırma</h3>
-                        <p class="text-text-muted">Təkrarçı işləri ağıllı botlara həvalə edin, məlumatlarınızı dərin analiz edin və müştəri təcrübəsini süni intellektlə zənginləşdirin.</p>
-                    </div>
-                    <div class="glass-card p-8 fade-in" style="transition-delay: 0.3s;">
-                        <div class="service-icon-wrapper mb-6"><i class="fas fa-chart-pie"></i></div>
-                        <h3 class="text-2xl font-bold font-heading mb-3">İntellektual E-Ticarət</h3>
-                        <p class="text-text-muted">Sadəcə bir onlayn mağaza deyil, fərdiləşdirilmiş təkliflər və analizlərlə satışlarınızı artıran dinamik bir ticarət platforması.</p>
-                    </div>
-                </div>
-            </div>
-        </section>
+  const handleCopy = useCallback(async () => {
+    const success = await copyToClipboard(fullCode);
+    if (success) {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  }, [fullCode]);
 
-        <!-- Contact Section -->
-        <section id="contact" class="py-24 content-overlay">
-            <div class="container mx-auto px-6 lg:px-8 max-w-5xl text-center">
-                <img src="https://i.postimg.cc/1zQS7wYc/Whats-App-Image-2025-10-31-at-12-00-55.jpg" alt="AxtarGet Logo" class="w-24 h-24 rounded-full border-4 border-primary shadow-lg shadow-primary/30 mx-auto mb-8 fade-in">
-                <h2 class="text-4xl md:text-5xl font-extrabold font-heading text-white fade-in">Növbəti Böyük Addımı Birlikdə Atmağa Hazırsınız?</h2>
-                <p class="text-lg text-text-muted mt-4 mb-12 max-w-3xl mx-auto fade-in" style="transition-delay: 0.1s;">
-                    Qeyri-adi bir layihə fikriniz var? Gəlin müzakirə edək və ideyanızı rəqəmsal reallığa çevirək.
-                </p>
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-8 mt-12 fade-in" style="transition-delay: 0.2s;">
-                    <a href="https://wa.me/994606006162?text=Salam,%20veb%20sayt%20qurmaq%20istəyirəm." target="_blank" class="glass-card p-6 flex flex-col items-center justify-center gap-3">
-                        <i class="fab fa-whatsapp text-5xl text-primary"></i>
-                        <span class="text-xl font-bold">WhatsApp</span>
-                        <span class="text-text-muted text-sm">060-600-61-62</span>
-                    </a>
-                    <a href="mailto:ibadulla.hesen@gmail.com" target="_blank" class="glass-card p-6 flex flex-col items-center justify-center gap-3">
-                        <i class="fas fa-envelope-open-text text-5xl text-primary"></i>
-                        <span class="text-xl font-bold">Email</span>
-                        <span class="text-text-muted text-sm">ibadulla.hesen@gmail.com</span>
-                    </a>
-                    <a href="https://www.instagram.com/ibadulla_hasanov_official" target="_blank" class="glass-card p-6 flex flex-col items-center justify-center gap-3">
-                        <i class="fab fa-instagram text-5xl text-primary"></i>
-                        <span class="text-xl font-bold">Instagram</span>
-                        <span class="text-text-muted text-sm">@ibadulla_hasanov_official</span>
-                    </a>
-                </div>
-            </div>
-        </section>
+  const iframeContent = useMemo(() => `
+    <!DOCTYPE html>
+    <html lang="az">
+    <head>
+        <style>
+            body { margin: 0; padding: 2rem; display: flex; justify-content: center; align-items: center; min-height: 100vh; background-color: #0d1117; }
+            ${component.css}
+        </style>
+    </head>
+    <body>
+        ${component.html}
+    </body>
+    </html>
+  `, [component.html, component.css]);
 
-        <!-- Video Bölməsi - Əlaqədən Sonra -->
-        <section class="py-24 content-overlay">
-            <div class="container mx-auto px-6 lg:px-8 max-w-7xl">
-                <div class="text-center mb-12">
-                    <h2 class="text-4xl md:text-5xl font-extrabold font-heading text-white fade-in">AxtarGet Təqdimat Videosu</h2>
-                    <p class="text-lg text-text-muted mt-4 max-w-3xl mx-auto fade-in" style="transition-delay: 0.1s;">
-                        Bizim xidmətlərimiz və vizyonumuz haqqında daha ətraflı məlumat əldə edin.
-                    </p>
-                </div>
-                <div class="glass-card p-6 md:p-8 fade-in mx-auto max-w-5xl" style="transition-delay: 0.2s;">
-                    <div class="relative w-full" style="padding-bottom: 56.25%; height: 0; overflow: hidden;">
-                        <iframe 
-                            class="absolute top-0 left-0 w-full h-full rounded-xl"
-                            src="https://www.youtube.com/embed/qBbF_wrr73M?si=g4TGI6vfasaHyRwl&autoplay=0&rel=0&modestbranding=1&controls=1"
-                            title="AxtarGet Təqdimat Videosu"
-                            frameborder="0"
-                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                            allowfullscreen>
-                        </iframe>
-                    </div>
-                </div>
-            </div>
-        </section>
-    </main>
+  return (
+    <div className="fixed inset-0 bg-gray-900/95 backdrop-blur-sm z-40 flex overflow-hidden">
+      <div className="absolute top-4 right-4 z-50">
+        <button
+          onClick={onClose}
+          className="p-3 bg-gray-800 text-white rounded-full shadow-lg hover:bg-red-600 transition duration-200"
+          title="Bağla"
+        >
+          <X className="w-6 h-6" />
+        </button>
+      </div>
 
-    <!-- Footer -->
-    <footer class="border-t border-gray-800/50 mt-20 content-overlay">
-        <div class="container mx-auto max-w-7xl px-6 lg:px-8 py-8 text-center text-text-muted">
-            <p>&copy; 2025 AxtarGet. Bütün hüquqlar qorunur.</p>
-            <p class="text-sm mt-2">Ibadulla Hasanov tərəfindən hazırlandı.</p>
+      <div className="flex w-full h-full p-4 md:p-8">
+        {/* Sol tərəf: Kod Editör/Kopyalama */}
+        <div className="w-full md:w-1/2 p-2 md:p-4 flex flex-col h-full">
+          <h2 className="text-2xl font-bold text-gray-100 mb-4">{component.title} Kodu</h2>
+          <div className="flex-1 overflow-hidden relative rounded-xl shadow-xl border border-gray-700">
+            <pre className="bg-gray-800 text-sm p-4 text-gray-300 overflow-auto h-full whitespace-pre-wrap break-words scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-gray-800">
+              {fullCode}
+            </pre>
+            <button
+              onClick={handleCopy}
+              className={`absolute top-4 right-4 px-4 py-2 rounded-lg text-sm font-medium transition duration-300 flex items-center ${
+                copied
+                  ? 'bg-green-600 text-white'
+                  : 'bg-teal-600 text-white hover:bg-teal-500'
+              }`}
+            >
+              <Copy className="w-4 h-4 mr-2" />
+              {copied ? 'Kopyalandı!' : 'Kodu Kopyala'}
+            </button>
+          </div>
         </div>
-    </footer>
-    
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <script>
-        document.addEventListener('DOMContentLoaded', () => {
-            // Header scroll effekti
-            const header = document.getElementById('header');
-            window.addEventListener('scroll', () => {
-                if (window.scrollY > 50) {
-                    header.classList.add('glass-card');
-                } else {
-                    header.classList.remove('glass-card');
-                }
-            });
 
-            // Mobil menyu
-            const hamburgerButton = document.getElementById('hamburger-button');
-            const mobileMenuContainer = document.getElementById('mobile-menu-container');
-            const mobileMenuCloseButton = document.getElementById('mobile-menu-close-button');
-            const mobileMenuLinks = mobileMenuContainer.querySelectorAll('a');
+        {/* Sağ tərəf: Önizləmə (Ayrı Səhifə Effekti) */}
+        <div className="hidden md:flex md:w-1/2 p-2 md:p-4 flex-col h-full">
+          <h2 className="text-2xl font-bold text-gray-100 mb-4">Canlı Önizləmə</h2>
+          <div className="flex-1 rounded-xl shadow-xl overflow-hidden border border-gray-700 bg-[#0d1117]">
+            <iframe
+              title={`Tam Önizləmə: ${component.title}`}
+              srcDoc={iframeContent}
+              className="w-full h-full border-none"
+              sandbox="allow-scripts"
+            />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
 
-            hamburgerButton.addEventListener('click', () => mobileMenuContainer.classList.add('open'));
-            mobileMenuCloseButton.addEventListener('click', () => mobileMenuContainer.classList.remove('open'));
+/**
+ * Əsas tətbiq komponenti
+ */
+const App = () => {
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [userId, setUserId] = useState(null); // Yeni: İstifadəçi ID-sini saxlamaq üçün
+  const [isLoading, setIsLoading] = useState(true);
+  const [components, setComponents] = useState([]);
+  const [categories, setCategories] = useState([]);
+  const [selectedCategory, setSelectedCategory] = useState('Hamısı');
+  const [selectedComponent, setSelectedComponent] = useState(null);
+
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [firstVisible, setFirstVisible] = useState(null);
+  const [lastVisible, setLastVisible] = useState(null);
+  const [pageHistory, setPageHistory] = useState([null]); // null represents the start
+  const [hasMorePages, setHasMorePages] = useState(false);
+
+  // --- Auth və Firebase İlkin Quruluş ---
+  useEffect(() => {
+    if (!auth || !db) {
+        // Auth və ya DB initialize edilməyibsə, loadingi bitir.
+        setIsLoading(false);
+        return;
+    }
+
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (user) {
+        setIsAuthenticated(true);
+        setUserId(user.uid); // İstifadəçi ID-sini qeyd et
+      } else {
+        // Anonim daxil olmaq
+        try {
+          const credentials = initialAuthToken
+            ? await signInWithCustomToken(auth, initialAuthToken)
+            : await signInAnonymously(auth);
             
-            mobileMenuLinks.forEach(link => {
-                link.addEventListener('click', function(e) {
-                    const href = this.getAttribute('href');
-                    if (href && href.startsWith('#')) {
-                        e.preventDefault();
-                        const targetElement = document.querySelector(href);
-                        if (targetElement) {
-                            targetElement.scrollIntoView({ behavior: 'smooth' });
-                        }
-                    }
-                    mobileMenuContainer.classList.remove('open');
-                });
-            });
+          setIsAuthenticated(true);
+          setUserId(credentials.user.uid); // Anonim ID-ni qeyd et
+        } catch (error) {
+          console.error("Firebase Auth Xətası:", error);
+        }
+      }
+      // setIsLoading burada aparılmır ki, məlumatların yüklənməsi ilə birlikdə bitsin.
+    });
 
-            // Fade-in animasiyası
-            const fadeInElements = document.querySelectorAll('.fade-in');
-            const observer = new IntersectionObserver((entries) => {
-                entries.forEach(entry => {
-                    if (entry.isIntersecting) {
-                        entry.target.classList.add('appear');
-                        observer.unobserve(entry.target);
-                    }
-                });
-            }, { threshold: 0.1 });
-            fadeInElements.forEach(element => observer.observe(element));
+    return () => unsubscribe();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-            // Globe with continent outlines from points
-            const container = document.getElementById('globe-container');
-            if(container) {
-                const scene = new THREE.Scene();
-                const camera = new THREE.PerspectiveCamera(75, container.clientWidth / container.clientHeight, 0.1, 1000);
-                const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
-                renderer.setSize(container.clientWidth, container.clientHeight);
-                container.appendChild(renderer.domElement);
-                
-                camera.position.z = 4;
-                let globeObject = null;
-                let mouseX = 0;
+  // --- Məlumatların Yüklənməsi (Pagination və Filter) ---
+  const fetchData = useCallback(async () => {
+    if (!isAuthenticated || !db) return;
 
-                const loader = new THREE.TextureLoader();
-                loader.load(
-                    'https://raw.githubusercontent.com/jeromeetienne/threex.planets/master/images/earthbump1k.jpg',
-                    function (texture) {
-                        const image = texture.image;
-                        const canvas = document.createElement('canvas');
-                        canvas.width = image.width;
-                        canvas.height = image.height;
-                        const context = canvas.getContext('2d');
-                        context.drawImage(image, 0, 0);
-                        const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+    setIsLoading(true);
 
-                        const vertices = [];
-                        const radius = 2;
+    const componentsColRef = collection(db, getCollectionPath());
+    let q = query(componentsColRef, orderBy('createdAt', 'desc'));
 
-                        for (let y = 0; y < canvas.height; y+=4) {
-                            for (let x = 0; x < canvas.width; x+=4) {
-                                const index = (y * canvas.width + x) * 4;
-                                const r = imageData.data[index];
+    // Filter tətbiqi
+    if (selectedCategory !== 'Hamısı') {
+      q = query(q, where('category', '==', selectedCategory));
+    }
 
-                                if (r > 60) {
-                                    const phi = (90 - (y / canvas.height) * 180) * (Math.PI / 180);
-                                    const theta = ((x / canvas.width) * 360 - 180) * (Math.PI / 180);
+    // Pagination (Cari Səhifəyə uyğun limit və startAfter)
+    const currentCursor = pageHistory[currentPage - 1];
 
-                                    vertices.push(
-                                        radius * Math.sin(phi) * Math.cos(theta),
-                                        radius * Math.cos(phi),
-                                        radius * Math.sin(phi) * Math.sin(theta)
-                                    );
-                                }
-                            }
-                        }
-                        
-                        const geometry = new THREE.BufferGeometry();
-                        geometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
-                        const material = new THREE.PointsMaterial({
-                            color: 0x38E5B7,
-                            size: 0.015
-                        });
+    if (currentCursor) {
+        q = query(q, startAfter(currentCursor), limit(ITEMS_PER_PAGE));
+    } else {
+        // İlk səhifə
+        q = query(q, limit(ITEMS_PER_PAGE));
+    }
 
-                        globeObject = new THREE.Points(geometry, material);
-                        scene.add(globeObject);
-                    }
-                );
-                
-                function animate() {
-                    requestAnimationFrame(animate);
-                    if (globeObject) {
-                        globeObject.rotation.y += 0.001 + (mouseX * 0.005);
-                    }
-                    renderer.render(scene, camera);
-                }
-                animate();
-                
-                function onMouseMove(event) {
-                    mouseX = (event.clientX / window.innerWidth) - 0.5;
-                }
-                
-                function onMouseOut(event) {
-                    mouseX = 0;
-                }
 
-                window.addEventListener('mousemove', onMouseMove);
-                window.addEventListener('mouseout', onMouseOut);
+    try {
+      const unsubscribe = onSnapshot(q, async (snapshot) => {
+        const componentList = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data(),
+        }));
 
-                window.addEventListener('resize', () => {
-                    camera.aspect = container.clientWidth / container.clientHeight;
-                    camera.updateProjectionMatrix();
-                    renderer.setSize(container.clientWidth, container.clientHeight);
-                });
+        setComponents(componentList);
+
+        if (componentList.length > 0) {
+            setFirstVisible(snapshot.docs[0]);
+            setLastVisible(snapshot.docs[snapshot.docs.length - 1]);
+        } else {
+             setFirstVisible(null);
+             setLastVisible(null);
+        }
+
+        // Bütün kateqoriyaları çıxarmaq
+        const allDocsQuery = query(componentsColRef);
+        const allDocsSnapshot = await getDocs(allDocsQuery);
+        const allCategories = new Set(['Hamısı']);
+        allDocsSnapshot.forEach(doc => {
+            const data = doc.data();
+            if (data.category) {
+                allCategories.add(data.category);
             }
-            
-            // Matrix Rain Effect
-            const matrixCanvas = document.getElementById('matrix-canvas');
-            if (matrixCanvas) {
-                const ctx = matrixCanvas.getContext('2d');
-                matrixCanvas.width = window.innerWidth;
-                matrixCanvas.height = window.innerHeight;
-
-                let katakana = 'アァカサタナハマヤャラワガザダバパイィキシチニヒミリヰギジヂビピウゥクスツヌフムユュルグズブプエェケセテネヘメレヱゲゼデベペオォコソトノホモヨョロヲゴゾドボポヴッン';
-                katakana += 'ABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890';
-                const characters = katakana.split('');
-
-                const fontSize = 16;
-                const columns = matrixCanvas.width / fontSize;
-                const drops = [];
-                for (let x = 0; x < columns; x++) {
-                    drops[x] = 1;
-                }
-
-                function drawMatrix() {
-                    ctx.fillStyle = 'rgba(5, 8, 14, 0.12)';
-                    ctx.fillRect(0, 0, matrixCanvas.width, matrixCanvas.height);
-                    ctx.fillStyle = 'rgba(56, 229, 183, 0.3)';
-                    ctx.font = fontSize + 'px monospace';
-
-                    for (let i = 0; i < drops.length; i++) {
-                        const text = characters[Math.floor(Math.random() * characters.length)];
-                        ctx.fillText(text, i * fontSize, drops[i] * fontSize);
-                        if (drops[i] * fontSize > matrixCanvas.height && Math.random() > 0.975) {
-                            drops[i] = 0;
-                        }
-                        drops[i]++;
-                    }
-                }
-
-                setInterval(drawMatrix, 40);
-
-                window.addEventListener('resize', () => {
-                    matrixCanvas.width = window.innerWidth;
-                    matrixCanvas.height = window.innerHeight;
-                });
-            }
-            
-            const searchData = [
-                {
-                    title: "Takipçi Xidməti",
-                    description: "Sosial media hesablarınız üçün izlənmə, bəyəni və digər SMM xidmətləri",
-                    url: "follower-service.html",
-                    keywords: ["takipci", "takipçi", "izlənmə", "bəyəni", "follower", "followers", "smm", "sosial media", "instagram", "tiktok", "youtube"]
-                },
-                {
-                    title: "Şəkil Redaktəsi Xidməti",
-                    description: "Şəkillərinizin peşəkar səviyyədə redaktəsi və qrafik dizayn xidmətləri",
-                    url: "photo.html",
-                    keywords: ["şəkil", "redakte", "redaktə", "foto", "photo", "edit", "redaktəsi", "redakte", "qrafik", "dizayn", "retuş", "fon silme"]
-                },
-                {
-                    title: "Premium CV Hazırla",
-                    description: "Peşəkar CV hazırlanması xidməti ilə işə qəbul şansınızı artırın",
-                    url: "prmiumCV.html",
-                    keywords: ["cv", "cv hazırla", "premium cv", "iş", "vakansiya", "karyera", "rezume", "cv yaz", "cv yarat"]
-                },
-                {
-                    title: "AxtarGet AI",
-                    description: "Süni intellekt ilə mətn yazın, şəkil yaradın və problemləri həll edin",
-                    url: "https://ai.axtarget.xyz",
-                    keywords: ["ai", "süni intellekt", "axtarget ai", "chatgpt", "mətn", "şəkil yarat", "problem həll"]
-                },
-                {
-                    title: "Rəqəmsal Məhsullar",
-                    description: "Netflix, Exxen, ChatGPT kimi premium xidmətlərin hesabları",
-                    url: "digital-products.html",
-                    keywords: ["rəqəmsal", "məhsul", "netflix", "exxen", "chatgpt", "spotify", "premium", "hesab", "abunə"]
-                },
-                {
-                    title: "Biznesini Paylaş",
-                    description: "Biznesinizi geniş auditoriyaya çatdırmaq üçün fürsət",
-                    url: "share-business.html",
-                    keywords: ["biznes", "paylaş", "tanıt", "reklam", "marketinq", "biznesini paylaş"]
-                },
-                {
-                    title: "QR kod yarat",
-                    description: "Öz QR kodunuzu asanlıqla yaradın",
-                    url: "qr.html",
-                    keywords: ["qr", "qr kod", "qrcode", "kod yarat", "qr generator"]
-                },
-                {
-                    title: "İş Elanları",
-                    description: "Özünüzə uyğun iş tapmaq üçün vakansiyalar",
-                    url: "https://vakansiya.axtarget.xyz",
-                    keywords: ["iş", "vakansiya", "elan", "karyera", "iş elanları", "iş axtarırəm"]
-                },
-                {
-                    title: "Web sayt hazırlama xidməti",
-                    description: "Güclü SEO, güclü dizayn, ucuz qiymət ilə web sayt hazırlama",
-                    url: "https://web.axtarget.xyz",
-                    keywords: ["web", "sayt", "website", "hazırla", "yaradı", "vebsayt", "web sayt", "seo", "dizayn"]
-                },
-                {
-                    title: "HTML/CSS/JavaScript Redaktoru",
-                    description: "HTML, CSS, JavaScript kodlarını yazın və canlı önizləyin",
-                    url: "html.html",
-                    keywords: ["html", "css", "javascript", "kod", "redaktər", "editor", "program"]
-                },
-                {
-                    title: "Anonim Mesajlaşma",
-                    description: "Tam anonim, təhlükəsiz mesajlaşma platforması",
-                    url: "https://axtarget.xyz/anonim.html",
-                    keywords: ["anonim", "mesaj", "chat", "yaz", "istifadəçi", "gizli"]
-                }
-            ];
-
-            function performSearch(query, resultsContainer) {
-                const normalizedQuery = query.toLowerCase().trim();
-                
-                // 1 hərfdən başlayaraq axtarış göstər
-                if (normalizedQuery.length < 1) {
-                    resultsContainer.classList.remove('show');
-                    return;
-                }
-                
-                const results = searchData.filter(item => {
-                    // Başlıq və açıqlama üzrə axtarış
-                    if (item.title.toLowerCase().includes(normalizedQuery) || 
-                        item.description.toLowerCase().includes(normalizedQuery)) {
-                        return true;
-                    }
-                    
-                    // Açar sözlər üzrə axtarış
-                    return item.keywords.some(keyword => 
-                        keyword.toLowerCase().includes(normalizedQuery)
-                    );
-                });
-                
-                displayResults(results, resultsContainer);
-            }
-            
-            // Nəticələri göstər
-            function displayResults(results, container) {
-                container.innerHTML = '';
-                
-                if (results.length === 0) {
-                    container.innerHTML = '<div class="no-results">Heç bir nəticə tapılmadı</div>';
-                } else {
-                    results.forEach(result => {
-                        const resultElement = document.createElement('div');
-                        resultElement.className = 'search-result-item';
-                        resultElement.innerHTML = `
-                            <div class="search-result-title">${result.title}</div>
-                            <div class="search-result-description">${result.description}</div>
-                        `;
-                        
-                        resultElement.addEventListener('click', () => {
-                            if (result.url.startsWith('http')) {
-                                window.open(result.url, '_blank');
-                            } else {
-                                window.location.href = result.url;
-                            }
-                        });
-                        
-                        container.appendChild(resultElement);
-                    });
-                }
-                
-                container.classList.add('show');
-            }
-            
-            // Axtarış konteynerləri üçün event listener-lar
-            const searchInputs = [
-                { input: 'hero-search-input', results: 'hero-search-results' },
-                { input: 'mobile-search-input', results: 'mobile-search-results' }
-            ];
-            
-            searchInputs.forEach(({ input, results }) => {
-                const inputElement = document.getElementById(input);
-                const resultsElement = document.getElementById(results);
-                
-                if (inputElement && resultsElement) {
-                    // Yazarkən axtarış (input event)
-                    inputElement.addEventListener('input', (e) => {
-                        performSearch(e.target.value, resultsElement);
-                    });
-                    
-                    // Enter düyməsi ilə axtarış
-                    inputElement.addEventListener('keypress', (e) => {
-                        if (e.key === 'Enter') {
-                            performSearch(e.target.value, resultsElement);
-                            if (resultsElement.children.length > 0) {
-                                const firstResult = resultsElement.children[0];
-                                if (firstResult.classList.contains('search-result-item')) {
-                                    firstResult.click();
-                                }
-                            }
-                        }
-                    });
-                    
-                    // Axtarış ikonuna klik
-                    const searchButton = document.getElementById(input.replace('input', 'button'));
-                    if (searchButton) {
-                        searchButton.addEventListener('click', () => {
-                            performSearch(inputElement.value, resultsElement);
-                            if (resultsElement.children.length > 0) {
-                                const firstResult = resultsElement.children[0];
-                                if (firstResult.classList.contains('search-result-item')) {
-                                    firstResult.click();
-                                }
-                            }
-                        });
-                    }
-                    
-                    // Sənfdən kənarına klikləndikdə nəticələri gizlət
-                    document.addEventListener('click', (e) => {
-                        if (!inputElement.contains(e.target) && !resultsElement.contains(e.target)) {
-                            resultsElement.classList.remove('show');
-                        }
-                    });
-                }
-            });
         });
-    </script>
-</body>
-</html>
+        setCategories(Array.from(allCategories));
+
+        // Daha çox səhifə olub olmadığını yoxlamaq (Növbəti düyməsi üçün)
+        if (componentList.length === ITEMS_PER_PAGE) {
+            const nextQuery = query(
+                componentsColRef,
+                orderBy('createdAt', 'desc'),
+                startAfter(snapshot.docs[snapshot.docs.length - 1]),
+                limit(1)
+            );
+            const nextSnapshot = await getDocs(nextQuery);
+            setHasMorePages(nextSnapshot.docs.length > 0);
+        } else {
+            setHasMorePages(false);
+        }
+
+        setIsLoading(false);
+      }, (error) => {
+        console.error("Firestore-dan məlumat alınarkən xəta:", error);
+        setIsLoading(false);
+      });
+
+      return () => unsubscribe();
+
+    } catch (error) {
+      console.error("Məlumat gətirilərkən xəta:", error);
+      setIsLoading(false);
+    }
+  }, [isAuthenticated, selectedCategory, currentPage, pageHistory]); // eslint-disable-line react-hooks/exhaustive-deps
+
+
+  // useEffect yenidən yüklənməni idarə edir
+  useEffect(() => {
+    if (isAuthenticated && db) {
+      fetchData();
+    }
+  }, [isAuthenticated, selectedCategory, currentPage]); // eslint-disable-line react-hooks/exhaustive-deps
+
+
+  // --- Səhifələmə Hissəsi ---
+
+  const handleNextPage = () => {
+    if (lastVisible && hasMorePages) {
+      const nextPage = currentPage + 1;
+      setPageHistory(prev => {
+        // Əgər artıq növbəti səhifənin kursoru tarixçədə yoxdursa, əlavə et
+        if (prev.length < nextPage) {
+          return [...prev, lastVisible];
+        }
+        return prev;
+      });
+      setCurrentPage(nextPage);
+      window.scrollTo(0, 0);
+    }
+  };
+
+  const handlePrevPage = () => {
+    if (currentPage > 1) {
+      const prevPage = currentPage - 1;
+      // Tarixçədən kursoru çıxarmağa ehtiyac yoxdur, sadəcə indexi dəyişirik.
+      setCurrentPage(prevPage);
+      window.scrollTo(0, 0);
+    }
+  };
+
+  const handlePageChange = (page) => {
+    if (page >= 1 && page <= pageHistory.length) {
+      setCurrentPage(page);
+      window.scrollTo(0, 0);
+    }
+  }
+
+  // --- Render Funksiyaları ---
+
+  if (!isAuthenticated && !isLoading) {
+    return (
+        <div className="min-h-screen bg-gray-900 text-white flex items-center justify-center p-4">
+            <p className="text-red-400">Tətbiq Firebase ilə əlaqə qura bilmədi. Zəhmət olmasa konfiqurasiyanı yoxlayın.</p>
+        </div>
+    );
+  }
+
+
+  return (
+    <div className="min-h-screen bg-gray-900 text-white font-sans">
+      {(isLoading && !selectedComponent) && <LoadingScreen />}
+
+      {/* Başlıq və Filter Hissəsi */}
+      <header className="bg-gray-800 shadow-md sticky top-0 z-30">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex flex-col md:flex-row justify-between items-center">
+          <h1 className="text-3xl font-extrabold text-teal-400 mb-4 md:mb-0">
+            AxtarGetUI <span className="text-gray-400 text-sm font-medium">| Kod Kitabxanası</span>
+          </h1>
+
+          <nav className="flex flex-wrap gap-2 justify-center">
+            {categories.map(category => (
+              <button
+                key={category}
+                onClick={() => {
+                  setSelectedCategory(category);
+                  setCurrentPage(1);
+                  setPageHistory([null]); // Sıfırla
+                }}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition duration-200 ${
+                  selectedCategory === category
+                    ? 'bg-teal-600 text-white shadow-teal-500/50 shadow-md'
+                    : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                }`}
+              >
+                {category}
+              </button>
+            ))}
+          </nav>
+        </div>
+      </header>
+
+      {/* Əsas Kontent */}
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <h2 className="text-2xl font-semibold mb-6 text-gray-200 flex items-center">
+          <LayoutGrid className="w-6 h-6 mr-2 text-teal-400" />
+          {selectedCategory === 'Hamısı' ? 'Bütün Kod Snippetləri' : `${selectedCategory} Snippetləri`}
+        </h2>
+
+        {components.length === 0 && !isLoading ? (
+          <div className="text-center py-20 bg-gray-800 rounded-xl border border-gray-700">
+            <p className="text-xl text-gray-400">Bu kateqoriyada heç bir element tapılmadı.</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            {components.map((comp) => (
+              <ComponentCard
+                key={comp.id}
+                component={comp}
+                onClick={setSelectedComponent}
+              />
+            ))}
+          </div>
+        )}
+
+        {/* Səhifələmə */}
+        {(components.length > 0 || currentPage > 1) && (
+          <div className="flex justify-center items-center mt-12 space-x-4">
+            {/* Əvvəlki düyməsi */}
+            <button
+              onClick={handlePrevPage}
+              disabled={currentPage === 1 || isLoading}
+              className="p-3 bg-gray-800 rounded-full hover:bg-teal-600 disabled:opacity-50 transition duration-200"
+            >
+              <ChevronLeft className="w-5 h-5 text-white" />
+            </button>
+
+            {/* Səhifə nömrələri (sadələşdirilmiş) */}
+            <div className="flex space-x-2">
+              {[...Array(pageHistory.length)].map((_, index) => (
+                <button
+                  key={index}
+                  onClick={() => handlePageChange(index + 1)}
+                  className={`px-4 py-2 rounded-lg text-sm font-medium transition duration-200 ${
+                    currentPage === index + 1
+                      ? 'bg-teal-600 text-white'
+                      : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                  }`}
+                >
+                  {index + 1}
+                </button>
+              ))}
+
+              {/* Növbəti səhifə kursoru yaradılmayıbsa, lakin daha çox səhifə varsa ... göstər */}
+              {hasMorePages && (
+                  <button
+                    onClick={handleNextPage}
+                    className="px-4 py-2 rounded-lg text-sm font-medium bg-gray-700 text-gray-300 hover:bg-gray-600"
+                  >
+                    {pageHistory.length + 1}
+                  </button>
+              )}
+            </div>
+
+            {/* Sonrakı düyməsi */}
+            <button
+              onClick={handleNextPage}
+              disabled={!hasMorePages || isLoading}
+              className="p-3 bg-gray-800 rounded-full hover:bg-teal-600 disabled:opacity-50 transition duration-200"
+            >
+              <ChevronRight className="w-5 h-5 text-white" />
+            </button>
+          </div>
+        )}
+      </main>
+
+      {/* Detallı Görünüş Modal/Overlay */}
+      {selectedComponent && (
+        <DetailView
+          component={selectedComponent}
+          onClose={() => setSelectedComponent(null)}
+        />
+      )}
+      
+      {/* Footer - Anonim ID-nin Göstərilməsi */}
+      <footer className="bg-gray-800/50 mt-10 py-4 border-t border-gray-700">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center text-sm text-gray-400">
+          {userId ? (
+            <p>Sizin Cari İstifadəçi ID-niz (Anonim): <span className="font-mono text-teal-400 select-all break-all">{userId}</span></p>
+          ) : (
+            <p>Kimlik yoxlanılır...</p>
+          )}
+        </div>
+      </footer>
+    </div>
+  );
+};
+
+export default App;
