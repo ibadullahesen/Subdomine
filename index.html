@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from 'firebase/auth';
-import { getFirestore, collection, query, limit, orderBy, onSnapshot, getDocs, startAfter, endBefore, limitToLast } from 'firebase/firestore';
+import { getFirestore, collection, query, limit, orderBy, onSnapshot, getDocs, startAfter, endBefore, limitToLast, where } from 'firebase/firestore';
 import { Copy, X, Loader, ChevronLeft, ChevronRight, LayoutGrid } from 'lucide-react';
 
 // --- Firebase Konfiqurasiyası və İlkin Quruluş ---
@@ -13,12 +13,14 @@ const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial
 let app;
 let db;
 let auth;
+let firebaseInitSuccess = false;
 
 try {
   if (Object.keys(firebaseConfig).length > 0) {
     app = initializeApp(firebaseConfig);
     db = getFirestore(app);
     auth = getAuth(app);
+    firebaseInitSuccess = true; // Əgər konfiqurasiya uğurludursa
   } else {
     console.error("Firebase konfiqurasiyası tapılmadı.");
   }
@@ -41,15 +43,13 @@ const ITEMS_PER_PAGE = 12;
  */
 const copyToClipboard = async (text) => {
   try {
-    // navigator.clipboard.writeText iFrame məhdudiyyətlərinə görə işləməyə bilər,
-    // lakin müasir brauzerlərdə üstünlük verilir. Fallback olaraq execCommand istifadə edirik.
     if (navigator.clipboard && navigator.clipboard.writeText) {
       await navigator.clipboard.writeText(text);
       return true;
     } else {
       const textarea = document.createElement('textarea');
       textarea.value = text;
-      textarea.style.position = 'fixed'; // Ekranın kənarında gizlət
+      textarea.style.position = 'fixed';
       textarea.style.opacity = 0;
       document.body.appendChild(textarea);
       textarea.focus();
@@ -212,8 +212,9 @@ ${component.css}
  */
 const App = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [userId, setUserId] = useState(null); // Yeni: İstifadəçi ID-sini saxlamaq üçün
-  const [isLoading, setIsLoading] = useState(true);
+  const [userId, setUserId] = useState(null);
+  const [isAppLoading, setIsAppLoading] = useState(true); // Ümumi yüklənmə statusu
+  const [isFirebaseReady, setIsFirebaseReady] = useState(firebaseInitSuccess); // NEW: Global init check
   const [components, setComponents] = useState([]);
   const [categories, setCategories] = useState([]);
   const [selectedCategory, setSelectedCategory] = useState('Hamısı');
@@ -223,21 +224,22 @@ const App = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [firstVisible, setFirstVisible] = useState(null);
   const [lastVisible, setLastVisible] = useState(null);
-  const [pageHistory, setPageHistory] = useState([null]); // null represents the start
+  const [pageHistory, setPageHistory] = useState([null]);
   const [hasMorePages, setHasMorePages] = useState(false);
 
   // --- Auth və Firebase İlkin Quruluş ---
   useEffect(() => {
-    if (!auth || !db) {
-        // Auth və ya DB initialize edilməyibsə, loadingi bitir.
-        setIsLoading(false);
+    // Əgər global init uğursuz olubsa, auth prosesini başlatma.
+    if (!isFirebaseReady) {
+        setIsAppLoading(false);
         return;
     }
 
+    // Auth prosesini başlat
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
         setIsAuthenticated(true);
-        setUserId(user.uid); // İstifadəçi ID-sini qeyd et
+        setUserId(user.uid);
       } else {
         // Anonim daxil olmaq
         try {
@@ -246,22 +248,25 @@ const App = () => {
             : await signInAnonymously(auth);
             
           setIsAuthenticated(true);
-          setUserId(credentials.user.uid); // Anonim ID-ni qeyd et
+          setUserId(credentials.user.uid);
         } catch (error) {
           console.error("Firebase Auth Xətası:", error);
+          // Auth səhvi olduqda, yüklənməni bitirib autentifikasiyanı false et.
+          setIsAuthenticated(false);
+          setIsAppLoading(false); 
         }
       }
-      // setIsLoading burada aparılmır ki, məlumatların yüklənməsi ilə birlikdə bitsin.
     });
 
     return () => unsubscribe();
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [isFirebaseReady]); // isFirebaseReady-dən asılıdır
 
   // --- Məlumatların Yüklənməsi (Pagination və Filter) ---
   const fetchData = useCallback(async () => {
-    if (!isAuthenticated || !db) return;
+    // Yalnız autentifikasiya uğurlu olduqda və DB mövcud olduqda davam et.
+    if (!isAuthenticated || !db || !isFirebaseReady) return;
 
-    setIsLoading(true);
+    setIsAppLoading(true);
 
     const componentsColRef = collection(db, getCollectionPath());
     let q = query(componentsColRef, orderBy('createdAt', 'desc'));
@@ -300,16 +305,20 @@ const App = () => {
         }
 
         // Bütün kateqoriyaları çıxarmaq
-        const allDocsQuery = query(componentsColRef);
-        const allDocsSnapshot = await getDocs(allDocsQuery);
-        const allCategories = new Set(['Hamısı']);
-        allDocsSnapshot.forEach(doc => {
-            const data = doc.data();
-            if (data.category) {
-                allCategories.add(data.category);
-            }
-        });
-        setCategories(Array.from(allCategories));
+        // Bu hissə auth-dan sonra yalnız bir dəfə və ya ehtiyac olduqda yenilənməlidir.
+        if (categories.length <= 1) { // Yalnız Hamısı varsa, bütün kateqoriyaları gətir
+             const allDocsQuery = query(collection(db, getCollectionPath()));
+             const allDocsSnapshot = await getDocs(allDocsQuery);
+             const allCategories = new Set(['Hamısı']);
+             allDocsSnapshot.forEach(doc => {
+                 const data = doc.data();
+                 if (data.category) {
+                     allCategories.add(data.category);
+                 }
+             });
+             setCategories(Array.from(allCategories));
+        }
+
 
         // Daha çox səhifə olub olmadığını yoxlamaq (Növbəti düyməsi üçün)
         if (componentList.length === ITEMS_PER_PAGE) {
@@ -325,27 +334,27 @@ const App = () => {
             setHasMorePages(false);
         }
 
-        setIsLoading(false);
+        setIsAppLoading(false);
       }, (error) => {
         console.error("Firestore-dan məlumat alınarkən xəta:", error);
-        setIsLoading(false);
+        setIsAppLoading(false);
       });
 
       return () => unsubscribe();
 
     } catch (error) {
       console.error("Məlumat gətirilərkən xəta:", error);
-      setIsLoading(false);
+      setIsAppLoading(false);
     }
-  }, [isAuthenticated, selectedCategory, currentPage, pageHistory]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [isAuthenticated, isFirebaseReady, selectedCategory, currentPage, pageHistory]); // eslint-disable-line react-hooks/exhaustive-deps
 
 
   // useEffect yenidən yüklənməni idarə edir
   useEffect(() => {
-    if (isAuthenticated && db) {
+    if (isAuthenticated && isFirebaseReady) {
       fetchData();
     }
-  }, [isAuthenticated, selectedCategory, currentPage]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [isAuthenticated, isFirebaseReady, selectedCategory, currentPage]); // eslint-disable-line react-hooks/exhaustive-deps
 
 
   // --- Səhifələmə Hissəsi ---
@@ -354,7 +363,6 @@ const App = () => {
     if (lastVisible && hasMorePages) {
       const nextPage = currentPage + 1;
       setPageHistory(prev => {
-        // Əgər artıq növbəti səhifənin kursoru tarixçədə yoxdursa, əlavə et
         if (prev.length < nextPage) {
           return [...prev, lastVisible];
         }
@@ -368,7 +376,6 @@ const App = () => {
   const handlePrevPage = () => {
     if (currentPage > 1) {
       const prevPage = currentPage - 1;
-      // Tarixçədən kursoru çıxarmağa ehtiyac yoxdur, sadəcə indexi dəyişirik.
       setCurrentPage(prevPage);
       window.scrollTo(0, 0);
     }
@@ -383,10 +390,18 @@ const App = () => {
 
   // --- Render Funksiyaları ---
 
-  if (!isAuthenticated && !isLoading) {
+  // RENDER QORUYUCUSU 1: Əgər Firebase heç işə salınmayıbsa (Global error)
+  if (!isFirebaseReady && !isAppLoading) {
     return (
         <div className="min-h-screen bg-gray-900 text-white flex items-center justify-center p-4">
-            <p className="text-red-400">Tətbiq Firebase ilə əlaqə qura bilmədi. Zəhmət olmasa konfiqurasiyanı yoxlayın.</p>
+            <div className="text-center bg-gray-800 p-8 rounded-xl shadow-2xl border border-red-500">
+                <p className="text-red-400 text-2xl font-bold mb-4">❌ Tətbiq Xətası</p>
+                <p className="text-lg text-gray-300">Firebase xidmətləri işə salına bilmədi.</p>
+                <p className="text-sm text-gray-400 mt-2">
+                  Bu, adətən yanlış konfiqurasiya ilə bağlıdır. Zəhmət olmasa kodun başlanğıcındakı 
+                  konfiqurasiya hissəsini yoxlayın.
+                </p>
+            </div>
         </div>
     );
   }
@@ -394,7 +409,7 @@ const App = () => {
 
   return (
     <div className="min-h-screen bg-gray-900 text-white font-sans">
-      {(isLoading && !selectedComponent) && <LoadingScreen />}
+      {(isAppLoading && !selectedComponent) && <LoadingScreen />}
 
       {/* Başlıq və Filter Hissəsi */}
       <header className="bg-gray-800 shadow-md sticky top-0 z-30">
@@ -432,7 +447,7 @@ const App = () => {
           {selectedCategory === 'Hamısı' ? 'Bütün Kod Snippetləri' : `${selectedCategory} Snippetləri`}
         </h2>
 
-        {components.length === 0 && !isLoading ? (
+        {components.length === 0 && !isAppLoading ? (
           <div className="text-center py-20 bg-gray-800 rounded-xl border border-gray-700">
             <p className="text-xl text-gray-400">Bu kateqoriyada heç bir element tapılmadı.</p>
           </div>
@@ -454,7 +469,7 @@ const App = () => {
             {/* Əvvəlki düyməsi */}
             <button
               onClick={handlePrevPage}
-              disabled={currentPage === 1 || isLoading}
+              disabled={currentPage === 1 || isAppLoading}
               className="p-3 bg-gray-800 rounded-full hover:bg-teal-600 disabled:opacity-50 transition duration-200"
             >
               <ChevronLeft className="w-5 h-5 text-white" />
@@ -490,7 +505,7 @@ const App = () => {
             {/* Sonrakı düyməsi */}
             <button
               onClick={handleNextPage}
-              disabled={!hasMorePages || isLoading}
+              disabled={!hasMorePages || isAppLoading}
               className="p-3 bg-gray-800 rounded-full hover:bg-teal-600 disabled:opacity-50 transition duration-200"
             >
               <ChevronRight className="w-5 h-5 text-white" />
