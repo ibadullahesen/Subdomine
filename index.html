@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     
     <!-- Google için kritik SEO Meta Tag'leri -->
-    <title>AxtarGet Chat - Pulsuz Online Chat Platforması | Azərbaycan Chat Saytı</title>
+    <title>AxtarGet Chat - Pulsuz Online Anonim Chat Platforması | Azərbaycan Chat Saytı</title>
     <meta name="description" content="AxtarGet ilə pulsuz online chat edin. Yeni insanlarla tanış olun, söhbət edin. Heç bir qeydiyyat yoxdur, dərhal başlayın. Azərbaycanda ən yaxşı chat platforması.">
     <meta name="keywords" content="pulsuz chat, online chat, Azərbaycan chat, yeni insanlarla tanış olmaq, dost axtarmaq, virtual tanışlıq, söhbət etmək, random chat, chat otağı, online söhbət">
     <meta name="author" content="AxtarGet Chat">
@@ -16,6 +16,9 @@
     <meta name="geo.placename" content="Baku">
     <meta name="geo.position" content="40.409264;49.867092">
     <meta name="ICBM" content="40.409264, 49.867092">
+    
+    <!-- Dil Seçimi için Meta Tag -->
+    <meta name="supported-languages" content="az, tr">
     
     <!-- Mobil Optimizasyon -->
     <meta name="format-detection" content="telephone=no">
@@ -30,6 +33,7 @@
     <!-- Canonical & Alternatif URL'ler -->
     <link rel="canonical" href="https://axtarget.com/">
     <link rel="alternate" hreflang="az" href="https://axtarget.com/">
+    <link rel="alternate" hreflang="tr" href="https://axtarget.com/tr/">
     <link rel="alternate" hreflang="az-AZ" href="https://axtarget.com/">
     <link rel="alternate" hreflang="x-default" href="https://axtarget.com/">
     
@@ -342,6 +346,90 @@
         .whatsapp-ballon:hover .whatsapp-tooltip {
             opacity: 1;
         }
+        
+        /* Dil Seçimi Stilleri */
+        .language-selector {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 1000;
+        }
+        
+        .language-dropdown {
+            background: rgba(15, 23, 42, 0.95);
+            backdrop-filter: blur(10px);
+            border: 1px solid #1e293b;
+            border-radius: 12px;
+            padding: 6px;
+            min-width: 120px;
+        }
+        
+        .language-btn {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 12px;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            width: 100%;
+            color: #cbd5e1;
+            background: transparent;
+            border: none;
+        }
+        
+        .language-btn:hover {
+            background: #1e293b;
+            color: white;
+        }
+        
+        .language-btn.active {
+            background: #06b6d4;
+            color: white;
+        }
+        
+        .flag-icon {
+            width: 20px;
+            height: 20px;
+            border-radius: 4px;
+            object-fit: cover;
+        }
+        
+        .language-display {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 16px;
+            background: rgba(15, 23, 42, 0.95);
+            border: 1px solid #1e293b;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            color: white;
+            font-weight: 500;
+        }
+        
+        .language-display:hover {
+            background: #1e293b;
+            border-color: #06b6d4;
+        }
+        
+        .language-dropdown-content {
+            display: none;
+            position: absolute;
+            top: 100%;
+            right: 0;
+            margin-top: 8px;
+            opacity: 0;
+            transform: translateY(-10px);
+            transition: all 0.3s ease;
+        }
+        
+        .language-dropdown-content.show {
+            display: block;
+            opacity: 1;
+            transform: translateY(0);
+        }
     </style>
 </head>
 <body class="bg-primary text-white min-h-screen">
@@ -376,10 +464,34 @@
         <p><strong>AxtarGet</strong> Azərbaycanda ən populyar chat platformasıdır. Gündə minlərlə istifadəçi bizim platformamızda yeni dostlar tapır. Siz də qoşulun və yeni insanlarla tanış olun!</p>
     </div>
 
+    <!-- Dil Seçimi -->
+    <div class="language-selector">
+        <div class="relative">
+            <div class="language-display" onclick="toggleLanguageDropdown()">
+                <img src="https://flagcdn.com/az.svg" alt="Azərbaycan dili" class="flag-icon">
+                <span id="current-language-text">AZ</span>
+                <svg class="w-4 h-4 ml-1 transition-transform duration-200" id="language-arrow" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                </svg>
+            </div>
+            
+            <div class="language-dropdown language-dropdown-content" id="language-dropdown">
+                <button class="language-btn active" onclick="changeLanguage('az')">
+                    <img src="https://flagcdn.com/az.svg" alt="Azərbaycan dili" class="flag-icon">
+                    <span>Azərbaycan</span>
+                </button>
+                <button class="language-btn" onclick="changeLanguage('tr')">
+                    <img src="https://flagcdn.com/tr.svg" alt="Türk dili" class="flag-icon">
+                    <span>Türkçe</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
     <!-- WhatsApp Balonu -->
     <div id="whatsapp-ballon" class="whatsapp-ballon">
         <div class="whatsapp-tooltip">
-            Dəstək üçün yazın
+            <span id="whatsapp-tooltip-text">Dəstək üçün yazın</span>
         </div>
         <svg viewBox="0 0 32 32">
             <path d=" M19.11 17.205c-.372 0-1.088 1.39-1.518 1.39a.63.63 0 0 1-.315-.1c-.802-.402-1.504-.817-2.163-1.447-.545-.516-1.146-1.29-1.46-1.963a.426.426 0 0 1-.073-.215c0-.33.99-.945.99-1.49 0-.143-.73-2.09-.832-2.335-.143-.372-.214-.487-.6-.487-.187 0-.36-.043-.53-.043-.302 0-.53.115-.746.315-.688.645-1.032 1.318-1.06 2.264v.114c-.015.99.472 1.977 1.017 2.78 1.23 1.82 2.506 3.41 4.554 4.34.616.287 2.035.888 2.722.888.817 0 2.15-.515 2.478-1.318.13-.33.244-.73.244-1.088 0-.058 0-.144-.03-.215-.1-.172-2.434-1.39-2.678-1.39zm-2.908 7.593c-1.747 0-3.48-.53-4.942-1.49L7.793 24.41l1.132-3.337a8.955 8.955 0 0 1-1.72-5.272c0-4.955 4.04-8.995 8.997-8.995S25.2 10.845 25.2 15.8c0 4.958-4.04 8.998-8.998 8.998zm0-19.798c-5.96 0-10.8 4.842-10.8 10.8 0 1.964.53 3.898 1.546 5.574L5 27.176l5.974-1.92a10.807 10.807 0 0 0 16.03-9.455c0-5.958-4.842-10.8-10.802-10.8z" fill-rule="evenodd"></path>
@@ -395,7 +507,7 @@
                     <h1 class="text-5xl md:text-6xl font-bold tracking-tight">
                         <span class="gradient-text">AxtarGet</span>
                     </h1>
-                    <p class="text-xl text-slate-400">Pulsuz Online Chat Platforması</p>
+                    <p class="text-xl text-slate-400" id="subtitle-text">Pulsuz Online Chat Platforması</p>
                 </header>
 
                 <!-- Main Card -->
@@ -404,14 +516,14 @@
                     <div class="bg-warning bg-opacity-10 border border-warning border-opacity-30 rounded-lg p-4">
                         <p class="text-warning text-sm flex items-start gap-2">
                             <span>⚠️</span>
-                            <span><strong>Diqqət:</strong> Yazışmalarınız serverdə saxlanılmır. Söhbət bitdikdə avtomatik silinir.</span>
+                            <span><strong id="alert-title-text">Diqqət:</strong> <span id="alert-text">Yazışmalarınız serverdə saxlanılmır. Söhbət bitdikdə avtomatik silinir.</span></span>
                         </p>
                     </div>
 
                     <!-- Name Input -->
                     <section class="space-y-2">
-                        <label for="user-name-input" class="block text-sm font-semibold text-slate-200">
-                            Adınız (İsteğe bağlı)
+                        <label for="user-name-input" class="block text-sm font-semibold text-slate-200" id="name-label">
+                            Adınız (İstəyə bağlı)
                         </label>
                         <input 
                             type="text" 
@@ -419,27 +531,27 @@
                             placeholder="Adınızı yazın..." 
                             maxlength="20"
                             class="focus-ring w-full p-4 rounded-lg bg-primary border border-slate-600 text-white placeholder-slate-500 transition">
-                        <p class="text-xs text-slate-400">Boş buraxsanız təsadüfi ad təyin olunacaq</p>
+                        <p class="text-xs text-slate-400" id="name-hint">Boş buraxsanız təsadüfi ad təyin olunacaq</p>
                     </section>
 
                     <!-- Start Button -->
                     <button 
                         onclick="handleStart()" 
-                        class="btn-primary w-full py-4 text-lg font-bold text-white rounded-lg shadow-lg flex items-center justify-center gap-2">
-                        <span>⚡</span> Söhbətə Başla
+                        class="btn-primary w-full py-4 text-lg font-bold text-white rounded-lg shadow-lg flex items-center justify-center gap-2" id="start-button">
+                        <span>⚡</span> <span id="start-button-text">Söhbətə Başla</span>
                     </button>
 
                     <!-- How to Use Button -->
                     <button 
                         onclick="showTutorial()" 
-                        class="w-full py-3 text-sm font-semibold text-slate-300 bg-slate-700 hover:bg-slate-600 rounded-lg transition">
-                        ℹ️ Necə İstifadə Olunur?
+                        class="w-full py-3 text-sm font-semibold text-slate-300 bg-slate-700 hover:bg-slate-600 rounded-lg transition" id="tutorial-button">
+                        ℹ️ <span id="tutorial-button-text">Necə İstifadə Olunur?</span>
                     </button>
                 </main>
 
                 <!-- Footer Info -->
                 <footer class="text-center text-xs text-slate-500">
-                    <p>AxtarGet - Azərbaycanda ən yaxşı pulsuz chat platforması. Online tanışlıq, söhbət, yeni dostlar.</p>
+                    <p id="footer-text">AxtarGet - Azərbaycanda ən yaxşı pulsuz chat platforması. Online tanışlıq, söhbət, yeni dostlar.</p>
                 </footer>
             </div>
 
@@ -455,15 +567,15 @@
                     </div>
                     <button 
                         onclick="handleCancelMatching()" 
-                        class="w-full py-3 bg-error hover:bg-red-600 text-white rounded-lg font-semibold transition">
-                        ❌ Ləğv Et
+                        class="w-full py-3 bg-error hover:bg-red-600 text-white rounded-lg font-semibold transition" id="cancel-button">
+                        ❌ <span id="cancel-button-text">Ləğv Et</span>
                     </button>
                     <div id="retry-container" class="hidden space-y-3 pt-4 border-t border-slate-700">
-                        <p class="text-warning font-semibold">Heç bir aktiv istifadəçi tapılmadı</p>
+                        <p class="text-warning font-semibold" id="no-users-text">Heç bir aktiv istifadəçi tapılmadı</p>
                         <button 
                             onclick="handleStart()" 
-                            class="btn-primary w-full py-3 text-white rounded-lg font-semibold">
-                            🔄 Yenidən Cəhd Et
+                            class="btn-primary w-full py-3 text-white rounded-lg font-semibold" id="retry-button">
+                            🔄 <span id="retry-button-text">Yenidən Cəhd Et</span>
                         </button>
                     </div>
                 </div>
@@ -489,11 +601,11 @@
                                                 <span class="typing-dot"></span>
                                                 <span class="typing-dot"></span>
                                             </span>
-                                            <span>yazır...</span>
+                                            <span id="typing-text">yazır...</span>
                                         </p>
                                         <p id="partner-online-status" class="text-xs status-online flex items-center gap-1">
                                             <span>●</span>
-                                            <span>Aktiv</span>
+                                            <span id="active-text">Aktiv</span>
                                         </p>
                                     </div>
                                 </div>
@@ -502,13 +614,13 @@
                         <div class="flex gap-2 justify-end">
                             <button 
                                 onclick="handleChangeChat()" 
-                                class="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg text-sm font-medium transition">
-                                🔄 Dəyiş
+                                class="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg text-sm font-medium transition" id="change-button">
+                                🔄 <span id="change-button-text">Dəyiş</span>
                             </button>
                             <button 
                                 onclick="handleCloseChat()" 
-                                class="px-4 py-2 bg-error hover:bg-red-600 text-white rounded-lg text-sm font-medium transition">
-                                ✕ Bağla
+                                class="px-4 py-2 bg-error hover:bg-red-600 text-white rounded-lg text-sm font-medium transition" id="close-button">
+                                ✕ <span id="close-button-text">Bağla</span>
                             </button>
                         </div>
                     </div>
@@ -528,7 +640,7 @@
                         oninput="handleTyping()">
                     <button 
                         onclick="sendMessage()" 
-                        class="btn-primary px-6 py-4 text-white rounded-lg font-semibold flex items-center gap-2 transition">
+                        class="btn-primary px-6 py-4 text-white rounded-lg font-semibold flex items-center gap-2 transition" id="send-button">
                         <span>➤</span>
                     </button>
                 </section>
@@ -540,7 +652,7 @@
     <div id="tutorial-modal" class="hidden fixed inset-0 modal-overlay flex items-center justify-center z-50 p-4 animate-fade-in">
         <div class="bg-primary-light rounded-2xl p-8 max-w-xl w-full card-shadow border border-slate-700 max-h-96 overflow-y-auto">
             <div class="flex items-center justify-between mb-6">
-                <h2 class="text-2xl font-bold gradient-text">AxtarGet Necə İstifadə Olunur?</h2>
+                <h2 class="text-2xl font-bold gradient-text" id="tutorial-title">AxtarGet Necə İstifadə Olunur?</h2>
                 <button onclick="closeTutorial()" class="text-slate-400 hover:text-white text-2xl">✕</button>
             </div>
 
@@ -550,8 +662,8 @@
                     <div class="flex items-start gap-3">
                         <div class="bg-error text-white rounded-full w-8 h-8 flex items-center justify-center font-bold flex-shrink-0">1</div>
                         <div>
-                            <h3 class="font-bold text-error text-lg">Adınızı Yazın (İsteğe Bağlı)</h3>
-                            <p class="text-slate-300 text-sm mt-1">Adınızı yazın və ya boş buraxın. Boş buraxsanız, sistem təsadüfi ad verəcək</p>
+                            <h3 class="font-bold text-error text-lg" id="step1-title">Adınızı Yazın (İsteğe Bağlı)</h3>
+                            <p class="text-slate-300 text-sm mt-1" id="step1-text">Adınızı yazın və ya boş buraxın. Boş buraxsanız, sistem təsadüfi ad verəcək</p>
                         </div>
                     </div>
                 </div>
@@ -561,8 +673,8 @@
                     <div class="flex items-start gap-3">
                         <div class="bg-error text-white rounded-full w-8 h-8 flex items-center justify-center font-bold flex-shrink-0">2</div>
                         <div>
-                            <h3 class="font-bold text-error text-lg">Söhbətə Başlayın</h3>
-                            <p class="text-slate-300 text-sm mt-1">"Söhbətə Başla" düyməsinə basın. Sistem sizi digər istifadəçilərlə qoşacaq</p>
+                            <h3 class="font-bold text-error text-lg" id="step2-title">Söhbətə Başlayın</h3>
+                            <p class="text-slate-300 text-sm mt-1" id="step2-text">"Söhbətə Başla" düyməsinə basın. Sistem sizi digər istifadəçilərlə qoşacaq</p>
                         </div>
                     </div>
                 </div>
@@ -572,15 +684,15 @@
                     <div class="flex items-start gap-3">
                         <div class="bg-error text-white rounded-full w-8 h-8 flex items-center justify-center font-bold flex-shrink-0">3</div>
                         <div>
-                            <h3 class="font-bold text-error text-lg">Söhbət Edin</h3>
-                            <p class="text-slate-300 text-sm mt-1">Qarşı tərəflə söhbət edin. Statusunu görə bilərsiniz (Aktiv/Yazır)</p>
+                            <h3 class="font-bold text-error text-lg" id="step3-title">Söhbət Edin</h3>
+                            <p class="text-slate-300 text-sm mt-1" id="step3-text">Qarşı tərəflə söhbət edin. Statusunu görə bilərsiniz (Aktiv/Yazır)</p>
                         </div>
                     </div>
                 </div>
 
                 <!-- Additional Tips -->
                 <div class="bg-primary p-4 rounded-lg border border-accent border-opacity-30">
-                    <p class="text-xs text-slate-400 leading-relaxed">
+                    <p class="text-xs text-slate-400 leading-relaxed" id="tutorial-tip">
                         💡 <strong>Məsləhət:</strong> Digər istifadəçilərə hörmətlə yanaşın. AxtarGet platforması hamı üçün təhlükəsiz mühit yaratmaq üçün çalışır.
                     </p>
                 </div>
@@ -588,8 +700,8 @@
 
             <button 
                 onclick="closeTutorial()" 
-                class="btn-primary w-full mt-6 py-3 text-white rounded-lg font-semibold">
-                Başa düşdüm, Söhbətə Başlayaq!
+                class="btn-primary w-full mt-6 py-3 text-white rounded-lg font-semibold" id="tutorial-understand-button">
+                <span id="understand-button-text">Başa düşdüm, Söhbətə Başlayaq!</span>
             </button>
         </div>
     </div>
@@ -598,28 +710,28 @@
     <div id="auth-animation" class="hidden fixed inset-0 modal-overlay flex items-center justify-center z-40">
         <div class="text-center space-y-4">
             <div class="w-16 h-16 border-4 border-slate-700 border-t-accent rounded-full spin mx-auto"></div>
-            <p class="text-lg font-semibold">Sistemə qoşulur...</p>
+            <p class="text-lg font-semibold" id="connecting-text">Sistemə qoşulur...</p>
         </div>
     </div>
 
     <div id="cancel-animation" class="hidden fixed inset-0 modal-overlay flex items-center justify-center z-40">
         <div class="text-center space-y-4">
             <div class="w-16 h-16 border-4 border-slate-700 border-t-error rounded-full spin mx-auto"></div>
-            <p class="text-lg font-semibold">Axtarış dayandırılır...</p>
+            <p class="text-lg font-semibold" id="cancelling-text">Axtarış dayandırılır...</p>
         </div>
     </div>
 
     <div id="change-animation" class="hidden fixed inset-0 modal-overlay flex items-center justify-center z-40">
         <div class="text-center space-y-4">
             <div class="w-16 h-16 border-4 border-slate-700 border-t-accent rounded-full spin mx-auto"></div>
-            <p class="text-lg font-semibold">Yeni söhbət axtarılır...</p>
+            <p class="text-lg font-semibold" id="searching-text">Yeni söhbət axtarılır...</p>
         </div>
     </div>
 
     <div id="close-animation" class="hidden fixed inset-0 modal-overlay flex items-center justify-center z-40">
         <div class="text-center space-y-4">
             <div class="w-16 h-16 border-4 border-slate-700 border-t-error rounded-full spin mx-auto"></div>
-            <p class="text-lg font-semibold">Söhbət bağlanır...</p>
+            <p class="text-lg font-semibold" id="closing-text">Söhbət bağlanır...</p>
         </div>
     </div>
 
@@ -682,6 +794,211 @@
         const MATCH_QUEUE_DOC_NAME = 'match_queue_doc';
         const HEARTBEAT_TIMEOUT = 10000; // 10 saniyə
 
+        // Dil Yönetimi
+        let currentLanguage = 'az';
+        const translations = {
+            az: {
+                // Dil seçimi
+                language: 'AZ',
+                
+                // Ana ekran
+                subtitle: 'Pulsuz Online Chat Platforması',
+                alertTitle: 'Diqqət:',
+                alertText: 'Yazışmalarınız serverdə saxlanılmır. Söhbət bitdikdə avtomatik silinir.',
+                nameLabel: 'Adınız (İstəyə bağlı)',
+                namePlaceholder: 'Adınızı yazın...',
+                nameHint: 'Boş buraxsanız təsadüfi ad təyin olunacaq',
+                startButton: 'Söhbətə Başla',
+                tutorialButton: 'Necə İstifadə Olunur?',
+                footerText: 'AxtarGet - Azərbaycanda ən yaxşı pulsuz chat platforması. Online tanışlıq, söhbət, yeni dostlar.',
+                
+                // Eşleşme ekranı
+                matchingText: 'Söhbət Tərəfdaşı Axtarılır...',
+                countdownText: 'Qalan vaxt:',
+                seconds: 'saniyə',
+                cancelButton: 'Ləğv Et',
+                noUsersText: 'Heç bir aktiv istifadəçi tapılmadı',
+                tryAgainText: 'Yenidən Cəhd Et',
+                pleaseTryAgain: 'Zəhmət olmasa yenidən dene',
+                
+                // Chat ekranı
+                typingText: 'yazır...',
+                activeText: 'Aktiv',
+                changeButton: 'Dəyiş',
+                closeButton: 'Bağla',
+                messagePlaceholder: 'Mesajınızı yazın...',
+                
+                // Tutorial
+                tutorialTitle: 'AxtarGet Necə İstifadə Olunur?',
+                step1Title: 'Adınızı Yazın (İsteğe Bağlı)',
+                step1Text: 'Adınızı yazın və ya boş buraxın. Boş buraxsanız, sistem təsadüfi ad verəcək',
+                step2Title: 'Söhbətə Başlayın',
+                step2Text: '"Söhbətə Başla" düyməsinə basın. Sistem sizi digər istifadəçilərlə qoşacaq',
+                step3Title: 'Söhbət Edin',
+                step3Text: 'Qarşı tərəflə söhbət edin. Statusunu görə bilərsiniz (Aktiv/Yazır)',
+                tutorialTip: '💡 <strong>Məsləhət:</strong> Digər istifadəçilərə hörmətlə yanaşın. AxtarGet platforması hamı üçün təhlükəsiz mühit yaratmaq üçün çalışır.',
+                understandButton: 'Başa düşdüm, Söhbətə Başlayaq!',
+                
+                // Loading ekranları
+                connecting: 'Sistemə qoşulur...',
+                cancelling: 'Axtarış dayandırılır...',
+                searching: 'Yeni söhbət axtarılır...',
+                closing: 'Söhbət bağlanır...',
+                
+                // WhatsApp
+                whatsappTooltip: 'Dəstək üçün yazın',
+                
+                // Sistem mesajları
+                partnerLeft: '❌ Tərəfdaş söhbəti bağladı',
+                messageError: '⚠️ Mesaj göndərilə bilmədi'
+            },
+            tr: {
+                // Dil seçimi
+                language: 'TR',
+                
+                // Ana ekran
+                subtitle: 'Ücretsiz Online Chat Platformu',
+                alertTitle: 'Dikkat:',
+                alertText: 'Yazışmalarınız sunucuda saklanmaz. Sohbet bittiğinde otomatik silinir.',
+                nameLabel: 'Adınız (İsteğe Bağlı)',
+                namePlaceholder: 'Adınızı yazın...',
+                nameHint: 'Boş bırakırsanız rastgele ad atanacak',
+                startButton: 'Sohbete Başla',
+                tutorialButton: 'Nasıl Kullanılır?',
+                footerText: 'AxtarGet - Azerbaycandaki en iyi ücretsiz chat platformu. Online tanışma, sohbet, yeni arkadaşlar.',
+                
+                // Eşleşme ekranı
+                matchingText: 'Sohbet Partneri Aranıyor...',
+                countdownText: 'Kalan süre:',
+                seconds: 'saniye',
+                cancelButton: 'İptal Et',
+                noUsersText: 'Hiçbir aktif kullanıcı bulunamadı',
+                tryAgainText: 'Yeniden Dene',
+                pleaseTryAgain: 'Lütfen yeniden deneyin',
+                
+                // Chat ekranı
+                typingText: 'yazıyor...',
+                activeText: 'Aktif',
+                changeButton: 'Değiştir',
+                closeButton: 'Kapat',
+                messagePlaceholder: 'Mesajınızı yazın...',
+                
+                // Tutorial
+                tutorialTitle: 'AxtarGet Nasıl Kullanılır?',
+                step1Title: 'Adınızı Yazın (İsteğe Bağlı)',
+                step1Text: 'Adınızı yazın veya boş bırakın. Boş bırakırsanız, sistem rastgele ad verecek',
+                step2Title: 'Sohbete Başlayın',
+                step2Text: '"Sohbete Başla" butonuna tıklayın. Sistem sizi diğer kullanıcılarla eşleştirecek',
+                step3Title: 'Sohbet Edin',
+                step3Text: 'Karşı tarafla sohbet edin. Durumunu görebilirsiniz (Aktif/Yazıyor)',
+                tutorialTip: '💡 <strong>Tavsiye:</strong> Diğer kullanıcılara saygılı davranın. AxtarGet platformu herkes için güvenli bir ortam yaratmaya çalışır.',
+                understandButton: 'Anladım, Sohbete Başlayalım!',
+                
+                // Loading ekranları
+                connecting: 'Sisteme bağlanıyor...',
+                cancelling: 'Arama durduruluyor...',
+                searching: 'Yeni sohbet aranıyor...',
+                closing: 'Sohbet kapatılıyor...',
+                
+                // WhatsApp
+                whatsappTooltip: 'Destek için yazın',
+                
+                // Sistem mesajları
+                partnerLeft: '❌ Partner sohbeti kapattı',
+                messageError: '⚠️ Mesaj gönderilemedi'
+            }
+        };
+
+        // Dil değiştirme fonksiyonu
+        function changeLanguage(lang) {
+            currentLanguage = lang;
+            
+            // Dil dropdown güncelleme
+            document.getElementById('current-language-text').textContent = translations[lang].language;
+            
+            // Dropdown butonlarını güncelle
+            document.querySelectorAll('.language-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            
+            if (lang === 'az') {
+                document.querySelector('.language-btn:nth-child(1)').classList.add('active');
+            } else {
+                document.querySelector('.language-btn:nth-child(2)').classList.add('active');
+            }
+            
+            // Sayfa içeriğini güncelle
+            updatePageContent();
+            
+            // Dropdown'u kapat
+            document.getElementById('language-dropdown').classList.remove('show');
+            document.getElementById('language-arrow').style.transform = 'rotate(0deg)';
+        }
+
+        // Sayfa içeriğini güncelle
+        function updatePageContent() {
+            const t = translations[currentLanguage];
+            
+            // Ana ekran
+            document.getElementById('subtitle-text').textContent = t.subtitle;
+            document.getElementById('alert-title-text').textContent = t.alertTitle;
+            document.getElementById('alert-text').textContent = t.alertText;
+            document.getElementById('name-label').textContent = t.nameLabel;
+            document.getElementById('user-name-input').placeholder = t.namePlaceholder;
+            document.getElementById('name-hint').textContent = t.nameHint;
+            document.getElementById('start-button-text').textContent = t.startButton;
+            document.getElementById('tutorial-button-text').textContent = t.tutorialButton;
+            document.getElementById('footer-text').textContent = t.footerText;
+            
+            // Eşleşme ekranı
+            document.getElementById('matching-text').textContent = t.matchingText;
+            document.getElementById('countdown-text').textContent = t.countdownText + ' 20 ' + t.seconds;
+            document.getElementById('cancel-button-text').textContent = t.cancelButton;
+            document.getElementById('no-users-text').textContent = t.noUsersText;
+            document.getElementById('retry-button-text').textContent = t.tryAgainText;
+            
+            // Chat ekranı
+            document.getElementById('typing-text').textContent = t.typingText;
+            document.getElementById('active-text').textContent = t.activeText;
+            document.getElementById('change-button-text').textContent = t.changeButton;
+            document.getElementById('close-button-text').textContent = t.closeButton;
+            document.getElementById('message-input').placeholder = t.messagePlaceholder;
+            
+            // Tutorial
+            document.getElementById('tutorial-title').textContent = t.tutorialTitle;
+            document.getElementById('step1-title').textContent = t.step1Title;
+            document.getElementById('step1-text').textContent = t.step1Text;
+            document.getElementById('step2-title').textContent = t.step2Title;
+            document.getElementById('step2-text').textContent = t.step2Text;
+            document.getElementById('step3-title').textContent = t.step3Title;
+            document.getElementById('step3-text').textContent = t.step3Text;
+            document.getElementById('tutorial-tip').innerHTML = t.tutorialTip;
+            document.getElementById('understand-button-text').textContent = t.understandButton;
+            
+            // Loading ekranları
+            document.getElementById('connecting-text').textContent = t.connecting;
+            document.getElementById('cancelling-text').textContent = t.cancelling;
+            document.getElementById('searching-text').textContent = t.searching;
+            document.getElementById('closing-text').textContent = t.closing;
+            
+            // WhatsApp
+            document.getElementById('whatsapp-tooltip-text').textContent = t.whatsappTooltip;
+        }
+
+        // Dil dropdown aç/kapat
+        function toggleLanguageDropdown() {
+            const dropdown = document.getElementById('language-dropdown');
+            const arrow = document.getElementById('language-arrow');
+            
+            dropdown.classList.toggle('show');
+            
+            if (dropdown.classList.contains('show')) {
+                arrow.style.transform = 'rotate(180deg)';
+            } else {
+                arrow.style.transform = 'rotate(0deg)';
+            }
+        }
+
         // WhatsApp Balonu Fonksiyaları
         function showWhatsAppBallon() {
             const ballon = document.getElementById('whatsapp-ballon');
@@ -700,7 +1017,7 @@
         // WhatsApp açılış
         document.getElementById('whatsapp-ballon').addEventListener('click', function() {
             const phoneNumber = '0606006162';
-            const message = encodeURIComponent('Salam dəstəyə ehtiyacım var');
+            const message = encodeURIComponent(currentLanguage === 'az' ? 'Salam dəstəyə ehtiyacım var' : 'Merhaba desteğe ihtiyacım var');
             window.open(`https://wa.me/${phoneNumber}?text=${message}`, '_blank');
         });
 
@@ -808,7 +1125,7 @@
                                 if (diff < HEARTBEAT_TIMEOUT) {
                                     // Aktiv
                                     statusDot.className = 'w-3 h-3 bg-success rounded-full';
-                                    onlineStatus.innerHTML = '<span>●</span><span>Aktiv</span>';
+                                    onlineStatus.innerHTML = '<span>●</span><span>' + translations[currentLanguage].activeText + '</span>';
                                     onlineStatus.className = 'text-xs status-online flex items-center gap-1';
                                 } else {
                                     // Ofline
@@ -852,10 +1169,11 @@
             messageElement.classList.add('message-bubble');
 
             if (isSelf) {
+                const senderText = currentLanguage === 'az' ? 'Siz' : 'Siz';
                 messageElement.className = 'message-bubble max-w-xs ml-auto p-4 rounded-xl bg-accent text-primary font-medium';
                 messageElement.innerHTML = `
                     <div class="flex justify-between items-end gap-2 mb-1">
-                        <p class="text-xs font-bold opacity-70">Siz</p>
+                        <p class="text-xs font-bold opacity-70">${senderText}</p>
                         <span class="text-[10px] opacity-60">${time}</span>
                     </div>
                     <p class="break-words text-sm">${escapeHtml(text)}</p>
@@ -958,7 +1276,7 @@
             } catch (e) {
                 console.error("❌ Mesaj göndərmə xətası:", e);
                 input.value = messageText;
-                addSystemMessageToUI("⚠️ Mesaj göndərilə bilmədi");
+                addSystemMessageToUI(translations[currentLanguage].messageError);
             }
         };
 
@@ -969,18 +1287,18 @@
                 showAnimation('auth-animation');
                 setTimeout(() => {
                     hideAllAnimations();
-                }, 1000); // 2000ms -> 1000ms
+                }, 1000);
                 return;
             }
 
             const inputName = document.getElementById('user-name-input').value.trim();
-            userName = inputName || `İstifadəçi-${userId.substring(0, 6)}`;
+            userName = inputName || (currentLanguage === 'az' ? `İstifadəçi-${userId.substring(0, 6)}` : `Kullanıcı-${userId.substring(0, 6)}`);
             
             console.log("🚀 Sohbet başlatılıyor, kullanıcı adı:", userName);
 
             showScreen('matching-screen');
             document.getElementById('retry-container').classList.add('hidden');
-            document.getElementById('matching-text').textContent = "Söhbət Tərəfdaşı Axtarılır...";
+            document.getElementById('matching-text').textContent = translations[currentLanguage].matchingText;
             startMatching();
         };
 
@@ -988,19 +1306,19 @@
         async function startMatching() {
             const queueRef = doc(db, CHAT_COLLECTION, MATCH_QUEUE_DOC_NAME);
             let remaining = MATCHING_SECONDS;
-            document.getElementById('countdown-text').textContent = `Qalan vaxt: ${remaining} saniyə`;
+            document.getElementById('countdown-text').textContent = `${translations[currentLanguage].countdownText} ${remaining} ${translations[currentLanguage].seconds}`;
 
             console.log("🔍 Eşleşme başlatıldı");
 
             if (matchingTimeout) clearInterval(matchingTimeout);
             matchingTimeout = setInterval(() => {
                 remaining--;
-                document.getElementById('countdown-text').textContent = `Qalan vaxt: ${remaining} saniyə`;
+                document.getElementById('countdown-text').textContent = `${translations[currentLanguage].countdownText} ${remaining} ${translations[currentLanguage].seconds}`;
 
                 if (remaining <= 0) {
                     clearInterval(matchingTimeout);
-                    document.getElementById('matching-text').textContent = "Aktiv istifadəçi tapılmadı";
-                    document.getElementById('countdown-text').textContent = "Zəhmət olmasa yenidən dene";
+                    document.getElementById('matching-text').textContent = translations[currentLanguage].noUsersText;
+                    document.getElementById('countdown-text').textContent = translations[currentLanguage].pleaseTryAgain;
                     document.getElementById('retry-container').classList.remove('hidden');
                     handleCancelMatching();
                 }
@@ -1112,7 +1430,7 @@
                 });
             } catch (e) {
                 console.error("❌ Matching xətası:", e);
-                addSystemMessageToUI("⚠️ Axtarış xətası");
+                addSystemMessageToUI(translations[currentLanguage].messageError);
             }
         }
 
@@ -1178,7 +1496,7 @@
 
                     console.log("❌ Chat document silindi");
                     if (unsubscribeChat) unsubscribeChat();
-                    addSystemMessageToUI("❌ Tərəfdaş söhbəti bağladı");
+                    addSystemMessageToUI(translations[currentLanguage].partnerLeft);
                     setTimeout(() => disconnect(true), 2000);
                     return;
                 }
@@ -1213,7 +1531,7 @@
                     if (data.closedBy !== userId) {
                         console.log("❌ Karşı taraf sohbeti kapattı");
                         if (unsubscribeChat) unsubscribeChat();
-                        addSystemMessageToUI("❌ Tərəfdaş söhbəti bağladı");
+                        addSystemMessageToUI(translations[currentLanguage].partnerLeft);
                         setTimeout(() => disconnect(true), 2000);
                     }
                 }
@@ -1304,8 +1622,8 @@
                         deleteDoc(doc(db, CHAT_COLLECTION, userId));
                         if (partnerId) deleteDoc(doc(db, CHAT_COLLECTION, partnerId));
                     } catch (e) {}
-                }, 500); // 2000ms -> 500ms
-            }, 500); // 1500ms -> 500ms
+                }, 500);
+            }, 500);
         };
 
         // Change Chat
@@ -1328,7 +1646,7 @@
                 } catch (e) {}
 
                 await disconnect(false);
-                await new Promise(resolve => setTimeout(resolve, 300)); // 500ms -> 300ms
+                await new Promise(resolve => setTimeout(resolve, 300));
 
                 setTimeout(() => {
                     try {
@@ -1336,13 +1654,13 @@
                         deleteDoc(doc(db, CHAT_COLLECTION, userId));
                         if (partnerId) deleteDoc(doc(db, CHAT_COLLECTION, partnerId));
                     } catch (e) {}
-                }, 1000); // 1000ms -> 300ms
+                }, 300);
 
                 showScreen('matching-screen');
-                document.getElementById('matching-text').textContent = "Yeni Tərəfdaş Axtarılır...";
+                document.getElementById('matching-text').textContent = translations[currentLanguage].matchingText;
                 document.getElementById('retry-container').classList.add('hidden');
                 startMatching();
-            }, 1000); // 1500ms -> 300ms
+            }, 300);
         };
 
         // Cancel Matching
@@ -1354,7 +1672,7 @@
                 hideAllAnimations();
                 await disconnect(false);
                 showScreen('start-screen');
-            }, 300); // 1500ms -> 300ms
+            }, 300);
         };
 
         // Cleanup on Browser Close
@@ -1395,10 +1713,29 @@
             }
         });
 
-        // İlk WhatsApp balonunu göster
+        // Click outside to close language dropdown
+        document.addEventListener('click', (e) => {
+            const dropdown = document.getElementById('language-dropdown');
+            const languageSelector = document.querySelector('.language-selector');
+            
+            if (dropdown.classList.contains('show') && !languageSelector.contains(e.target)) {
+                dropdown.classList.remove('show');
+                document.getElementById('language-arrow').style.transform = 'rotate(0deg)';
+            }
+        });
+
+        // İlk yükleme
         window.onload = function() {
             initializeFirebase();
             showWhatsAppBallon();
+            
+            // Dil dropdown event listener
+            document.querySelector('.language-display').addEventListener('click', function(e) {
+                e.stopPropagation();
+            });
+            
+            // Varsayılan dili ayarla
+            changeLanguage('az');
         };
     </script>
 </body>
