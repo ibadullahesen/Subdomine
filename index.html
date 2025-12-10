@@ -1336,13 +1336,13 @@
                         deleteDoc(doc(db, CHAT_COLLECTION, userId));
                         if (partnerId) deleteDoc(doc(db, CHAT_COLLECTION, partnerId));
                     } catch (e) {}
-                }, 300); // 1000ms -> 300ms
+                }, 1000); // 1000ms -> 300ms
 
                 showScreen('matching-screen');
                 document.getElementById('matching-text').textContent = "Yeni Tərəfdaş Axtarılır...";
                 document.getElementById('retry-container').classList.add('hidden');
                 startMatching();
-            }, 300); // 1500ms -> 300ms
+            }, 1000); // 1500ms -> 300ms
         };
 
         // Cancel Matching
