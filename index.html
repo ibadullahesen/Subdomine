@@ -24,6 +24,9 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black">
     
+    <!-- Site Doğrulama (Google Search Console için) -->
+    <!-- <meta name="google-site-verification" content="GOOGLE_SITE_VERIFICATION_KODUNUZ"> -->
+    
     <!-- Canonical & Alternatif URL'ler -->
     <link rel="canonical" href="https://axtarget.com/">
     <link rel="alternate" hreflang="az" href="https://axtarget.com/">
@@ -276,25 +279,6 @@
                 opacity: 1;
             }
         }
-        
-        /* Optimizasyon için ek stiller */
-        .optimized-fade-in {
-            animation: optimizedFadeIn 0.2s ease-out;
-        }
-        
-        @keyframes optimizedFadeIn {
-            from { opacity: 0; }
-            to { opacity: 1; }
-        }
-        
-        .message-sent {
-            animation: messageSent 0.15s ease-out;
-        }
-        
-        @keyframes messageSent {
-            0% { transform: scale(0.95); opacity: 0; }
-            100% { transform: scale(1); opacity: 1; }
-        }
     </style>
 </head>
 <body class="bg-primary text-white min-h-screen">
@@ -332,7 +316,7 @@
     <div class="min-h-screen flex items-center justify-center p-4">
         <div class="w-full max-w-2xl">
             <!-- Start Screen -->
-            <div id="start-screen" class="space-y-8 optimized-fade-in">
+            <div id="start-screen" class="space-y-8 animate-fade-in">
                 <!-- Header -->
                 <header class="text-center space-y-3 mb-8">
                     <h1 class="text-5xl md:text-6xl font-bold tracking-tight">
@@ -387,7 +371,7 @@
             </div>
 
             <!-- Matching Screen -->
-            <div id="matching-screen" class="hidden text-center space-y-6 optimized-fade-in">
+            <div id="matching-screen" class="hidden text-center space-y-6 animate-fade-in">
                 <div class="bg-primary-light rounded-2xl p-12 card-shadow border border-slate-700 space-y-6">
                     <div class="flex justify-center">
                         <div class="w-20 h-20 border-4 border-slate-700 border-t-accent rounded-full spin"></div>
@@ -413,7 +397,7 @@
             </div>
 
             <!-- Chat Screen -->
-            <div id="chat-screen" class="hidden space-y-4 optimized-fade-in">
+            <div id="chat-screen" class="hidden space-y-4 animate-fade-in">
                 <!-- Chat Header -->
                 <header class="bg-primary-light rounded-xl p-4 border border-slate-700 card-shadow">
                     <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -480,7 +464,7 @@
     </div>
 
     <!-- Tutorial Modal -->
-    <div id="tutorial-modal" class="hidden fixed inset-0 modal-overlay flex items-center justify-center z-50 p-4 optimized-fade-in">
+    <div id="tutorial-modal" class="hidden fixed inset-0 modal-overlay flex items-center justify-center z-50 p-4 animate-fade-in">
         <div class="bg-primary-light rounded-2xl p-8 max-w-xl w-full card-shadow border border-slate-700 max-h-96 overflow-y-auto">
             <div class="flex items-center justify-between mb-6">
                 <h2 class="text-2xl font-bold gradient-text">AxtarGet Necə İstifadə Olunur?</h2>
@@ -537,7 +521,7 @@
         </div>
     </div>
 
-    <!-- Loading Animation Overlays (Kaldırıldı - direkt işlem yapılacak) -->
+    <!-- Loading Animation Overlays -->
     <div id="auth-animation" class="hidden fixed inset-0 modal-overlay flex items-center justify-center z-40">
         <div class="text-center space-y-4">
             <div class="w-16 h-16 border-4 border-slate-700 border-t-accent rounded-full spin mx-auto"></div>
@@ -581,8 +565,9 @@
         .custom-scrollbar::-webkit-scrollbar-thumb:hover {
             background: #0891b2;
         }
-        
-        /* Daha hızlı animasyon */
+        .animate-fade-in {
+            animation: fadeIn 0.3s ease-in;
+        }
         @keyframes fadeIn {
             from { opacity: 0; }
             to { opacity: 1; }
@@ -618,8 +603,6 @@
         let renderedMessageIds = new Set();
         let isFirstSnapshot = true;
         let lastPartnerHeartbeat = null;
-        let messageQueue = [];
-        let isSendingMessage = false;
 
         const MATCHING_SECONDS = 20;
         const CHAT_COLLECTION = `artifacts/axtarget-anonimchat/public/data/chats`;
@@ -643,7 +626,14 @@
             document.getElementById(screenId).classList.remove('hidden');
         }
 
-        // Animasyonları direkt gizle (bekleme yok)
+        function showAnimation(animationId) {
+            document.getElementById('auth-animation').classList.add('hidden');
+            document.getElementById('cancel-animation').classList.add('hidden');
+            document.getElementById('change-animation').classList.add('hidden');
+            document.getElementById('close-animation').classList.add('hidden');
+            document.getElementById(animationId).classList.remove('hidden');
+        }
+
         function hideAllAnimations() {
             document.getElementById('auth-animation').classList.add('hidden');
             document.getElementById('cancel-animation').classList.add('hidden');
@@ -662,7 +652,9 @@
                     if (user) {
                         userId = user.uid;
                         isAuthReady = true;
+                        console.log("✅ Firebase auth hazır, User ID:", userId);
                     } else {
+                        console.log("🔄 Firebase auth başlatılıyor...");
                         await signInAnonymously(auth);
                     }
                 });
@@ -671,7 +663,7 @@
             }
         }
 
-        // Optimize edilmiş Heartbeat System
+        // Heartbeat System
         function startHeartbeat() {
             if (heartbeatInterval) clearInterval(heartbeatInterval);
             heartbeatInterval = setInterval(async () => {
@@ -683,11 +675,12 @@
                             isOnline: true,
                             heartbeat: serverTimestamp()
                         });
+                        console.log("💓 Heartbeat göndərildi");
                     } catch (e) {
                         console.error("Heartbeat xətası:", e);
                     }
                 }
-            }, 4000); // 3 saniyeden 4 saniyeye çıkarıldı
+            }, 3000);
         }
 
         function startPartnerHeartbeatCheck() {
@@ -711,10 +704,12 @@
                                 const onlineStatus = document.getElementById('partner-online-status');
                                 
                                 if (diff < HEARTBEAT_TIMEOUT) {
+                                    // Aktiv
                                     statusDot.className = 'w-3 h-3 bg-success rounded-full';
                                     onlineStatus.innerHTML = '<span>●</span><span>Aktiv</span>';
                                     onlineStatus.className = 'text-xs status-online flex items-center gap-1';
                                 } else {
+                                    // Ofline
                                     statusDot.className = 'w-3 h-3 bg-gray-500 rounded-full';
                                     onlineStatus.innerHTML = '<span>●</span><span>Ofline</span>';
                                     onlineStatus.className = 'text-xs text-gray-400 flex items-center gap-1';
@@ -725,7 +720,7 @@
                         console.error("Partner heartbeat check xətası:", e);
                     }
                 }
-            }, 6000); // 5 saniyeden 6 saniyeye çıkarıldı
+            }, 5000);
         }
 
         function stopHeartbeat() {
@@ -739,7 +734,7 @@
             }
         }
 
-        // Optimize edilmiş Message UI
+        // Message UI
         function addMessageToUI(senderName, text, isSelf, messageId = null) {
             if (messageId && renderedMessageIds.has(messageId)) return;
 
@@ -752,10 +747,10 @@
                 renderedMessageIds.add(messageId);
             }
 
-            messageElement.classList.add('message-bubble', 'message-sent');
+            messageElement.classList.add('message-bubble');
 
             if (isSelf) {
-                messageElement.className = 'message-bubble message-sent max-w-xs ml-auto p-4 rounded-xl bg-accent text-primary font-medium';
+                messageElement.className = 'message-bubble max-w-xs ml-auto p-4 rounded-xl bg-accent text-primary font-medium';
                 messageElement.innerHTML = `
                     <div class="flex justify-between items-end gap-2 mb-1">
                         <p class="text-xs font-bold opacity-70">Siz</p>
@@ -764,7 +759,7 @@
                     <p class="break-words text-sm">${escapeHtml(text)}</p>
                 `;
             } else {
-                messageElement.className = 'message-bubble message-sent max-w-xs p-4 rounded-xl bg-primary border border-slate-700';
+                messageElement.className = 'message-bubble max-w-xs p-4 rounded-xl bg-primary border border-slate-700';
                 messageElement.innerHTML = `
                     <div class="flex justify-between items-end gap-2 mb-1">
                         <p class="text-xs font-bold text-accent">${escapeHtml(senderName)}</p>
@@ -775,10 +770,7 @@
             }
 
             messagesContainer.appendChild(messageElement);
-            // Scroll sadece yeni mesaj eklendiğinde
-            if (messagesContainer.scrollHeight - messagesContainer.scrollTop - messagesContainer.clientHeight < 100) {
-                messagesContainer.scrollTop = messagesContainer.scrollHeight;
-            }
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
         }
 
         function escapeHtml(text) {
@@ -796,12 +788,17 @@
             messagesContainer.scrollTop = messagesContainer.scrollHeight;
         }
 
-        // Optimize edilmiş Typing Handler
+        // Typing Handler - FIXED!
         window.handleTyping = async function() {
-            if (!chatId || !userId) return;
+            if (!chatId || !userId) {
+                console.log("❌ handleTyping: chatId veya userId yok");
+                return;
+            }
             
             const input = document.getElementById('message-input');
             const hasText = input.value.trim().length > 0;
+            
+            console.log("✍️ Yazma durumu:", hasText ? "Yazıyor" : "Yazmıyor");
             
             if (typingTimeout) clearTimeout(typingTimeout);
 
@@ -810,8 +807,9 @@
                     [`typingStatus.${userId}`]: hasText,
                     lastActivity: serverTimestamp()
                 });
+                console.log("✅ Yazma durumu güncellendi:", hasText);
             } catch (e) {
-                console.error("Yazma statusu xətası:", e);
+                console.error("❌ Yazma statusu xətası:", e);
             }
 
             typingTimeout = setTimeout(async () => {
@@ -819,21 +817,23 @@
                     await updateDoc(doc(db, CHAT_COLLECTION, chatId), {
                         [`typingStatus.${userId}`]: false
                     });
-                } catch (e) {}
-            }, 1500); // 2 saniyeden 1.5 saniyeye düşürüldü
+                    console.log("✅ Yazma durumu temizlendi (false)");
+                } catch (e) {
+                    console.error("❌ Yazma durumu temizleme hatası:", e);
+                }
+            }, 2000);
         };
 
-        // Optimize edilmiş Send Message
+        // Send Message
         window.sendMessage = async function() {
             const input = document.getElementById('message-input');
             const messageText = input.value.trim();
-            if (!messageText || !chatId || !userId || isSendingMessage) return;
+            if (!messageText || !chatId || !userId) {
+                console.log("❌ Mesaj gönderme: Boş mesaj veya chatId/userId yok");
+                return;
+            }
 
-            isSendingMessage = true;
-            
-            // Hemen UI'da göster
-            const tempMessageId = `temp-${Date.now()}-${Math.random()}`;
-            addMessageToUI(userName, messageText, true, tempMessageId);
+            console.log("📤 Mesaj gönderiliyor:", messageText.substring(0, 50) + "...");
             
             input.value = '';
             input.focus();
@@ -846,34 +846,35 @@
                     timestamp: new Date().toISOString()
                 };
 
-                // Optimize edilmiş update
                 await updateDoc(doc(db, CHAT_COLLECTION, chatId), {
                     [`typingStatus.${userId}`]: false,
                     messages: arrayUnion(messageData),
                     lastActivity: serverTimestamp()
-                }, { merge: true });
+                });
                 
-                // Temp mesaj ID'sini sil
-                renderedMessageIds.delete(tempMessageId);
-                
+                console.log("✅ Mesaj başarıyla gönderildi");
             } catch (e) {
-                console.error("Mesaj göndərmə xətası:", e);
-                // Hata durumunda inputa geri koy
+                console.error("❌ Mesaj göndərmə xətası:", e);
                 input.value = messageText;
                 addSystemMessageToUI("⚠️ Mesaj göndərilə bilmədi");
-            } finally {
-                isSendingMessage = false;
             }
         };
 
         // Start Chat
         window.handleStart = async function() {
             if (!isAuthReady || !userId) {
+                console.log("❌ handleStart: Auth hazır değil");
+                showAnimation('auth-animation');
+                setTimeout(() => {
+                    hideAllAnimations();
+                }, 2000);
                 return;
             }
 
             const inputName = document.getElementById('user-name-input').value.trim();
             userName = inputName || `İstifadəçi-${userId.substring(0, 6)}`;
+            
+            console.log("🚀 Sohbet başlatılıyor, kullanıcı adı:", userName);
 
             showScreen('matching-screen');
             document.getElementById('retry-container').classList.add('hidden');
@@ -881,11 +882,13 @@
             startMatching();
         };
 
-        // Optimize edilmiş Matching Logic
+        // Matching Logic
         async function startMatching() {
             const queueRef = doc(db, CHAT_COLLECTION, MATCH_QUEUE_DOC_NAME);
             let remaining = MATCHING_SECONDS;
             document.getElementById('countdown-text').textContent = `Qalan vaxt: ${remaining} saniyə`;
+
+            console.log("🔍 Eşleşme başlatıldı");
 
             if (matchingTimeout) clearInterval(matchingTimeout);
             matchingTimeout = setInterval(() => {
@@ -911,6 +914,8 @@
                         const waitingUserDoc = await transaction.get(waitingUserRef);
 
                         if (!waitingUserDoc.exists() || !waitingUserDoc.data().isOnline) {
+                            console.log("⏳ Bekleyen kullanıcı offline, sıraya ekleniyor...");
+                            
                             transaction.set(queueRef, {
                                 waitingUserId: null,
                                 waitingUserName: null,
@@ -939,6 +944,12 @@
 
                         partnerId = waiting.waitingUserId;
                         chatId = doc(collection(db, CHAT_COLLECTION)).id;
+                        
+                        console.log("🎉 Eşleşme bulundu!", {
+                            partnerId: partnerId,
+                            partnerName: waiting.waitingUserName,
+                            chatId: chatId
+                        });
 
                         const newChat = {
                             createdAt: serverTimestamp(),
@@ -968,13 +979,16 @@
                         document.getElementById('partner-name').textContent = waiting.waitingUserName;
                         clearInterval(matchingTimeout);
 
-                        // Direkt geçiş, animasyon bekleme yok
-                        showScreen('chat-screen');
-                        setupChatListener();
-                        startHeartbeat();
-                        startPartnerHeartbeatCheck();
+                        setTimeout(() => {
+                            showScreen('chat-screen');
+                            setupChatListener();
+                            startHeartbeat();
+                            startPartnerHeartbeatCheck();
+                        }, 500);
 
                     } else {
+                        console.log("⏳ Sıraya ekleniyor...");
+                        
                         transaction.set(queueRef, {
                             waitingUserId: userId,
                             waitingUserName: userName,
@@ -995,7 +1009,7 @@
                     }
                 });
             } catch (e) {
-                console.error("Matching xətası:", e);
+                console.error("❌ Matching xətası:", e);
                 addSystemMessageToUI("⚠️ Axtarış xətası");
             }
         }
@@ -1005,28 +1019,40 @@
             const userRef = doc(db, CHAT_COLLECTION, userId);
             if (unsubscribeChat) unsubscribeChat();
 
+            console.log("👂 Eşleşme dinleyicisi kuruluyor...");
+
             unsubscribeChat = onSnapshot(userRef, (docSnap) => {
                 if (docSnap.exists() && docSnap.data().matched) {
                     const data = docSnap.data();
                     chatId = data.chatId;
                     partnerId = data.partnerId;
 
+                    console.log("🎉 Eşleşme dinleyicisi: Partner bulundu!", {
+                        partnerId: partnerId,
+                        partnerName: data.partnerName,
+                        chatId: chatId
+                    });
+                    
                     document.getElementById('partner-name').textContent = data.partnerName;
 
                     if (unsubscribeChat) unsubscribeChat();
                     if (matchingTimeout) clearInterval(matchingTimeout);
 
-                    // Direkt geçiş, animasyon bekleme yok
-                    showScreen('chat-screen');
-                    setupChatListener();
-                    deleteDoc(userRef).catch(() => {});
+                    setTimeout(() => {
+                        showScreen('chat-screen');
+                        setupChatListener();
+                        deleteDoc(userRef).catch(() => {});
+                    }, 500);
                 }
             });
         }
 
-        // Optimize edilmiş Chat Listener
+        // Chat Listener - FIXED!
         function setupChatListener() {
-            if (!chatId) return;
+            if (!chatId) {
+                console.log("❌ setupChatListener: chatId yok");
+                return;
+            }
 
             const chatRef = doc(db, CHAT_COLLECTION, chatId);
             const messagesContainer = document.getElementById('chat-messages');
@@ -1038,16 +1064,20 @@
             renderedMessageIds.clear();
             isFirstSnapshot = true;
 
+            console.log("👂 Chat dinleyicisi kuruluyor, chatId:", chatId);
+
             unsubscribeChat = onSnapshot(chatRef, (docSnap) => {
                 if (!docSnap.exists()) {
                     if (isFirstSnapshot) {
+                        console.log("📝 İlk snapshot - chat henüz hazır değil");
                         isFirstSnapshot = false;
                         return;
                     }
 
+                    console.log("❌ Chat document silindi");
                     if (unsubscribeChat) unsubscribeChat();
                     addSystemMessageToUI("❌ Tərəfdaş söhbəti bağladı");
-                    setTimeout(() => disconnect(true), 1000); // 2 saniyeden 1 saniyeye düşürüldü
+                    setTimeout(() => disconnect(true), 2000);
                     return;
                 }
 
@@ -1055,34 +1085,44 @@
                 const data = docSnap.data();
 
                 if (data.status === 'active') {
-                    // Yazma durumu
+                    // TYPING STATUS FIX - Burada düzeltildi!
                     const isTyping = data.typingStatus?.[partnerId];
+                    console.log("✍️ Karşı taraf yazma durumu:", isTyping ? "YAZIYOR" : "YAZMIYOR");
+                    
                     if (isTyping) {
                         typingElement.classList.remove('opacity-0');
+                        console.log("✅ Yazıyor gösteriliyor");
                     } else {
                         typingElement.classList.add('opacity-0');
+                        console.log("❌ Yazmıyor gizleniyor");
                     }
 
-                    // Mesajlar
                     const messages = data.messages || [];
+                    console.log(`📨 ${messages.length} mesaj var`);
+                    
                     messages.forEach((msg, index) => {
                         const messageId = `${msg.senderId}-${msg.timestamp}-${index}`;
-                        addMessageToUI(msg.senderName, msg.text, msg.senderId === userId, messageId);
+                        if (!renderedMessageIds.has(messageId)) {
+                            console.log(`📝 Yeni mesaj: ${msg.senderName}: ${msg.text.substring(0, 30)}...`);
+                            addMessageToUI(msg.senderName, msg.text, msg.senderId === userId, messageId);
+                        }
                     });
                 } else if (data.status === 'closed') {
                     if (data.closedBy !== userId) {
+                        console.log("❌ Karşı taraf sohbeti kapattı");
                         if (unsubscribeChat) unsubscribeChat();
                         addSystemMessageToUI("❌ Tərəfdaş söhbəti bağladı");
-                        setTimeout(() => disconnect(true), 1000); // 2 saniyeden 1 saniyeye düşürüldü
+                        setTimeout(() => disconnect(true), 2000);
                     }
                 }
             }, (error) => {
-                console.error("Chat dinleyici hatası:", error);
+                console.error("❌ Chat dinleyici hatası:", error);
             });
         }
 
-        // Optimize edilmiş Disconnect
+        // Disconnect
         async function disconnect(backToStart = true) {
+            console.log("🔌 Bağlantı kesiliyor...");
             stopHeartbeat();
 
             if (unsubscribeChat) {
@@ -1123,8 +1163,6 @@
             chatId = null;
             partnerId = null;
             renderedMessageIds.clear();
-            messageQueue = [];
-            isSendingMessage = false;
 
             if (backToStart) {
                 showScreen('start-screen');
@@ -1132,72 +1170,89 @@
             }
         }
 
-        // Optimize edilmiş Close Chat
+        // Close Chat
         window.handleCloseChat = async function() {
-            // Direkt işlem, animasyon yok
-            if (!chatId) {
+            console.log("❌ Sohbet kapatılıyor");
+            showAnimation('close-animation');
+
+            setTimeout(async () => {
+                hideAllAnimations();
+
+                if (!chatId) {
+                    await disconnect(true);
+                    return;
+                }
+
+                const currentChatId = chatId;
+
+                try {
+                    await updateDoc(doc(db, CHAT_COLLECTION, currentChatId), {
+                        status: 'closed',
+                        closedBy: userId
+                    });
+                } catch (e) {
+                    console.error("Close error:", e);
+                }
+
                 await disconnect(true);
-                return;
-            }
 
-            const currentChatId = chatId;
-
-            try {
-                await updateDoc(doc(db, CHAT_COLLECTION, currentChatId), {
-                    status: 'closed',
-                    closedBy: userId
-                });
-            } catch (e) {
-                console.error("Close error:", e);
-            }
-
-            await disconnect(true);
-
-            // Arka planda sil
-            setTimeout(() => {
-                try {
-                    deleteDoc(doc(db, CHAT_COLLECTION, currentChatId));
-                    deleteDoc(doc(db, CHAT_COLLECTION, userId));
-                    if (partnerId) deleteDoc(doc(db, CHAT_COLLECTION, partnerId));
-                } catch (e) {}
-            }, 1000); // 2 saniyeden 1 saniyeye düşürüldü
+                setTimeout(() => {
+                    try {
+                        deleteDoc(doc(db, CHAT_COLLECTION, currentChatId));
+                        deleteDoc(doc(db, CHAT_COLLECTION, userId));
+                        if (partnerId) deleteDoc(doc(db, CHAT_COLLECTION, partnerId));
+                    } catch (e) {}
+                }, 2000);
+            }, 1500);
         };
 
-        // Optimize edilmiş Change Chat
+        // Change Chat
         window.handleChangeChat = async function() {
-            if (!chatId) return;
+            console.log("🔄 Sohbet değiştiriliyor");
+            showAnimation('change-animation');
 
-            const currentChatId = chatId;
+            setTimeout(async () => {
+                hideAllAnimations();
 
-            try {
-                await updateDoc(doc(db, CHAT_COLLECTION, currentChatId), {
-                    status: 'closed',
-                    closedBy: userId
-                });
-            } catch (e) {}
+                if (!chatId) return;
 
-            await disconnect(false);
+                const currentChatId = chatId;
 
-            showScreen('matching-screen');
-            document.getElementById('matching-text').textContent = "Yeni Tərəfdaş Axtarılır...";
-            document.getElementById('retry-container').classList.add('hidden');
-            startMatching();
-
-            // Arka planda sil
-            setTimeout(() => {
                 try {
-                    deleteDoc(doc(db, CHAT_COLLECTION, currentChatId));
-                    deleteDoc(doc(db, CHAT_COLLECTION, userId));
-                    if (partnerId) deleteDoc(doc(db, CHAT_COLLECTION, partnerId));
+                    await updateDoc(doc(db, CHAT_COLLECTION, currentChatId), {
+                        status: 'closed',
+                        closedBy: userId
+                    });
                 } catch (e) {}
-            }, 1000); // 2 saniyeden 1 saniyeye düşürüldü
+
+                await disconnect(false);
+                await new Promise(resolve => setTimeout(resolve, 500));
+
+                setTimeout(() => {
+                    try {
+                        deleteDoc(doc(db, CHAT_COLLECTION, currentChatId));
+                        deleteDoc(doc(db, CHAT_COLLECTION, userId));
+                        if (partnerId) deleteDoc(doc(db, CHAT_COLLECTION, partnerId));
+                    } catch (e) {}
+                }, 1000);
+
+                showScreen('matching-screen');
+                document.getElementById('matching-text').textContent = "Yeni Tərəfdaş Axtarılır...";
+                document.getElementById('retry-container').classList.add('hidden');
+                startMatching();
+            }, 1500);
         };
 
-        // Optimize edilmiş Cancel Matching
+        // Cancel Matching
         window.handleCancelMatching = async function() {
-            // Direkt işlem, animasyon yok
-            await disconnect(false);
-            showScreen('start-screen');
+            console.log("❌ Eşleşme iptal ediliyor");
+            showAnimation('cancel-animation');
+
+            setTimeout(async () => {
+                hideAllAnimations();
+                await disconnect(false);
+                showScreen('start-screen');
+            }, 1500);
         };
 
         // Cleanup on Browser Close
