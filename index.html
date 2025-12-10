@@ -487,11 +487,11 @@
             </div>
             
             <div class="language-dropdown language-dropdown-content" id="language-dropdown">
-                <button class="language-btn active" onclick="changeLanguage('az')">
+                <button class="language-btn active" id="az-btn">
                     <img src="https://flagcdn.com/az.svg" alt="Azərbaycan dili" class="flag-icon">
                     <span>Azərbaycan</span>
                 </button>
-                <button class="language-btn" onclick="changeLanguage('tr')">
+                <button class="language-btn" id="tr-btn">
                     <img src="https://flagcdn.com/tr.svg" alt="Türk dili" class="flag-icon">
                     <span>Türkçe</span>
                 </button>
@@ -770,42 +770,8 @@
         }
     </style>
 
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, updateDoc, onSnapshot, collection, runTransaction, deleteDoc, serverTimestamp, arrayUnion, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-
-        const firebaseConfig = {
-            apiKey: "AIzaSyAAbLWwzSE9WgqFKK_n9hqsl5mokZlNacM",
-            authDomain: "axtargetbot.firebaseapp.com",
-            projectId: "axtargetbot",
-            storageBucket: "axtargetbot.firebasestorage.app",
-            messagingSenderId: "509543495829",
-            appId: "1:509543495829:web:833feb9c271328f8e4039c",
-            measurementId: "G-DS98Q6L5WF"
-        };
-
-        let app, db, auth;
-        let userId = null;
-        let userName = null;
-        let chatId = null;
-        let partnerId = null;
-        let isAuthReady = false;
-        let unsubscribeChat = null;
-        let matchingTimeout = null;
-        let typingTimeout = null;
-        let heartbeatInterval = null;
-        let partnerHeartbeatInterval = null;
-        let renderedMessageIds = new Set();
-        let isFirstSnapshot = true;
-        let lastPartnerHeartbeat = null;
-
-        const MATCHING_SECONDS = 20;
-        const CHAT_COLLECTION = `artifacts/axtarget-anonimchat/public/data/chats`;
-        const MATCH_QUEUE_DOC_NAME = 'match_queue_doc';
-        const HEARTBEAT_TIMEOUT = 10000; // 10 saniyə
-
-        // Dil Yönetimi
+    <script>
+        // DİL YÖNETİMİ - EN BAŞTA TANIMLA
         let currentLanguage = 'az';
         const translations = {
             az: {
@@ -933,10 +899,10 @@
             });
             
             if (lang === 'az') {
-                document.querySelector('.language-btn:nth-child(1)').classList.add('active');
+                document.getElementById('az-btn').classList.add('active');
                 document.querySelector('#language-display img').src = 'https://flagcdn.com/az.svg';
             } else {
-                document.querySelector('.language-btn:nth-child(2)').classList.add('active');
+                document.getElementById('tr-btn').classList.add('active');
                 document.querySelector('#language-display img').src = 'https://flagcdn.com/tr.svg';
             }
             
@@ -965,7 +931,6 @@
             
             // Eşleşme ekranı
             document.getElementById('matching-text').textContent = t.matchingText;
-            document.getElementById('countdown-text').textContent = t.countdownText + ' 20 ' + t.seconds;
             document.getElementById('cancel-button-text').textContent = t.cancelButton;
             document.getElementById('no-users-text').textContent = t.noUsersText;
             document.getElementById('retry-button-text').textContent = t.tryAgainText;
@@ -1007,28 +972,6 @@
             arrow.classList.toggle('rotated');
         }
 
-        // WhatsApp Balonu Fonksiyaları
-        function showWhatsAppBallon() {
-            const ballon = document.getElementById('whatsapp-ballon');
-            if (ballon) {
-                ballon.style.display = 'flex';
-            }
-        }
-
-        function hideWhatsAppBallon() {
-            const ballon = document.getElementById('whatsapp-ballon');
-            if (ballon) {
-                ballon.style.display = 'none';
-            }
-        }
-
-        // WhatsApp açılış
-        document.getElementById('whatsapp-ballon').addEventListener('click', function() {
-            const phoneNumber = '0606006162';
-            const message = encodeURIComponent(currentLanguage === 'az' ? 'Salam dəstəyə ehtiyacım var' : 'Merhaba desteğe ihtiyacım var');
-            window.open(`https://wa.me/${phoneNumber}?text=${message}`, '_blank');
-        });
-
         // Tutorial Functions
         window.showTutorial = function() {
             document.getElementById('tutorial-modal').classList.remove('hidden');
@@ -1067,6 +1010,98 @@
             document.getElementById('change-animation').classList.add('hidden');
             document.getElementById('close-animation').classList.add('hidden');
         }
+
+        // WhatsApp Balonu Fonksiyaları
+        function showWhatsAppBallon() {
+            const ballon = document.getElementById('whatsapp-ballon');
+            if (ballon) {
+                ballon.style.display = 'flex';
+            }
+        }
+
+        function hideWhatsAppBallon() {
+            const ballon = document.getElementById('whatsapp-ballon');
+            if (ballon) {
+                ballon.style.display = 'none';
+            }
+        }
+
+        // İlk yükleme
+        window.onload = function() {
+            // Dil dropdown event listener
+            document.getElementById('language-display').addEventListener('click', function(e) {
+                e.stopPropagation();
+                toggleLanguageDropdown();
+            });
+            
+            // Azerbaycan butonuna tıklama
+            document.getElementById('az-btn').addEventListener('click', function(e) {
+                e.stopPropagation();
+                changeLanguage('az');
+            });
+            
+            // Türkçe butonuna tıklama
+            document.getElementById('tr-btn').addEventListener('click', function(e) {
+                e.stopPropagation();
+                changeLanguage('tr');
+            });
+            
+            // Sayfa herhangi bir yerine tıklandığında dropdown'u kapat
+            document.addEventListener('click', function() {
+                const dropdown = document.getElementById('language-dropdown');
+                if (dropdown.classList.contains('show')) {
+                    dropdown.classList.remove('show');
+                    document.getElementById('language-arrow').classList.remove('rotated');
+                }
+            });
+            
+            // WhatsApp açılış
+            document.getElementById('whatsapp-ballon').addEventListener('click', function() {
+                const phoneNumber = '0606006162';
+                const message = encodeURIComponent(currentLanguage === 'az' ? 'Salam dəstəyə ehtiyacım var' : 'Merhaba desteğe ihtiyacım var');
+                window.open(`https://wa.me/${phoneNumber}?text=${message}`, '_blank');
+            });
+            
+            // Varsayılan dili ayarla
+            changeLanguage('az');
+            showWhatsAppBallon();
+        };
+    </script>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, updateDoc, onSnapshot, collection, runTransaction, deleteDoc, serverTimestamp, arrayUnion, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyAAbLWwzSE9WgqFKK_n9hqsl5mokZlNacM",
+            authDomain: "axtargetbot.firebaseapp.com",
+            projectId: "axtargetbot",
+            storageBucket: "axtargetbot.firebasestorage.app",
+            messagingSenderId: "509543495829",
+            appId: "1:509543495829:web:833feb9c271328f8e4039c",
+            measurementId: "G-DS98Q6L5WF"
+        };
+
+        let app, db, auth;
+        let userId = null;
+        let userName = null;
+        let chatId = null;
+        let partnerId = null;
+        let isAuthReady = false;
+        let unsubscribeChat = null;
+        let matchingTimeout = null;
+        let typingTimeout = null;
+        let heartbeatInterval = null;
+        let partnerHeartbeatInterval = null;
+        let renderedMessageIds = new Set();
+        let isFirstSnapshot = true;
+        let lastPartnerHeartbeat = null;
+
+        const MATCHING_SECONDS = 20;
+        const CHAT_COLLECTION = `artifacts/axtarget-anonimchat/public/data/chats`;
+        const MATCH_QUEUE_DOC_NAME = 'match_queue_doc';
+        const HEARTBEAT_TIMEOUT = 10000; // 10 saniyə
 
         // Firebase Initialize
         async function initializeFirebase() {
@@ -1721,36 +1756,8 @@
             }
         });
 
-        // İlk yükleme
-        window.onload = function() {
-            initializeFirebase();
-            showWhatsAppBallon();
-            
-            // Dil dropdown event listener
-            document.getElementById('language-display').addEventListener('click', function(e) {
-                e.stopPropagation();
-                toggleLanguageDropdown();
-            });
-            
-            // Dropdown içindeki butonların tıklamalarını yönet
-            document.querySelectorAll('.language-btn').forEach(btn => {
-                btn.addEventListener('click', function(e) {
-                    e.stopPropagation();
-                });
-            });
-            
-            // Sayfa herhangi bir yerine tıklandığında dropdown'u kapat
-            document.addEventListener('click', function() {
-                const dropdown = document.getElementById('language-dropdown');
-                if (dropdown.classList.contains('show')) {
-                    dropdown.classList.remove('show');
-                    document.getElementById('language-arrow').classList.remove('rotated');
-                }
-            });
-            
-            // Varsayılan dili ayarla
-            changeLanguage('az');
-        };
+        // Firebase'ı başlat
+        initializeFirebase();
     </script>
 </body>
 </html>
