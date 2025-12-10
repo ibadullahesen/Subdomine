@@ -25,7 +25,7 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black">
     
     <!-- Site Doğrulama (Google Search Console için) -->
-    <meta name="google-site-verification" content="GOOGLE_SITE_VERIFICATION_KODUNUZ">
+    <!-- <meta name="google-site-verification" content="GOOGLE_SITE_VERIFICATION_KODUNUZ"> -->
     
     <!-- Canonical & Alternatif URL'ler -->
     <link rel="canonical" href="https://axtarget.com/">
@@ -245,6 +245,40 @@
             white-space: nowrap;
             border: 0;
         }
+        
+        /* Typing indicator styles */
+        .typing-dots {
+            display: inline-flex;
+            align-items: center;
+            gap: 2px;
+        }
+        
+        .typing-dot {
+            width: 6px;
+            height: 6px;
+            background-color: #f59e0b;
+            border-radius: 50%;
+            animation: typing-dot 1.4s infinite;
+        }
+        
+        .typing-dot:nth-child(2) {
+            animation-delay: 0.2s;
+        }
+        
+        .typing-dot:nth-child(3) {
+            animation-delay: 0.4s;
+        }
+        
+        @keyframes typing-dot {
+            0%, 60%, 100% {
+                transform: translateY(0);
+                opacity: 0.6;
+            }
+            30% {
+                transform: translateY(-4px);
+                opacity: 1;
+            }
+        }
     </style>
 </head>
 <body class="bg-primary text-white min-h-screen">
@@ -376,10 +410,13 @@
                                     </h2>
                                     <div id="partner-status-container" class="flex flex-col">
                                         <p id="partner-typing-status" class="text-xs status-typing opacity-0 transition-opacity flex items-center gap-1">
-                                            <span>✍️ Yazır</span>
-                                            <span class="typing-indicator ml-1">
-                                                <span></span><span></span><span></span>
+                                            <span>✍️</span>
+                                            <span class="typing-dots ml-1">
+                                                <span class="typing-dot"></span>
+                                                <span class="typing-dot"></span>
+                                                <span class="typing-dot"></span>
                                             </span>
+                                            <span>yazır...</span>
                                         </p>
                                         <p id="partner-online-status" class="text-xs status-online flex items-center gap-1">
                                             <span>●</span>
@@ -414,7 +451,8 @@
                         id="message-input" 
                         placeholder="Mesajınızı yazın..." 
                         class="focus-ring flex-grow p-4 rounded-lg bg-primary-light border border-slate-600 text-white placeholder-slate-500 transition"
-                        onkeypress="if(event.key === 'Enter') sendMessage()">
+                        onkeypress="if(event.key === 'Enter') sendMessage()"
+                        oninput="handleTyping()">
                     <button 
                         onclick="sendMessage()" 
                         class="btn-primary px-6 py-4 text-white rounded-lg font-semibold flex items-center gap-2 transition">
@@ -614,7 +652,9 @@
                     if (user) {
                         userId = user.uid;
                         isAuthReady = true;
+                        console.log("✅ Firebase auth hazır, User ID:", userId);
                     } else {
+                        console.log("🔄 Firebase auth başlatılıyor...");
                         await signInAnonymously(auth);
                     }
                 });
@@ -635,6 +675,7 @@
                             isOnline: true,
                             heartbeat: serverTimestamp()
                         });
+                        console.log("💓 Heartbeat göndərildi");
                     } catch (e) {
                         console.error("Heartbeat xətası:", e);
                     }
@@ -747,26 +788,39 @@
             messagesContainer.scrollTop = messagesContainer.scrollHeight;
         }
 
-        // Typing Handler
+        // Typing Handler - FIXED!
         window.handleTyping = async function() {
-            if (!chatId || !userId) return;
-            const hasText = document.getElementById('message-input').value.trim().length > 0;
+            if (!chatId || !userId) {
+                console.log("❌ handleTyping: chatId veya userId yok");
+                return;
+            }
+            
+            const input = document.getElementById('message-input');
+            const hasText = input.value.trim().length > 0;
+            
+            console.log("✍️ Yazma durumu:", hasText ? "Yazıyor" : "Yazmıyor");
+            
             if (typingTimeout) clearTimeout(typingTimeout);
 
             try {
                 await updateDoc(doc(db, CHAT_COLLECTION, chatId), {
-                    [`typingStatus.${userId}`]: hasText
+                    [`typingStatus.${userId}`]: hasText,
+                    lastActivity: serverTimestamp()
                 });
+                console.log("✅ Yazma durumu güncellendi:", hasText);
             } catch (e) {
-                console.error("Yazma statusu xətası:", e);
+                console.error("❌ Yazma statusu xətası:", e);
             }
 
-            typingTimeout = setTimeout(() => {
+            typingTimeout = setTimeout(async () => {
                 try {
-                    updateDoc(doc(db, CHAT_COLLECTION, chatId), {
+                    await updateDoc(doc(db, CHAT_COLLECTION, chatId), {
                         [`typingStatus.${userId}`]: false
                     });
-                } catch (e) {}
+                    console.log("✅ Yazma durumu temizlendi (false)");
+                } catch (e) {
+                    console.error("❌ Yazma durumu temizleme hatası:", e);
+                }
             }, 2000);
         };
 
@@ -774,8 +828,13 @@
         window.sendMessage = async function() {
             const input = document.getElementById('message-input');
             const messageText = input.value.trim();
-            if (!messageText || !chatId || !userId) return;
+            if (!messageText || !chatId || !userId) {
+                console.log("❌ Mesaj gönderme: Boş mesaj veya chatId/userId yok");
+                return;
+            }
 
+            console.log("📤 Mesaj gönderiliyor:", messageText.substring(0, 50) + "...");
+            
             input.value = '';
             input.focus();
 
@@ -792,8 +851,10 @@
                     messages: arrayUnion(messageData),
                     lastActivity: serverTimestamp()
                 });
+                
+                console.log("✅ Mesaj başarıyla gönderildi");
             } catch (e) {
-                console.error("Mesaj göndərmə xətası:", e);
+                console.error("❌ Mesaj göndərmə xətası:", e);
                 input.value = messageText;
                 addSystemMessageToUI("⚠️ Mesaj göndərilə bilmədi");
             }
@@ -802,6 +863,7 @@
         // Start Chat
         window.handleStart = async function() {
             if (!isAuthReady || !userId) {
+                console.log("❌ handleStart: Auth hazır değil");
                 showAnimation('auth-animation');
                 setTimeout(() => {
                     hideAllAnimations();
@@ -811,6 +873,8 @@
 
             const inputName = document.getElementById('user-name-input').value.trim();
             userName = inputName || `İstifadəçi-${userId.substring(0, 6)}`;
+            
+            console.log("🚀 Sohbet başlatılıyor, kullanıcı adı:", userName);
 
             showScreen('matching-screen');
             document.getElementById('retry-container').classList.add('hidden');
@@ -823,6 +887,8 @@
             const queueRef = doc(db, CHAT_COLLECTION, MATCH_QUEUE_DOC_NAME);
             let remaining = MATCHING_SECONDS;
             document.getElementById('countdown-text').textContent = `Qalan vaxt: ${remaining} saniyə`;
+
+            console.log("🔍 Eşleşme başlatıldı");
 
             if (matchingTimeout) clearInterval(matchingTimeout);
             matchingTimeout = setInterval(() => {
@@ -848,6 +914,8 @@
                         const waitingUserDoc = await transaction.get(waitingUserRef);
 
                         if (!waitingUserDoc.exists() || !waitingUserDoc.data().isOnline) {
+                            console.log("⏳ Bekleyen kullanıcı offline, sıraya ekleniyor...");
+                            
                             transaction.set(queueRef, {
                                 waitingUserId: null,
                                 waitingUserName: null,
@@ -876,6 +944,12 @@
 
                         partnerId = waiting.waitingUserId;
                         chatId = doc(collection(db, CHAT_COLLECTION)).id;
+                        
+                        console.log("🎉 Eşleşme bulundu!", {
+                            partnerId: partnerId,
+                            partnerName: waiting.waitingUserName,
+                            chatId: chatId
+                        });
 
                         const newChat = {
                             createdAt: serverTimestamp(),
@@ -913,6 +987,8 @@
                         }, 500);
 
                     } else {
+                        console.log("⏳ Sıraya ekleniyor...");
+                        
                         transaction.set(queueRef, {
                             waitingUserId: userId,
                             waitingUserName: userName,
@@ -933,7 +1009,7 @@
                     }
                 });
             } catch (e) {
-                console.error("Matching xətası:", e);
+                console.error("❌ Matching xətası:", e);
                 addSystemMessageToUI("⚠️ Axtarış xətası");
             }
         }
@@ -943,12 +1019,20 @@
             const userRef = doc(db, CHAT_COLLECTION, userId);
             if (unsubscribeChat) unsubscribeChat();
 
+            console.log("👂 Eşleşme dinleyicisi kuruluyor...");
+
             unsubscribeChat = onSnapshot(userRef, (docSnap) => {
                 if (docSnap.exists() && docSnap.data().matched) {
                     const data = docSnap.data();
                     chatId = data.chatId;
                     partnerId = data.partnerId;
 
+                    console.log("🎉 Eşleşme dinleyicisi: Partner bulundu!", {
+                        partnerId: partnerId,
+                        partnerName: data.partnerName,
+                        chatId: chatId
+                    });
+                    
                     document.getElementById('partner-name').textContent = data.partnerName;
 
                     if (unsubscribeChat) unsubscribeChat();
@@ -963,9 +1047,12 @@
             });
         }
 
-        // Chat Listener
+        // Chat Listener - FIXED!
         function setupChatListener() {
-            if (!chatId) return;
+            if (!chatId) {
+                console.log("❌ setupChatListener: chatId yok");
+                return;
+            }
 
             const chatRef = doc(db, CHAT_COLLECTION, chatId);
             const messagesContainer = document.getElementById('chat-messages');
@@ -977,13 +1064,17 @@
             renderedMessageIds.clear();
             isFirstSnapshot = true;
 
+            console.log("👂 Chat dinleyicisi kuruluyor, chatId:", chatId);
+
             unsubscribeChat = onSnapshot(chatRef, (docSnap) => {
                 if (!docSnap.exists()) {
                     if (isFirstSnapshot) {
+                        console.log("📝 İlk snapshot - chat henüz hazır değil");
                         isFirstSnapshot = false;
                         return;
                     }
 
+                    console.log("❌ Chat document silindi");
                     if (unsubscribeChat) unsubscribeChat();
                     addSystemMessageToUI("❌ Tərəfdaş söhbəti bağladı");
                     setTimeout(() => disconnect(true), 2000);
@@ -994,30 +1085,44 @@
                 const data = docSnap.data();
 
                 if (data.status === 'active') {
+                    // TYPING STATUS FIX - Burada düzeltildi!
                     const isTyping = data.typingStatus?.[partnerId];
+                    console.log("✍️ Karşı taraf yazma durumu:", isTyping ? "YAZIYOR" : "YAZMIYOR");
+                    
                     if (isTyping) {
                         typingElement.classList.remove('opacity-0');
+                        console.log("✅ Yazıyor gösteriliyor");
                     } else {
                         typingElement.classList.add('opacity-0');
+                        console.log("❌ Yazmıyor gizleniyor");
                     }
 
                     const messages = data.messages || [];
+                    console.log(`📨 ${messages.length} mesaj var`);
+                    
                     messages.forEach((msg, index) => {
                         const messageId = `${msg.senderId}-${msg.timestamp}-${index}`;
-                        addMessageToUI(msg.senderName, msg.text, msg.senderId === userId, messageId);
+                        if (!renderedMessageIds.has(messageId)) {
+                            console.log(`📝 Yeni mesaj: ${msg.senderName}: ${msg.text.substring(0, 30)}...`);
+                            addMessageToUI(msg.senderName, msg.text, msg.senderId === userId, messageId);
+                        }
                     });
                 } else if (data.status === 'closed') {
                     if (data.closedBy !== userId) {
+                        console.log("❌ Karşı taraf sohbeti kapattı");
                         if (unsubscribeChat) unsubscribeChat();
                         addSystemMessageToUI("❌ Tərəfdaş söhbəti bağladı");
                         setTimeout(() => disconnect(true), 2000);
                     }
                 }
+            }, (error) => {
+                console.error("❌ Chat dinleyici hatası:", error);
             });
         }
 
         // Disconnect
         async function disconnect(backToStart = true) {
+            console.log("🔌 Bağlantı kesiliyor...");
             stopHeartbeat();
 
             if (unsubscribeChat) {
@@ -1067,6 +1172,7 @@
 
         // Close Chat
         window.handleCloseChat = async function() {
+            console.log("❌ Sohbet kapatılıyor");
             showAnimation('close-animation');
 
             setTimeout(async () => {
@@ -1102,6 +1208,7 @@
 
         // Change Chat
         window.handleChangeChat = async function() {
+            console.log("🔄 Sohbet değiştiriliyor");
             showAnimation('change-animation');
 
             setTimeout(async () => {
@@ -1138,6 +1245,7 @@
 
         // Cancel Matching
         window.handleCancelMatching = async function() {
+            console.log("❌ Eşleşme iptal ediliyor");
             showAnimation('cancel-animation');
 
             setTimeout(async () => {
