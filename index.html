@@ -362,6 +362,7 @@
             border-radius: 12px;
             padding: 6px;
             min-width: 120px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
         }
         
         .language-btn {
@@ -376,6 +377,7 @@
             color: #cbd5e1;
             background: transparent;
             border: none;
+            text-align: left;
         }
         
         .language-btn:hover {
@@ -407,6 +409,7 @@
             transition: all 0.2s ease;
             color: white;
             font-weight: 500;
+            user-select: none;
         }
         
         .language-display:hover {
@@ -429,6 +432,14 @@
             display: block;
             opacity: 1;
             transform: translateY(0);
+        }
+        
+        .arrow {
+            transition: transform 0.3s ease;
+        }
+        
+        .arrow.rotated {
+            transform: rotate(180deg);
         }
     </style>
 </head>
@@ -467,10 +478,10 @@
     <!-- Dil Seçimi -->
     <div class="language-selector">
         <div class="relative">
-            <div class="language-display" onclick="toggleLanguageDropdown()">
+            <div class="language-display" id="language-display">
                 <img src="https://flagcdn.com/az.svg" alt="Azərbaycan dili" class="flag-icon">
                 <span id="current-language-text">AZ</span>
-                <svg class="w-4 h-4 ml-1 transition-transform duration-200" id="language-arrow" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg class="arrow w-4 h-4 ml-1" id="language-arrow" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
                 </svg>
             </div>
@@ -923,8 +934,10 @@
             
             if (lang === 'az') {
                 document.querySelector('.language-btn:nth-child(1)').classList.add('active');
+                document.querySelector('#language-display img').src = 'https://flagcdn.com/az.svg';
             } else {
                 document.querySelector('.language-btn:nth-child(2)').classList.add('active');
+                document.querySelector('#language-display img').src = 'https://flagcdn.com/tr.svg';
             }
             
             // Sayfa içeriğini güncelle
@@ -932,7 +945,7 @@
             
             // Dropdown'u kapat
             document.getElementById('language-dropdown').classList.remove('show');
-            document.getElementById('language-arrow').style.transform = 'rotate(0deg)';
+            document.getElementById('language-arrow').classList.remove('rotated');
         }
 
         // Sayfa içeriğini güncelle
@@ -991,12 +1004,7 @@
             const arrow = document.getElementById('language-arrow');
             
             dropdown.classList.toggle('show');
-            
-            if (dropdown.classList.contains('show')) {
-                arrow.style.transform = 'rotate(180deg)';
-            } else {
-                arrow.style.transform = 'rotate(0deg)';
-            }
+            arrow.classList.toggle('rotated');
         }
 
         // WhatsApp Balonu Fonksiyaları
@@ -1713,25 +1721,31 @@
             }
         });
 
-        // Click outside to close language dropdown
-        document.addEventListener('click', (e) => {
-            const dropdown = document.getElementById('language-dropdown');
-            const languageSelector = document.querySelector('.language-selector');
-            
-            if (dropdown.classList.contains('show') && !languageSelector.contains(e.target)) {
-                dropdown.classList.remove('show');
-                document.getElementById('language-arrow').style.transform = 'rotate(0deg)';
-            }
-        });
-
         // İlk yükleme
         window.onload = function() {
             initializeFirebase();
             showWhatsAppBallon();
             
             // Dil dropdown event listener
-            document.querySelector('.language-display').addEventListener('click', function(e) {
+            document.getElementById('language-display').addEventListener('click', function(e) {
                 e.stopPropagation();
+                toggleLanguageDropdown();
+            });
+            
+            // Dropdown içindeki butonların tıklamalarını yönet
+            document.querySelectorAll('.language-btn').forEach(btn => {
+                btn.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                });
+            });
+            
+            // Sayfa herhangi bir yerine tıklandığında dropdown'u kapat
+            document.addEventListener('click', function() {
+                const dropdown = document.getElementById('language-dropdown');
+                if (dropdown.classList.contains('show')) {
+                    dropdown.classList.remove('show');
+                    document.getElementById('language-arrow').classList.remove('rotated');
+                }
             });
             
             // Varsayılan dili ayarla
