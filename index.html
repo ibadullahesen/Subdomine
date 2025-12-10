@@ -279,6 +279,69 @@
                 opacity: 1;
             }
         }
+        
+        /* WhatsApp balonu üçün üslublar */
+        .whatsapp-ballon {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            width: 60px;
+            height: 60px;
+            background-color: #25D366;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 4px 20px rgba(37, 211, 102, 0.4);
+            z-index: 1000;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            animation: float 3s ease-in-out infinite;
+        }
+        
+        .whatsapp-ballon:hover {
+            transform: scale(1.1);
+            box-shadow: 0 6px 25px rgba(37, 211, 102, 0.6);
+        }
+        
+        .whatsapp-ballon svg {
+            width: 32px;
+            height: 32px;
+            fill: white;
+        }
+        
+        @keyframes float {
+            0% {
+                transform: translateY(0px);
+            }
+            50% {
+                transform: translateY(-10px);
+            }
+            100% {
+                transform: translateY(0px);
+            }
+        }
+        
+        /* WhatsApp tooltip */
+        .whatsapp-tooltip {
+            position: absolute;
+            right: 70px;
+            bottom: 15px;
+            background: rgba(15, 23, 42, 0.95);
+            color: white;
+            padding: 8px 12px;
+            border-radius: 8px;
+            font-size: 12px;
+            white-space: nowrap;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s;
+            border: 1px solid #1e293b;
+        }
+        
+        .whatsapp-ballon:hover .whatsapp-tooltip {
+            opacity: 1;
+        }
     </style>
 </head>
 <body class="bg-primary text-white min-h-screen">
@@ -311,6 +374,16 @@
         <p>pulsuz chat, online chat, Azərbaycan chat, chat otağı, tanışlıq saytı, dost axtarmaq, virtual tanışlıq, söhbət etmək, random chat, online söhbət, yeni insanlarla tanış olmaq, chat platforması, pulsuz tanışlıq, internetdə tanışlıq, chat app, chat saytı, Azərbaycanda chat</p>
         
         <p><strong>AxtarGet</strong> Azərbaycanda ən populyar chat platformasıdır. Gündə minlərlə istifadəçi bizim platformamızda yeni dostlar tapır. Siz də qoşulun və yeni insanlarla tanış olun!</p>
+    </div>
+
+    <!-- WhatsApp Balonu -->
+    <div id="whatsapp-ballon" class="whatsapp-ballon">
+        <div class="whatsapp-tooltip">
+            Dəstək üçün yazın
+        </div>
+        <svg viewBox="0 0 32 32">
+            <path d=" M19.11 17.205c-.372 0-1.088 1.39-1.518 1.39a.63.63 0 0 1-.315-.1c-.802-.402-1.504-.817-2.163-1.447-.545-.516-1.146-1.29-1.46-1.963a.426.426 0 0 1-.073-.215c0-.33.99-.945.99-1.49 0-.143-.73-2.09-.832-2.335-.143-.372-.214-.487-.6-.487-.187 0-.36-.043-.53-.043-.302 0-.53.115-.746.315-.688.645-1.032 1.318-1.06 2.264v.114c-.015.99.472 1.977 1.017 2.78 1.23 1.82 2.506 3.41 4.554 4.34.616.287 2.035.888 2.722.888.817 0 2.15-.515 2.478-1.318.13-.33.244-.73.244-1.088 0-.058 0-.144-.03-.215-.1-.172-2.434-1.39-2.678-1.39zm-2.908 7.593c-1.747 0-3.48-.53-4.942-1.49L7.793 24.41l1.132-3.337a8.955 8.955 0 0 1-1.72-5.272c0-4.955 4.04-8.995 8.997-8.995S25.2 10.845 25.2 15.8c0 4.958-4.04 8.998-8.998 8.998zm0-19.798c-5.96 0-10.8 4.842-10.8 10.8 0 1.964.53 3.898 1.546 5.574L5 27.176l5.974-1.92a10.807 10.807 0 0 0 16.03-9.455c0-5.958-4.842-10.8-10.802-10.8z" fill-rule="evenodd"></path>
+        </svg>
     </div>
 
     <div class="min-h-screen flex items-center justify-center p-4">
@@ -609,6 +682,28 @@
         const MATCH_QUEUE_DOC_NAME = 'match_queue_doc';
         const HEARTBEAT_TIMEOUT = 10000; // 10 saniyə
 
+        // WhatsApp Balonu Fonksiyaları
+        function showWhatsAppBallon() {
+            const ballon = document.getElementById('whatsapp-ballon');
+            if (ballon) {
+                ballon.style.display = 'flex';
+            }
+        }
+
+        function hideWhatsAppBallon() {
+            const ballon = document.getElementById('whatsapp-ballon');
+            if (ballon) {
+                ballon.style.display = 'none';
+            }
+        }
+
+        // WhatsApp açılış
+        document.getElementById('whatsapp-ballon').addEventListener('click', function() {
+            const phoneNumber = '0606006162';
+            const message = encodeURIComponent('Salam dəstəyə ehtiyacım var');
+            window.open(`https://wa.me/${phoneNumber}?text=${message}`, '_blank');
+        });
+
         // Tutorial Functions
         window.showTutorial = function() {
             document.getElementById('tutorial-modal').classList.remove('hidden');
@@ -624,6 +719,13 @@
             document.getElementById('matching-screen').classList.add('hidden');
             document.getElementById('chat-screen').classList.add('hidden');
             document.getElementById(screenId).classList.remove('hidden');
+            
+            // WhatsApp balonu göstər/gizlət
+            if (screenId === 'start-screen') {
+                showWhatsAppBallon();
+            } else {
+                hideWhatsAppBallon();
+            }
         }
 
         function showAnimation(animationId) {
@@ -867,7 +969,7 @@
                 showAnimation('auth-animation');
                 setTimeout(() => {
                     hideAllAnimations();
-                }, 2000);
+                }, 1000); // 2000ms -> 1000ms
                 return;
             }
 
@@ -1202,8 +1304,8 @@
                         deleteDoc(doc(db, CHAT_COLLECTION, userId));
                         if (partnerId) deleteDoc(doc(db, CHAT_COLLECTION, partnerId));
                     } catch (e) {}
-                }, 2000);
-            }, 1500);
+                }, 500); // 2000ms -> 500ms
+            }, 500); // 1500ms -> 500ms
         };
 
         // Change Chat
@@ -1226,7 +1328,7 @@
                 } catch (e) {}
 
                 await disconnect(false);
-                await new Promise(resolve => setTimeout(resolve, 500));
+                await new Promise(resolve => setTimeout(resolve, 300)); // 500ms -> 300ms
 
                 setTimeout(() => {
                     try {
@@ -1234,13 +1336,13 @@
                         deleteDoc(doc(db, CHAT_COLLECTION, userId));
                         if (partnerId) deleteDoc(doc(db, CHAT_COLLECTION, partnerId));
                     } catch (e) {}
-                }, 1000);
+                }, 300); // 1000ms -> 300ms
 
                 showScreen('matching-screen');
                 document.getElementById('matching-text').textContent = "Yeni Tərəfdaş Axtarılır...";
                 document.getElementById('retry-container').classList.add('hidden');
                 startMatching();
-            }, 1500);
+            }, 300); // 1500ms -> 300ms
         };
 
         // Cancel Matching
@@ -1252,7 +1354,7 @@
                 hideAllAnimations();
                 await disconnect(false);
                 showScreen('start-screen');
-            }, 1500);
+            }, 300); // 1500ms -> 300ms
         };
 
         // Cleanup on Browser Close
@@ -1293,7 +1395,11 @@
             }
         });
 
-        window.onload = initializeFirebase;
+        // İlk WhatsApp balonunu göster
+        window.onload = function() {
+            initializeFirebase();
+            showWhatsAppBallon();
+        };
     </script>
 </body>
 </html>
