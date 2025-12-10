@@ -601,9 +601,14 @@
                             <div class="flex items-center gap-3">
                                 <div id="partner-status-dot" class="w-3 h-3 bg-success rounded-full"></div>
                                 <div>
-                                    <h2 class="font-semibold text-lg">
-                                        <span id="partner-name" class="text-accent">...</span>
-                                    </h2>
+                                    <div class="flex items-center gap-2">
+                                        <h2 class="font-semibold text-lg">
+                                            <span id="partner-name" class="text-accent">...</span>
+                                        </h2>
+                                        <div id="partner-language-indicator" class="flex items-center gap-1">
+                                            <!-- Dil göstergesi buraya eklenecek -->
+                                        </div>
+                                    </div>
                                     <div id="partner-status-container" class="flex flex-col">
                                         <p id="partner-typing-status" class="text-xs status-typing opacity-0 transition-opacity flex items-center gap-1">
                                             <span>✍️</span>
@@ -972,6 +977,28 @@
             arrow.classList.toggle('rotated');
         }
 
+        // Dil göstergesi oluştur
+        function createLanguageIndicator(language) {
+            const container = document.getElementById('partner-language-indicator');
+            container.innerHTML = '';
+            
+            const indicator = document.createElement('div');
+            indicator.className = 'flex items-center gap-1 bg-primary px-2 py-1 rounded-md';
+            
+            const flag = document.createElement('img');
+            flag.src = language === 'az' ? 'https://flagcdn.com/az.svg' : 'https://flagcdn.com/tr.svg';
+            flag.alt = language === 'az' ? 'Azərbaycan dili' : 'Türk dili';
+            flag.className = 'w-4 h-4 rounded';
+            
+            const text = document.createElement('span');
+            text.className = 'text-xs font-medium';
+            text.textContent = language === 'az' ? 'AZ' : 'TR';
+            
+            indicator.appendChild(flag);
+            indicator.appendChild(text);
+            container.appendChild(indicator);
+        }
+
         // Tutorial Functions
         window.showTutorial = function() {
             document.getElementById('tutorial-modal').classList.remove('hidden');
@@ -1086,8 +1113,10 @@
         let app, db, auth;
         let userId = null;
         let userName = null;
+        let userLanguage = null;
         let chatId = null;
         let partnerId = null;
+        let partnerLanguage = null;
         let isAuthReady = false;
         let unsubscribeChat = null;
         let matchingTimeout = null;
@@ -1135,7 +1164,8 @@
                         await updateDoc(userRef, {
                             lastSeen: serverTimestamp(),
                             isOnline: true,
-                            heartbeat: serverTimestamp()
+                            heartbeat: serverTimestamp(),
+                            language: currentLanguage
                         });
                         console.log("💓 Heartbeat göndərildi");
                     } catch (e) {
@@ -1336,8 +1366,9 @@
 
             const inputName = document.getElementById('user-name-input').value.trim();
             userName = inputName || (currentLanguage === 'az' ? `İstifadəçi-${userId.substring(0, 6)}` : `Kullanıcı-${userId.substring(0, 6)}`);
+            userLanguage = currentLanguage;
             
-            console.log("🚀 Sohbet başlatılıyor, kullanıcı adı:", userName);
+            console.log("🚀 Sohbet başlatılıyor, kullanıcı adı:", userName, "Dil:", userLanguage);
 
             showScreen('matching-screen');
             document.getElementById('retry-container').classList.add('hidden');
@@ -1382,18 +1413,21 @@
                             transaction.set(queueRef, {
                                 waitingUserId: null,
                                 waitingUserName: null,
+                                waitingUserLanguage: null,
                                 timestamp: serverTimestamp()
                             });
 
                             transaction.set(queueRef, {
                                 waitingUserId: userId,
                                 waitingUserName: userName,
+                                waitingUserLanguage: currentLanguage,
                                 timestamp: serverTimestamp()
                             });
 
                             transaction.set(doc(db, CHAT_COLLECTION, userId), {
                                 status: 'waiting',
                                 userName: userName,
+                                userLanguage: currentLanguage,
                                 isOnline: true,
                                 lastSeen: serverTimestamp(),
                                 heartbeat: serverTimestamp(),
@@ -1406,19 +1440,27 @@
                         }
 
                         partnerId = waiting.waitingUserId;
+                        partnerLanguage = waiting.waitingUserLanguage || 'az';
                         chatId = doc(collection(db, CHAT_COLLECTION)).id;
                         
                         console.log("🎉 Eşleşme bulundu!", {
                             partnerId: partnerId,
                             partnerName: waiting.waitingUserName,
+                            partnerLanguage: partnerLanguage,
                             chatId: chatId
                         });
 
                         const newChat = {
                             createdAt: serverTimestamp(),
                             users: {
-                                [userId]: { name: userName },
-                                [partnerId]: { name: waiting.waitingUserName }
+                                [userId]: { 
+                                    name: userName,
+                                    language: currentLanguage 
+                                },
+                                [partnerId]: { 
+                                    name: waiting.waitingUserName,
+                                    language: partnerLanguage 
+                                }
                             },
                             messages: [],
                             typingStatus: { [userId]: false, [partnerId]: false },
@@ -1427,19 +1469,26 @@
                         };
 
                         transaction.set(doc(db, CHAT_COLLECTION, chatId), newChat);
-                        transaction.set(queueRef, { waitingUserId: null, waitingUserName: null, timestamp: serverTimestamp() });
+                        transaction.set(queueRef, { 
+                            waitingUserId: null, 
+                            waitingUserName: null, 
+                            waitingUserLanguage: null,
+                            timestamp: serverTimestamp() 
+                        });
 
                         transaction.set(doc(db, CHAT_COLLECTION, partnerId), {
                             matched: true,
                             chatId: chatId,
                             partnerId: userId,
                             partnerName: userName,
+                            partnerLanguage: currentLanguage,
                             isOnline: true,
                             heartbeat: serverTimestamp(),
                             _timestamp: serverTimestamp()
                         });
 
                         document.getElementById('partner-name').textContent = waiting.waitingUserName;
+                        createLanguageIndicator(partnerLanguage);
                         clearInterval(matchingTimeout);
 
                         setTimeout(() => {
@@ -1455,12 +1504,14 @@
                         transaction.set(queueRef, {
                             waitingUserId: userId,
                             waitingUserName: userName,
+                            waitingUserLanguage: currentLanguage,
                             timestamp: serverTimestamp()
                         });
 
                         transaction.set(doc(db, CHAT_COLLECTION, userId), {
                             status: 'waiting',
                             userName: userName,
+                            userLanguage: currentLanguage,
                             isOnline: true,
                             lastSeen: serverTimestamp(),
                             heartbeat: serverTimestamp(),
@@ -1489,14 +1540,17 @@
                     const data = docSnap.data();
                     chatId = data.chatId;
                     partnerId = data.partnerId;
+                    partnerLanguage = data.partnerLanguage || 'az';
 
                     console.log("🎉 Eşleşme dinleyicisi: Partner bulundu!", {
                         partnerId: partnerId,
                         partnerName: data.partnerName,
+                        partnerLanguage: partnerLanguage,
                         chatId: chatId
                     });
                     
                     document.getElementById('partner-name').textContent = data.partnerName;
+                    createLanguageIndicator(partnerLanguage);
 
                     if (unsubscribeChat) unsubscribeChat();
                     if (matchingTimeout) clearInterval(matchingTimeout);
@@ -1609,6 +1663,7 @@
                         transaction.set(queueRef, {
                             waitingUserId: null,
                             waitingUserName: null,
+                            waitingUserLanguage: null,
                             timestamp: serverTimestamp()
                         });
                     }
@@ -1625,6 +1680,7 @@
 
             chatId = null;
             partnerId = null;
+            partnerLanguage = null;
             renderedMessageIds.clear();
 
             if (backToStart) {
@@ -1638,6 +1694,7 @@
             console.log("❌ Sohbet kapatılıyor");
             showAnimation('close-animation');
 
+            // 1.5 saniye animasyon göster
             setTimeout(async () => {
                 hideAllAnimations();
 
@@ -1666,7 +1723,7 @@
                         if (partnerId) deleteDoc(doc(db, CHAT_COLLECTION, partnerId));
                     } catch (e) {}
                 }, 500);
-            }, 500);
+            }, 1500); // 1.5 saniye
         };
 
         // Change Chat
@@ -1674,6 +1731,7 @@
             console.log("🔄 Sohbet değiştiriliyor");
             showAnimation('change-animation');
 
+            // 2 saniye animasyon göster
             setTimeout(async () => {
                 hideAllAnimations();
 
@@ -1703,7 +1761,7 @@
                 document.getElementById('matching-text').textContent = translations[currentLanguage].matchingText;
                 document.getElementById('retry-container').classList.add('hidden');
                 startMatching();
-            }, 300);
+            }, 2000); // 2 saniye
         };
 
         // Cancel Matching
@@ -1711,11 +1769,12 @@
             console.log("❌ Eşleşme iptal ediliyor");
             showAnimation('cancel-animation');
 
+            // 1.5 saniye animasyon göster
             setTimeout(async () => {
                 hideAllAnimations();
                 await disconnect(false);
                 showScreen('start-screen');
-            }, 300);
+            }, 1500); // 1.5 saniye
         };
 
         // Cleanup on Browser Close
@@ -1735,7 +1794,11 @@
                     await runTransaction(db, async (transaction) => {
                         const queueDoc = await transaction.get(queueRef);
                         if (queueDoc.exists() && queueDoc.data().waitingUserId === userId) {
-                            transaction.set(queueRef, { waitingUserId: null, waitingUserName: null });
+                            transaction.set(queueRef, { 
+                                waitingUserId: null, 
+                                waitingUserName: null,
+                                waitingUserLanguage: null 
+                            });
                         }
                     });
                 } catch (err) {
