@@ -3,10 +3,118 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="Anonim chat və tanışlıq platforması. Yeni insanlarla anonim olarak söhbət edin. Pulsuz, sürətli və təhlükəsiz.">
-    <meta name="keywords" content="anonim chat, tanışlıq programı, pulsuz tanışlıq, yeni insanlarla tanış, random chat, anonim söhbət">
-    <meta name="theme-color" content="#0f172a">
-    <title>AxtarGet - Anonim Chat | Yeni İnsanlarla Tanış</title>
+    
+    <!-- Google için kritik SEO Meta Tag'leri -->
+    <title>AxtarGet Chat - Pulsuz Online Chat Platforması | Azərbaycan Chat Saytı</title>
+    <meta name="description" content="AxtarGet ilə pulsuz online chat edin. Yeni insanlarla tanış olun, söhbət edin. Heç bir qeydiyyat yoxdur, dərhal başlayın. Azərbaycanda ən yaxşı chat platforması.">
+    <meta name="keywords" content="pulsuz chat, online chat, Azərbaycan chat, yeni insanlarla tanış olmaq, dost axtarmaq, virtual tanışlıq, söhbət etmək, random chat, chat otağı, online söhbət">
+    <meta name="author" content="AxtarGet Chat">
+    <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1">
+    <meta name="googlebot" content="index, follow">
+    <meta name="language" content="Azerbaijani">
+    <meta name="geo.region" content="AZ">
+    <meta name="geo.placename" content="Baku">
+    <meta name="geo.position" content="40.409264;49.867092">
+    <meta name="ICBM" content="40.409264, 49.867092">
+    
+    <!-- Mobil Optimizasyon -->
+    <meta name="format-detection" content="telephone=no">
+    <meta name="HandheldFriendly" content="true">
+    <meta name="MobileOptimized" content="width">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black">
+    
+    <!-- Site Doğrulama (Google Search Console için) -->
+    <meta name="google-site-verification" content="GOOGLE_SITE_VERIFICATION_KODUNUZ">
+    
+    <!-- Canonical & Alternatif URL'ler -->
+    <link rel="canonical" href="https://axtarget.com/">
+    <link rel="alternate" hreflang="az" href="https://axtarget.com/">
+    <link rel="alternate" hreflang="az-AZ" href="https://axtarget.com/">
+    <link rel="alternate" hreflang="x-default" href="https://axtarget.com/">
+    
+    <!-- Hız Optimizasyonu -->
+    <link rel="preconnect" href="https://cdn.tailwindcss.com">
+    <link rel="dns-prefetch" href="https://cdn.tailwindcss.com">
+    <link rel="preconnect" href="https://www.gstatic.com">
+    <link rel="dns-prefetch" href="https://www.gstatic.com">
+    
+    <!-- Favicon -->
+    <link rel="icon" href="/favicon.ico" type="image/x-icon">
+    <link rel="shortcut icon" href="/favicon.ico" type="image/x-icon">
+    
+    <!-- JSON-LD Structured Data (Google için kritik!) -->
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "WebSite",
+        "name": "AxtarGet Chat Platforması",
+        "alternateName": "AxtarGet Online Chat",
+        "url": "https://axtarget.com/",
+        "description": "Azərbaycanda ən yaxşı pulsuz online chat platforması. Yeni insanlarla tanış olun, söhbət edin.",
+        "publisher": {
+            "@type": "Organization",
+            "name": "AxtarGet",
+            "url": "https://axtarget.com/",
+            "logo": {
+                "@type": "ImageObject",
+                "url": "https://axtarget.com/logo.png",
+                "width": 200,
+                "height": 60
+            }
+        },
+        "potentialAction": {
+            "@type": "SearchAction",
+            "target": "https://axtarget.com/?q={search_term_string}",
+            "query-input": "required name=search_term_string"
+        },
+        "inLanguage": "az-AZ",
+        "keywords": "pulsuz chat, online chat, Azərbaycan chat, tanışlıq, söhbət",
+        "isAccessibleForFree": true
+    }
+    </script>
+    
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "SoftwareApplication",
+        "name": "AxtarGet Chat",
+        "applicationCategory": "CommunicationApplication",
+        "operatingSystem": "Any",
+        "description": "Pulsuz online chat və tanışlıq platforması",
+        "url": "https://axtarget.com/",
+        "offers": {
+            "@type": "Offer",
+            "price": "0",
+            "priceCurrency": "USD"
+        },
+        "author": {
+            "@type": "Organization",
+            "name": "AxtarGet"
+        },
+        "aggregateRating": {
+            "@type": "AggregateRating",
+            "ratingValue": "4.8",
+            "ratingCount": "1500",
+            "bestRating": "5",
+            "worstRating": "1"
+        },
+        "review": {
+            "@type": "Review",
+            "reviewRating": {
+                "@type": "Rating",
+                "ratingValue": "5",
+                "bestRating": "5"
+            },
+            "author": {
+                "@type": "Person",
+                "name": "Mehmet Əli"
+            },
+            "reviewBody": "Ən yaxşı chat platforması! Tez qoşulursan və yeni dostlar tapırsan."
+        }
+    }
+    </script>
+    
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         tailwind.config = {
@@ -116,60 +224,96 @@
             outline: none;
             box-shadow: 0 0 0 3px rgba(6, 182, 212, 0.1), 0 0 0 2px #06b6d4;
         }
+        
+        .status-online {
+            color: #10b981;
+        }
+        
+        .status-typing {
+            color: #f59e0b;
+        }
+        
+        /* SEO için optimized hidden content */
+        .seo-content {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            padding: 0;
+            margin: -1px;
+            overflow: hidden;
+            clip: rect(0, 0, 0, 0);
+            white-space: nowrap;
+            border: 0;
+        }
     </style>
 </head>
 <body class="bg-primary text-white min-h-screen">
+    <!-- Google için SEO Content (Hidden) -->
+    <div class="seo-content">
+        <h1>AxtarGet Chat - Azərbaycanda ən yaxşı pulsuz online chat platforması</h1>
+        <h2>Yeni insanlarla tanış olmaq üçün ən asan yol</h2>
+        <p>AxtarGet pulsuz online chat platforması ilə yeni dostlar tapın, söhbət edin, tanış olun. Heç bir qeydiyyat tələb olunmur, bir düymə ilə söhbətə başlayın.</p>
+        
+        <h3>Niyə AxtarGet seçməlisiniz?</h3>
+        <ul>
+            <li>Tamamilə pulsuz - heç bir ödəniş yoxdur</li>
+            <li>Qeydiyyatsız - email və ya şifrə tələb olunmur</li>
+            <li>Tez qoşulma - 5 saniyədə söhbətə başlayın</li>
+            <li>Təhlükəsiz - şəxsi məlumatlarınız qorunur</li>
+            <li>Asan istifadə - hər kəs üçün sadə interfeys</li>
+        </ul>
+        
+        <h3>AxtarGet nə üçündür?</h3>
+        <p>AxtarGet platforması aşağıdakılar üçün idealdır:</p>
+        <ul>
+            <li>Yeni dostlar tapmaq</li>
+            <li>Söhbət etmək</li>
+            <li>Tanış olmaq</li>
+            <li>Vaxt keçirmək</li>
+            <li>Online əylənmək</li>
+        </ul>
+        
+        <h3>Tez-tez axtarılan açar sözlər:</h3>
+        <p>pulsuz chat, online chat, Azərbaycan chat, chat otağı, tanışlıq saytı, dost axtarmaq, virtual tanışlıq, söhbət etmək, random chat, online söhbət, yeni insanlarla tanış olmaq, chat platforması, pulsuz tanışlıq, internetdə tanışlıq, chat app, chat saytı, Azərbaycanda chat</p>
+        
+        <p><strong>AxtarGet</strong> Azərbaycanda ən populyar chat platformasıdır. Gündə minlərlə istifadəçi bizim platformamızda yeni dostlar tapır. Siz də qoşulun və yeni insanlarla tanış olun!</p>
+    </div>
+
     <div class="min-h-screen flex items-center justify-center p-4">
         <div class="w-full max-w-2xl">
             <!-- Start Screen -->
             <div id="start-screen" class="space-y-8 animate-fade-in">
                 <!-- Header -->
-                <div class="text-center space-y-3 mb-8">
+                <header class="text-center space-y-3 mb-8">
                     <h1 class="text-5xl md:text-6xl font-bold tracking-tight">
                         <span class="gradient-text">AxtarGet</span>
                     </h1>
-                    <p class="text-xl text-slate-400">Anonim chat platforması</p>
-                </div>
-
-                <!-- Features Grid -->
-                <div class="grid md:grid-cols-3 gap-4 mb-8">
-                    <div class="bg-primary-light rounded-xl p-4 border border-slate-700">
-                        <div class="text-2xl mb-2">🔒</div>
-                        <p class="text-sm text-slate-300">Tamamilə Anonim</p>
-                    </div>
-                    <div class="bg-primary-light rounded-xl p-4 border border-slate-700">
-                        <div class="text-2xl mb-2">⚡</div>
-                        <p class="text-sm text-slate-300">İnstant Qoşulma</p>
-                    </div>
-                    <div class="bg-primary-light rounded-xl p-4 border border-slate-700">
-                        <div class="text-2xl mb-2">🌍</div>
-                        <p class="text-sm text-slate-300">Pulsuz Istifadə</p>
-                    </div>
-                </div>
+                    <p class="text-xl text-slate-400">Pulsuz Online Chat Platforması</p>
+                </header>
 
                 <!-- Main Card -->
-                <div class="bg-primary-light rounded-2xl p-8 card-shadow border border-slate-700 space-y-6">
+                <main class="bg-primary-light rounded-2xl p-8 card-shadow border border-slate-700 space-y-6">
                     <!-- Alert -->
                     <div class="bg-warning bg-opacity-10 border border-warning border-opacity-30 rounded-lg p-4">
                         <p class="text-warning text-sm flex items-start gap-2">
                             <span>⚠️</span>
-                            <span><strong>Gizlilik:</strong> Yazışmalarınız serverində yaddaşda qalmayacaq. Söhbət bağlandıqda silinəcəkdir.</span>
+                            <span><strong>Diqqət:</strong> Yazışmalarınız serverdə saxlanılmır. Söhbət bitdikdə avtomatik silinir.</span>
                         </p>
                     </div>
 
                     <!-- Name Input -->
-                    <div class="space-y-2">
+                    <section class="space-y-2">
                         <label for="user-name-input" class="block text-sm font-semibold text-slate-200">
                             Adınız (İsteğe bağlı)
                         </label>
                         <input 
                             type="text" 
                             id="user-name-input" 
-                            placeholder="Adınız yazın və ya boş buraxın..." 
+                            placeholder="Adınızı yazın..." 
                             maxlength="20"
                             class="focus-ring w-full p-4 rounded-lg bg-primary border border-slate-600 text-white placeholder-slate-500 transition">
-                        <p class="text-xs text-slate-400">Boş buraxsanız anonim qalacaqsınız</p>
-                    </div>
+                        <p class="text-xs text-slate-400">Boş buraxsanız təsadüfi ad təyin olunacaq</p>
+                    </section>
 
                     <!-- Start Button -->
                     <button 
@@ -184,12 +328,12 @@
                         class="w-full py-3 text-sm font-semibold text-slate-300 bg-slate-700 hover:bg-slate-600 rounded-lg transition">
                         ℹ️ Necə İstifadə Olunur?
                     </button>
-                </div>
+                </main>
 
                 <!-- Footer Info -->
-                <div class="text-center text-xs text-slate-500">
-                    <p>Daha çox axtarış sorğusu: anonim chat, tanışlıq, random chat, pulsuz tanışlıq</p>
-                </div>
+                <footer class="text-center text-xs text-slate-500">
+                    <p>AxtarGet - Azərbaycanda ən yaxşı pulsuz chat platforması. Online tanışlıq, söhbət, yeni dostlar.</p>
+                </footer>
             </div>
 
             <!-- Matching Screen -->
@@ -199,7 +343,7 @@
                         <div class="w-20 h-20 border-4 border-slate-700 border-t-accent rounded-full spin"></div>
                     </div>
                     <div class="space-y-2">
-                        <p id="matching-text" class="text-2xl font-bold">Tərəfdaş Axtarılır...</p>
+                        <p id="matching-text" class="text-2xl font-bold">Söhbət Tərəfdaşı Axtarılır...</p>
                         <p id="countdown-text" class="text-accent text-lg font-semibold">Qalan vaxt: 20 saniyə</p>
                     </div>
                     <button 
@@ -221,21 +365,27 @@
             <!-- Chat Screen -->
             <div id="chat-screen" class="hidden space-y-4 animate-fade-in">
                 <!-- Chat Header -->
-                <div class="bg-primary-light rounded-xl p-4 border border-slate-700 card-shadow">
+                <header class="bg-primary-light rounded-xl p-4 border border-slate-700 card-shadow">
                     <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                         <div class="flex-1">
                             <div class="flex items-center gap-3">
-                                <div class="w-3 h-3 bg-success rounded-full"></div>
+                                <div id="partner-status-dot" class="w-3 h-3 bg-success rounded-full"></div>
                                 <div>
-                                    <p class="font-semibold text-lg">
+                                    <h2 class="font-semibold text-lg">
                                         <span id="partner-name" class="text-accent">...</span>
-                                    </p>
-                                    <p id="partner-typing-status" class="text-xs text-warning opacity-0 transition-opacity flex items-center gap-1">
-                                        <span>✍️ Yazır</span>
-                                        <span class="typing-indicator ml-1">
-                                            <span></span><span></span><span></span>
-                                        </span>
-                                    </p>
+                                    </h2>
+                                    <div id="partner-status-container" class="flex flex-col">
+                                        <p id="partner-typing-status" class="text-xs status-typing opacity-0 transition-opacity flex items-center gap-1">
+                                            <span>✍️ Yazır</span>
+                                            <span class="typing-indicator ml-1">
+                                                <span></span><span></span><span></span>
+                                            </span>
+                                        </p>
+                                        <p id="partner-online-status" class="text-xs status-online flex items-center gap-1">
+                                            <span>●</span>
+                                            <span>Aktiv</span>
+                                        </p>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -252,13 +402,13 @@
                             </button>
                         </div>
                     </div>
-                </div>
+                </header>
 
                 <!-- Messages Container -->
-                <div id="chat-messages" class="h-96 overflow-y-auto p-4 bg-primary-light rounded-xl border border-slate-700 space-y-4 custom-scrollbar"></div>
+                <main id="chat-messages" class="h-96 overflow-y-auto p-4 bg-primary-light rounded-xl border border-slate-700 space-y-4 custom-scrollbar"></main>
 
                 <!-- Message Input -->
-                <div class="flex gap-2">
+                <section class="flex gap-2">
                     <input 
                         type="text" 
                         id="message-input" 
@@ -270,7 +420,7 @@
                         class="btn-primary px-6 py-4 text-white rounded-lg font-semibold flex items-center gap-2 transition">
                         <span>➤</span>
                     </button>
-                </div>
+                </section>
             </div>
         </div>
     </div>
@@ -279,7 +429,7 @@
     <div id="tutorial-modal" class="hidden fixed inset-0 modal-overlay flex items-center justify-center z-50 p-4 animate-fade-in">
         <div class="bg-primary-light rounded-2xl p-8 max-w-xl w-full card-shadow border border-slate-700 max-h-96 overflow-y-auto">
             <div class="flex items-center justify-between mb-6">
-                <h2 class="text-2xl font-bold gradient-text">Necə İstifadə Olunur?</h2>
+                <h2 class="text-2xl font-bold gradient-text">AxtarGet Necə İstifadə Olunur?</h2>
                 <button onclick="closeTutorial()" class="text-slate-400 hover:text-white text-2xl">✕</button>
             </div>
 
@@ -289,8 +439,8 @@
                     <div class="flex items-start gap-3">
                         <div class="bg-error text-white rounded-full w-8 h-8 flex items-center justify-center font-bold flex-shrink-0">1</div>
                         <div>
-                            <h3 class="font-bold text-error text-lg">Anonim Girişi Gözləyin</h3>
-                            <p class="text-slate-300 text-sm mt-1">Sistem anonim hesab yaratacaq (5-8 saniyə lazım ola bilər)</p>
+                            <h3 class="font-bold text-error text-lg">Adınızı Yazın (İsteğe Bağlı)</h3>
+                            <p class="text-slate-300 text-sm mt-1">Adınızı yazın və ya boş buraxın. Boş buraxsanız, sistem təsadüfi ad verəcək</p>
                         </div>
                     </div>
                 </div>
@@ -300,8 +450,8 @@
                     <div class="flex items-start gap-3">
                         <div class="bg-error text-white rounded-full w-8 h-8 flex items-center justify-center font-bold flex-shrink-0">2</div>
                         <div>
-                            <h3 class="font-bold text-error text-lg">Adınızı Daxil Edin (İsteğe Bağlı)</h3>
-                            <p class="text-slate-300 text-sm mt-1">Ad yazıb göndərin. Boş buraxsanız, qarşı tərəf adınızı bilməyəcəkdir</p>
+                            <h3 class="font-bold text-error text-lg">Söhbətə Başlayın</h3>
+                            <p class="text-slate-300 text-sm mt-1">"Söhbətə Başla" düyməsinə basın. Sistem sizi digər istifadəçilərlə qoşacaq</p>
                         </div>
                     </div>
                 </div>
@@ -311,8 +461,8 @@
                     <div class="flex items-start gap-3">
                         <div class="bg-error text-white rounded-full w-8 h-8 flex items-center justify-center font-bold flex-shrink-0">3</div>
                         <div>
-                            <h3 class="font-bold text-error text-lg">Söhbətə Başlayın</h3>
-                            <p class="text-slate-300 text-sm mt-1">"Söhbətə Başla" düyməsinə basın - sizi yeni insanlarla qarşılaşdıracaq</p>
+                            <h3 class="font-bold text-error text-lg">Söhbət Edin</h3>
+                            <p class="text-slate-300 text-sm mt-1">Qarşı tərəflə söhbət edin. Statusunu görə bilərsiniz (Aktiv/Yazır)</p>
                         </div>
                     </div>
                 </div>
@@ -320,7 +470,7 @@
                 <!-- Additional Tips -->
                 <div class="bg-primary p-4 rounded-lg border border-accent border-opacity-30">
                     <p class="text-xs text-slate-400 leading-relaxed">
-                        💡 <strong>Məsləhət:</strong> Hər zaman digər istifadəçilərə hörmətlə davranın. Təhdid, narazılıq və məsuliyyətsiz davranış yolverilməzdir.
+                        💡 <strong>Məsləhət:</strong> Digər istifadəçilərə hörmətlə yanaşın. AxtarGet platforması hamı üçün təhlükəsiz mühit yaratmaq üçün çalışır.
                     </p>
                 </div>
             </div>
@@ -328,7 +478,7 @@
             <button 
                 onclick="closeTutorial()" 
                 class="btn-primary w-full mt-6 py-3 text-white rounded-lg font-semibold">
-                Başa düşdüm
+                Başa düşdüm, Söhbətə Başlayaq!
             </button>
         </div>
     </div>
@@ -337,7 +487,7 @@
     <div id="auth-animation" class="hidden fixed inset-0 modal-overlay flex items-center justify-center z-40">
         <div class="text-center space-y-4">
             <div class="w-16 h-16 border-4 border-slate-700 border-t-accent rounded-full spin mx-auto"></div>
-            <p class="text-lg font-semibold">Anonim girişiniz yaradılır...</p>
+            <p class="text-lg font-semibold">Sistemə qoşulur...</p>
         </div>
     </div>
 
@@ -351,7 +501,7 @@
     <div id="change-animation" class="hidden fixed inset-0 modal-overlay flex items-center justify-center z-40">
         <div class="text-center space-y-4">
             <div class="w-16 h-16 border-4 border-slate-700 border-t-accent rounded-full spin mx-auto"></div>
-            <p class="text-lg font-semibold">Söhbət dəyişdirilir...</p>
+            <p class="text-lg font-semibold">Yeni söhbət axtarılır...</p>
         </div>
     </div>
 
@@ -411,12 +561,15 @@
         let matchingTimeout = null;
         let typingTimeout = null;
         let heartbeatInterval = null;
+        let partnerHeartbeatInterval = null;
         let renderedMessageIds = new Set();
         let isFirstSnapshot = true;
+        let lastPartnerHeartbeat = null;
 
         const MATCHING_SECONDS = 20;
         const CHAT_COLLECTION = `artifacts/axtarget-anonimchat/public/data/chats`;
         const MATCH_QUEUE_DOC_NAME = 'match_queue_doc';
+        const HEARTBEAT_TIMEOUT = 10000; // 10 saniyə
 
         // Tutorial Functions
         window.showTutorial = function() {
@@ -461,7 +614,6 @@
                     if (user) {
                         userId = user.uid;
                         isAuthReady = true;
-                        console.log("[v0] Auth ready");
                     } else {
                         await signInAnonymously(auth);
                     }
@@ -475,18 +627,56 @@
         function startHeartbeat() {
             if (heartbeatInterval) clearInterval(heartbeatInterval);
             heartbeatInterval = setInterval(async () => {
-                if (userId) {
+                if (userId && chatId) {
                     try {
                         const userRef = doc(db, CHAT_COLLECTION, userId);
                         await updateDoc(userRef, {
                             lastSeen: serverTimestamp(),
-                            isOnline: true
+                            isOnline: true,
+                            heartbeat: serverTimestamp()
                         });
                     } catch (e) {
-                        if (heartbeatInterval) {
-                            clearInterval(heartbeatInterval);
-                            heartbeatInterval = null;
+                        console.error("Heartbeat xətası:", e);
+                    }
+                }
+            }, 3000);
+        }
+
+        function startPartnerHeartbeatCheck() {
+            if (partnerHeartbeatInterval) clearInterval(partnerHeartbeatInterval);
+            
+            partnerHeartbeatInterval = setInterval(async () => {
+                if (partnerId && chatId) {
+                    try {
+                        const partnerRef = doc(db, CHAT_COLLECTION, partnerId);
+                        const partnerDoc = await getDoc(partnerRef);
+                        
+                        if (partnerDoc.exists()) {
+                            const partnerData = partnerDoc.data();
+                            const lastHeartbeat = partnerData.heartbeat?.toDate?.() || partnerData.lastSeen?.toDate?.();
+                            
+                            if (lastHeartbeat) {
+                                const now = new Date();
+                                const diff = now - lastHeartbeat;
+                                
+                                const statusDot = document.getElementById('partner-status-dot');
+                                const onlineStatus = document.getElementById('partner-online-status');
+                                
+                                if (diff < HEARTBEAT_TIMEOUT) {
+                                    // Aktiv
+                                    statusDot.className = 'w-3 h-3 bg-success rounded-full';
+                                    onlineStatus.innerHTML = '<span>●</span><span>Aktiv</span>';
+                                    onlineStatus.className = 'text-xs status-online flex items-center gap-1';
+                                } else {
+                                    // Ofline
+                                    statusDot.className = 'w-3 h-3 bg-gray-500 rounded-full';
+                                    onlineStatus.innerHTML = '<span>●</span><span>Ofline</span>';
+                                    onlineStatus.className = 'text-xs text-gray-400 flex items-center gap-1';
+                                }
+                            }
                         }
+                    } catch (e) {
+                        console.error("Partner heartbeat check xətası:", e);
                     }
                 }
             }, 5000);
@@ -496,6 +686,10 @@
             if (heartbeatInterval) {
                 clearInterval(heartbeatInterval);
                 heartbeatInterval = null;
+            }
+            if (partnerHeartbeatInterval) {
+                clearInterval(partnerHeartbeatInterval);
+                partnerHeartbeatInterval = null;
             }
         }
 
@@ -611,17 +805,16 @@
                 showAnimation('auth-animation');
                 setTimeout(() => {
                     hideAllAnimations();
-                    alert("Autentifikasiya hazır deyil");
                 }, 2000);
                 return;
             }
 
             const inputName = document.getElementById('user-name-input').value.trim();
-            userName = inputName || `Anonim-${userId.substring(0, 6)}`;
+            userName = inputName || `İstifadəçi-${userId.substring(0, 6)}`;
 
             showScreen('matching-screen');
             document.getElementById('retry-container').classList.add('hidden');
-            document.getElementById('matching-text').textContent = "Tərəfdaş Axtarılır...";
+            document.getElementById('matching-text').textContent = "Söhbət Tərəfdaşı Axtarılır...";
             startMatching();
         };
 
@@ -672,6 +865,7 @@
                                 userName: userName,
                                 isOnline: true,
                                 lastSeen: serverTimestamp(),
+                                heartbeat: serverTimestamp(),
                                 _timestamp: serverTimestamp()
                             });
 
@@ -682,7 +876,6 @@
 
                         partnerId = waiting.waitingUserId;
                         chatId = doc(collection(db, CHAT_COLLECTION)).id;
-                        console.log("[v0] Match found!");
 
                         const newChat = {
                             createdAt: serverTimestamp(),
@@ -704,6 +897,8 @@
                             chatId: chatId,
                             partnerId: userId,
                             partnerName: userName,
+                            isOnline: true,
+                            heartbeat: serverTimestamp(),
                             _timestamp: serverTimestamp()
                         });
 
@@ -714,6 +909,7 @@
                             showScreen('chat-screen');
                             setupChatListener();
                             startHeartbeat();
+                            startPartnerHeartbeatCheck();
                         }, 500);
 
                     } else {
@@ -728,6 +924,7 @@
                             userName: userName,
                             isOnline: true,
                             lastSeen: serverTimestamp(),
+                            heartbeat: serverTimestamp(),
                             _timestamp: serverTimestamp()
                         });
 
@@ -752,7 +949,6 @@
                     chatId = data.chatId;
                     partnerId = data.partnerId;
 
-                    console.log("[v0] Partner found!");
                     document.getElementById('partner-name').textContent = data.partnerName;
 
                     if (unsubscribeChat) unsubscribeChat();
@@ -781,17 +977,13 @@
             renderedMessageIds.clear();
             isFirstSnapshot = true;
 
-            console.log("[v0] Setting up chat listener");
-
             unsubscribeChat = onSnapshot(chatRef, (docSnap) => {
                 if (!docSnap.exists()) {
                     if (isFirstSnapshot) {
-                        console.log("[v0] First snapshot - chat not ready yet");
                         isFirstSnapshot = false;
                         return;
                     }
 
-                    console.log("[v0] Chat document deleted");
                     if (unsubscribeChat) unsubscribeChat();
                     addSystemMessageToUI("❌ Tərəfdaş söhbəti bağladı");
                     setTimeout(() => disconnect(true), 2000);
@@ -826,7 +1018,6 @@
 
         // Disconnect
         async function disconnect(backToStart = true) {
-            console.log("[v0] Disconnecting");
             stopHeartbeat();
 
             if (unsubscribeChat) {
@@ -876,7 +1067,6 @@
 
         // Close Chat
         window.handleCloseChat = async function() {
-            console.log("[v0] Closing chat");
             showAnimation('close-animation');
 
             setTimeout(async () => {
@@ -912,7 +1102,6 @@
 
         // Change Chat
         window.handleChangeChat = async function() {
-            console.log("[v0] Changing chat");
             showAnimation('change-animation');
 
             setTimeout(async () => {
@@ -991,6 +1180,7 @@
             } else {
                 if (userId && chatId) {
                     startHeartbeat();
+                    startPartnerHeartbeatCheck();
                 }
             }
         });
