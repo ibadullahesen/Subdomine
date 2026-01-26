@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="az">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Cosmic Saturn - Hand Tracking Visualization</title>
+    
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+    <style>
+        :root {
+            --neon-blue: #00f2ff;
+            --deep-space: #010103;
+        }
+
+        body, html {
+            margin: 0; padding: 0;
+            width: 100%; height: 100%;
+            overflow: hidden;
+            background-color: var(--deep-space);
+            font-family: 'Segoe UI', sans-serif;
+        }
+
+        #input_video { display: none; }
+        
+        #canvas-container {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            z-index: 1;
+        }
+
+        /* Əl izləmə qatı - solğun görüntü */
+        #hand-overlay {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            z-index: 2;
+            pointer-events: none;
+            opacity: 0.4; /* Solğunluq dərəcəsi */
+            transform: scaleX(-1); /* Güzgü effekti kamera üçün */
+        }
+
+        .ui-overlay {
+            position: absolute;
+            top: 30px; left: 30px;
+            z-index: 10;
+            pointer-events: none;
+            color: white;
+            text-shadow: 0 0 20px var(--neon-blue);
+        }
+
+        .status-badge {
+            background: rgba(0, 242, 255, 0.1);
+            border-left: 3px solid var(--neon-blue);
+            padding: 15px 30px;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 0 20px rgba(0, 242, 255, 0.2);
+        }
+
+        #loading-screen {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: #000;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+            color: var(--neon-blue);
+            letter-spacing: 8px;
+            font-weight: bold;
+            text-shadow: 0 0 10px var(--neon-blue);
+        }
+
+        .hint {
+            position: absolute;
+            bottom: 30px;
+            width: 100%;
+            text-align: center;
+            color: rgba(255,255,255,0.6);
+            font-size: 0.9rem;
+            letter-spacing: 3px;
+            z-index: 10;
+            text-transform: uppercase;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="loading-screen">SİSTEM HAZIRLANIR...</div>
+
+    <div class="ui-overlay">
+        <div class="status-badge">
+            <div style="font-size: 0.8rem; opacity: 0.7; letter-spacing: 2px;">KOSMİK ENERJİ</div>
+            <div style="font-size: 1.6rem; font-weight: 300;" id="mode-text">ƏL GÖZLƏNİLİR</div>
+        </div>
+    </div>
+
+
+    <video id="input_video"></video>
+    <canvas id="hand-overlay"></canvas>
+    <div id="canvas-container"></div>
+
+    <script>
+        const videoElement = document.getElementById('input_video');
+        const modeText = document.getElementById('mode-text');
+        const loadingScreen = document.getElementById('loading-screen');
+        const handCanvas = document.getElementById('hand-overlay');
+        const handCtx = handCanvas.getContext('2d');
+
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        document.getElementById('canvas-container').appendChild(renderer.domElement);
+
+        const maxParticles = 25000; 
+        const particlesGeometry = new THREE.BufferGeometry();
+        
+        const posArray = new Float32Array(maxParticles * 3);
+        const targetPosArray = new Float32Array(maxParticles * 3);
+        const velocityArray = new Float32Array(maxParticles * 3); 
+
+        const planetRadius = 5.8; 
+        const ringInnerRadius = 8.0; 
+        const ringOuterRadius = 12.5; 
+
+        for(let i=0; i < maxParticles; i++) {
+            const i3 = i * 3;
+            posArray[i3] = (Math.random() - 0.5) * 120;
+            posArray[i3+1] = (Math.random() - 0.5) * 100;
+            posArray[i3+2] = (Math.random() - 0.5) * 100;
+
+            if (i < 15000) { 
+                const phi = Math.acos(-1 + (2 * i) / 15000);
+                const theta = Math.sqrt(15000 * Math.PI) * phi;
+                targetPosArray[i3] = planetRadius * Math.cos(theta) * Math.sin(phi);
+                targetPosArray[i3+1] = planetRadius * Math.sin(theta) * Math.sin(phi);
+                targetPosArray[i3+2] = planetRadius * Math.cos(phi);
+            } else { 
+                const angle = Math.random() * Math.PI * 2;
+                const radius = ringInnerRadius + Math.random() * (ringOuterRadius - ringInnerRadius);
+                targetPosArray[i3] = Math.cos(angle) * radius;
+                targetPosArray[i3+1] = (Math.random() - 0.5) * 0.7; 
+                targetPosArray[i3+2] = Math.sin(angle) * radius;
+            }
+        }
+
+        particlesGeometry.setAttribute('position', new THREE.BufferAttribute(posArray, 3));
+        
+        const particlesMaterial = new THREE.PointsMaterial({
+            size: 0.16, 
+            color: 0x00f2ff,
+            transparent: true,
+            opacity: 0,
+            blending: THREE.AdditiveBlending,
+            depthWrite: false,
+            sizeAttenuation: true
+        });
+
+        const particleMesh = new THREE.Points(particlesGeometry, particlesMaterial);
+        scene.add(particleMesh);
+
+        camera.position.z = 30; 
+
+        let formationProgress = 0; 
+        let isExploding = false;
+        let explosionLife = 0;
+        let lastAvgDist = 0;
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            const positions = particlesGeometry.attributes.position.array;
+            const activeCount = Math.floor(formationProgress * maxParticles);
+            
+            if (isExploding) {
+                particlesMaterial.opacity = explosionLife;
+                particlesMaterial.color.setHex(0xffffff);
+                explosionLife *= 0.95;
+                if (explosionLife < 0.01) isExploding = false;
+            } else {
+                particlesMaterial.opacity = Math.max(0.5, formationProgress);
+                particlesMaterial.color.setHex(0x00f2ff);
+            }
+
+            for(let i=0; i < maxParticles; i++) {
+                const i3 = i * 3;
+                
+                if (isExploding) {
+                    positions[i3] += velocityArray[i3];
+                    positions[i3+1] += velocityArray[i3+1];
+                    positions[i3+2] += velocityArray[i3+2];
+                    velocityArray[i3] *= 0.985;
+                    velocityArray[i3+1] *= 0.985;
+                    velocityArray[i3+2] *= 0.985;
+                } else {
+                    if (i < activeCount) {
+                        const lerpSpeed = 0.08 + (formationProgress * 0.06);
+                        positions[i3] += (targetPosArray[i3] - positions[i3]) * lerpSpeed;
+                        positions[i3+1] += (targetPosArray[i3+1] - positions[i3+1]) * lerpSpeed;
+                        positions[i3+2] += (targetPosArray[i3+2] - positions[i3+2]) * lerpSpeed;
+                    } else {
+                        positions[i3] += Math.sin(Date.now() * 0.001 + i) * 0.025;
+                        positions[i3+1] += Math.cos(Date.now() * 0.001 + i) * 0.025;
+                    }
+                }
+            }
+            particlesGeometry.attributes.position.needsUpdate = true;
+
+            if (!isExploding) {
+                particleMesh.rotation.y += 0.003 + (formationProgress * 0.015);
+                particleMesh.rotation.x = 0.45;
+            }
+
+            renderer.render(scene, camera);
+        }
+
+        function triggerExplosion(force = 1) {
+            isExploding = true;
+            explosionLife = 1.0;
+            const positions = particlesGeometry.attributes.position.array;
+            
+            for(let i=0; i < maxParticles; i++) {
+                const i3 = i * 3;
+                const dx = positions[i3];
+                const dy = positions[i3+1];
+                const dz = positions[i3+2];
+                const mag = Math.sqrt(dx*dx + dy*dy + dz*dz) || 1;
+                
+                const push = 2.5 * force * (Math.random() + 0.4);
+                velocityArray[i3] = (dx / mag) * push;
+                velocityArray[i3+1] = (dy / mag) * push;
+                velocityArray[i3+2] = (dz / mag) * push;
+            }
+        }
+
+        function onResults(results) {
+            // Kamera kətanının ölçüsünü yenilə
+            handCanvas.width = window.innerWidth;
+            handCanvas.height = window.innerHeight;
+            handCtx.clearRect(0, 0, handCanvas.width, handCanvas.height);
+
+            if (loadingScreen.style.display !== 'none') loadingScreen.style.display = 'none';
+
+            if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+                for (const landmarks of results.multiHandLandmarks) {
+                    // Skeleti çək
+                    drawConnectors(handCtx, landmarks, HAND_CONNECTIONS, {color: '#00f2ff', lineWidth: 2});
+                    drawLandmarks(handCtx, landmarks, {color: '#ffffff', lineWidth: 1, radius: 2});
+
+                    const hand = landmarks;
+                    const wrist = hand[0];
+                    const tips = [hand[8], hand[12], hand[16], hand[20]];
+                    
+                    let distSum = 0;
+                    tips.forEach(t => {
+                        distSum += Math.sqrt(Math.pow(t.x - wrist.x, 2) + Math.pow(t.y - wrist.y, 2));
+                    });
+                    const avgDist = distSum / 4;
+
+                    const velocity = avgDist - lastAvgDist;
+                    
+                    if (velocity > 0.02 && formationProgress > 0.5) {
+                        triggerExplosion(velocity * 70);
+                        formationProgress = 0;
+                        lastAvgDist = avgDist;
+                        return;
+                    }
+
+                    const minFistDist = 0.15; 
+                    const maxOpenDist = 0.28; 
+                    
+                    let strength = 1 - ((avgDist - minFistDist) / (maxOpenDist - minFistDist));
+                    strength = Math.max(0, Math.min(1, strength));
+
+                    if (!isExploding || strength > 0.4) {
+                        if (strength > 0.3) isExploding = false;
+                        formationProgress = strength;
+                    }
+
+                    lastAvgDist = avgDist;
+
+                    const percent = Math.round(formationProgress * 100);
+                    modeText.innerText = isExploding ? "ULTRA PARTLAYIŞ" : `GÜC: %${percent}`;
+                    modeText.style.color = isExploding ? "#fff" : "var(--neon-blue)";
+                }
+            } else {
+                formationProgress *= 0.92;
+                lastAvgDist = 0;
+                modeText.innerText = "ƏL GÖZLƏNİLİR";
+            }
+        }
+
+        const hands = new Hands({
+            locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+        });
+
+        hands.setOptions({
+            maxNumHands: 1,
+            modelComplexity: 1,
+            minDetectionConfidence: 0.7,
+            minTrackingConfidence: 0.7
+        });
+        hands.onResults(onResults);
+
+        const cameraStream = new Camera(videoElement, {
+            onFrame: async () => await hands.send({ image: videoElement }),
+            width: 1280, height: 720
+        });
+
+        window.onload = () => {
+            cameraStream.start();
+            animate();
+        };
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+    </script>
+</body>
+</html>
