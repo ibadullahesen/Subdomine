@@ -14,6 +14,7 @@
         :root {
             --neon-blue: #00f2ff;
             --deep-space: #010103;
+            --glow-gold: #ffdd00;
         }
 
         body, html {
@@ -33,15 +34,14 @@
             z-index: 1;
         }
 
-        /* Əl izləmə qatı - solğun görüntü */
         #hand-overlay {
             position: absolute;
             top: 0; left: 0;
             width: 100%; height: 100%;
             z-index: 2;
             pointer-events: none;
-            opacity: 0.4; /* Solğunluq dərəcəsi */
-            transform: scaleX(-1); /* Güzgü effekti kamera üçün */
+            opacity: 0.4;
+            transform: scaleX(-1);
         }
 
         .ui-overlay {
@@ -59,6 +59,13 @@
             padding: 15px 30px;
             backdrop-filter: blur(10px);
             box-shadow: 0 0 20px rgba(0, 242, 255, 0.2);
+            transition: all 0.3s ease;
+        }
+
+        .status-badge.gaming {
+            border-left-color: var(--glow-gold);
+            box-shadow: 0 0 20px rgba(255, 221, 0, 0.3);
+            text-shadow: 0 0 20px var(--glow-gold);
         }
 
         #loading-screen {
@@ -76,30 +83,47 @@
             text-shadow: 0 0 10px var(--neon-blue);
         }
 
-        .hint {
-            position: absolute;
-            bottom: 30px;
-            width: 100%;
-            text-align: center;
-            color: rgba(255,255,255,0.6);
-            font-size: 0.9rem;
-            letter-spacing: 3px;
-            z-index: 10;
+        #axtarget-ui {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) scale(0.5);
+            font-size: 8rem;
+            font-weight: 900;
+            color: #fff;
+            z-index: 20;
+            pointer-events: none;
+            opacity: 0;
+            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            text-shadow: 0 0 20px var(--neon-blue), 0 0 40px var(--neon-blue);
+            letter-spacing: 15px;
             text-transform: uppercase;
+        }
+
+        #axtarget-ui.active {
+            opacity: 1;
+            transform: translate(-50%, -50%) scale(1);
+            animation: glitch 0.3s infinite;
+        }
+
+        @keyframes glitch {
+            0% { text-shadow: 2px 0 red, -2px 0 blue; }
+            50% { text-shadow: -2px 0 red, 2px 0 blue; }
+            100% { text-shadow: 2px 0 red, -2px 0 blue; }
         }
     </style>
 </head>
 <body>
 
     <div id="loading-screen">SİSTEM HAZIRLANIR...</div>
+    <div id="axtarget-ui">AxtarGet</div>
 
     <div class="ui-overlay">
-        <div class="status-badge">
+        <div id="status-badge" class="status-badge">
             <div style="font-size: 0.8rem; opacity: 0.7; letter-spacing: 2px;">KOSMİK ENERJİ</div>
             <div style="font-size: 1.6rem; font-weight: 300;" id="mode-text">ƏL GÖZLƏNİLİR</div>
         </div>
     </div>
-
 
     <video id="input_video"></video>
     <canvas id="hand-overlay"></canvas>
@@ -108,7 +132,9 @@
     <script>
         const videoElement = document.getElementById('input_video');
         const modeText = document.getElementById('mode-text');
+        const statusBadge = document.getElementById('status-badge');
         const loadingScreen = document.getElementById('loading-screen');
+        const axtargetUI = document.getElementById('axtarget-ui');
         const handCanvas = document.getElementById('hand-overlay');
         const handCtx = handCanvas.getContext('2d');
 
@@ -172,6 +198,10 @@
         let isExploding = false;
         let explosionLife = 0;
         let lastAvgDist = 0;
+        
+        // Barmaq ucu izləmə mövqeyi
+        let fingerTarget = new THREE.Vector3(0, 0, 0);
+        let isSingleFingerActive = false;
 
         function animate() {
             requestAnimationFrame(animate);
@@ -185,8 +215,13 @@
                 explosionLife *= 0.95;
                 if (explosionLife < 0.01) isExploding = false;
             } else {
-                particlesMaterial.opacity = Math.max(0.5, formationProgress);
-                particlesMaterial.color.setHex(0x00f2ff);
+                if (isSingleFingerActive && formationProgress < 0.25) {
+                    particlesMaterial.color.lerp(new THREE.Color(0xffdd00), 0.1);
+                    particlesMaterial.opacity = 0.8;
+                } else {
+                    particlesMaterial.color.lerp(new THREE.Color(0x00f2ff), 0.1);
+                    particlesMaterial.opacity = Math.max(0.5, formationProgress);
+                }
             }
 
             for(let i=0; i < maxParticles; i++) {
@@ -200,12 +235,33 @@
                     velocityArray[i3+1] *= 0.985;
                     velocityArray[i3+2] *= 0.985;
                 } else {
+                    // Şəhadət barmağı ilə tozları idarə etmə (Maqnit/Girdab effekti)
+                    if (isSingleFingerActive && formationProgress < 0.25) {
+                        const dx = fingerTarget.x - positions[i3];
+                        const dy = fingerTarget.y - positions[i3+1];
+                        const dz = fingerTarget.z - positions[i3+2];
+                        const dist = Math.sqrt(dx*dx + dy*dy + dz*dz);
+                        
+                        if (dist < 12) {
+                            // Barmağa tərəf çəkmə gücü
+                            const attraction = (12 - dist) / 100;
+                            positions[i3] += dx * attraction;
+                            positions[i3+1] += dy * attraction;
+                            positions[i3+2] += dz * attraction;
+                            
+                            // Barmaq ucu ətrafında fırlanma (girdab)
+                            positions[i3] += Math.cos(Date.now() * 0.005 + i) * 0.1;
+                            positions[i3+1] += Math.sin(Date.now() * 0.005 + i) * 0.1;
+                        }
+                    }
+
                     if (i < activeCount) {
                         const lerpSpeed = 0.08 + (formationProgress * 0.06);
                         positions[i3] += (targetPosArray[i3] - positions[i3]) * lerpSpeed;
                         positions[i3+1] += (targetPosArray[i3+1] - positions[i3+1]) * lerpSpeed;
                         positions[i3+2] += (targetPosArray[i3+2] - positions[i3+2]) * lerpSpeed;
                     } else {
+                        // Təbii dalğalanma
                         positions[i3] += Math.sin(Date.now() * 0.001 + i) * 0.025;
                         positions[i3+1] += Math.cos(Date.now() * 0.001 + i) * 0.025;
                     }
@@ -214,7 +270,8 @@
             particlesGeometry.attributes.position.needsUpdate = true;
 
             if (!isExploding) {
-                particleMesh.rotation.y += 0.003 + (formationProgress * 0.015);
+                const rotSpeed = isSingleFingerActive ? 0.02 : (0.003 + (formationProgress * 0.015));
+                particleMesh.rotation.y += rotSpeed;
                 particleMesh.rotation.x = 0.45;
             }
 
@@ -240,8 +297,15 @@
             }
         }
 
+        function checkAxtarGetGesture(hand) {
+            const indexUp = hand[8].y < hand[6].y;
+            const middleUp = hand[12].y < hand[10].y;
+            const ringDown = hand[16].y > hand[14].y;
+            const pinkyDown = hand[20].y > hand[18].y;
+            return indexUp && middleUp && ringDown && pinkyDown;
+        }
+
         function onResults(results) {
-            // Kamera kətanının ölçüsünü yenilə
             handCanvas.width = window.innerWidth;
             handCanvas.height = window.innerHeight;
             handCtx.clearRect(0, 0, handCanvas.width, handCanvas.height);
@@ -250,11 +314,34 @@
 
             if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
                 for (const landmarks of results.multiHandLandmarks) {
-                    // Skeleti çək
-                    drawConnectors(handCtx, landmarks, HAND_CONNECTIONS, {color: '#00f2ff', lineWidth: 2});
+                    drawConnectors(handCtx, landmarks, HAND_CONNECTIONS, {color: isSingleFingerActive ? '#ffdd00' : '#00f2ff', lineWidth: 2});
                     drawLandmarks(handCtx, landmarks, {color: '#ffffff', lineWidth: 1, radius: 2});
 
                     const hand = landmarks;
+                    
+                    if (checkAxtarGetGesture(hand)) {
+                        axtargetUI.classList.add('active');
+                    } else {
+                        axtargetUI.classList.remove('active');
+                    }
+
+                    // Tək barmaq (Şəhadət barmağı) izləmə
+                    const indexTip = hand[8];
+                    const middleTip = hand[12];
+                    const ringTip = hand[16];
+                    const pinkyTip = hand[20];
+                    
+                    // Yalnız şəhadət barmağı tam açıq olduqda
+                    isSingleFingerActive = (indexTip.y < hand[6].y) && (middleTip.y > hand[10].y) && (ringTip.y > hand[14].y) && (pinkyTip.y > hand[18].y);
+                    
+                    if (isSingleFingerActive) {
+                        // Normalizə olunmuş koordinatları Three.js dünyasına çeviririk
+                        // MediaPipe x: 0-1 (soldan sağa), bizdə Three.js x mənfi/müsbət (sağdan sola güzgü əksi)
+                        fingerTarget.x = (0.5 - indexTip.x) * 40; 
+                        fingerTarget.y = (0.5 - indexTip.y) * 25;
+                        fingerTarget.z = 5;
+                    }
+
                     const wrist = hand[0];
                     const tips = [hand[8], hand[12], hand[16], hand[20]];
                     
@@ -287,13 +374,23 @@
                     lastAvgDist = avgDist;
 
                     const percent = Math.round(formationProgress * 100);
-                    modeText.innerText = isExploding ? "ULTRA PARTLAYIŞ" : `GÜC: %${percent}`;
-                    modeText.style.color = isExploding ? "#fff" : "var(--neon-blue)";
+                    
+                    if (isSingleFingerActive && formationProgress < 0.25) {
+                        modeText.innerText = "TOZLARLA OYUN";
+                        statusBadge.classList.add('gaming');
+                    } else {
+                        modeText.innerText = isExploding ? "ULTRA PARTLAYIŞ" : `GÜC: %${percent}`;
+                        statusBadge.classList.remove('gaming');
+                        modeText.style.color = isExploding ? "#fff" : "var(--neon-blue)";
+                    }
                 }
             } else {
                 formationProgress *= 0.92;
                 lastAvgDist = 0;
+                isSingleFingerActive = false;
                 modeText.innerText = "ƏL GÖZLƏNİLİR";
+                statusBadge.classList.remove('gaming');
+                axtargetUI.classList.remove('active');
             }
         }
 
