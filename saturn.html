@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>3D Cosmic Saturn - Hand Tracking Visualization</title>
+    <title>3D Cosmic Saturn - Peta Scale Adjusted</title>
     
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
@@ -40,7 +40,7 @@
             width: 100%; height: 100%;
             z-index: 2;
             pointer-events: none;
-            opacity: 0.4;
+            opacity: 0.25;
             transform: scaleX(-1);
         }
 
@@ -54,17 +54,17 @@
         }
 
         .status-badge {
-            background: rgba(0, 242, 255, 0.1);
-            border-left: 3px solid var(--neon-blue);
+            background: rgba(0, 242, 255, 0.05);
+            border-left: 4px solid var(--neon-blue);
             padding: 15px 30px;
-            backdrop-filter: blur(10px);
-            box-shadow: 0 0 20px rgba(0, 242, 255, 0.2);
-            transition: all 0.3s ease;
+            backdrop-filter: blur(20px);
+            box-shadow: 0 0 40px rgba(0, 242, 255, 0.15);
+            transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
         }
 
         .status-badge.gaming {
             border-left-color: var(--glow-gold);
-            box-shadow: 0 0 20px rgba(255, 221, 0, 0.3);
+            box-shadow: 0 0 40px rgba(255, 221, 0, 0.25);
             text-shadow: 0 0 20px var(--glow-gold);
         }
 
@@ -78,9 +78,9 @@
             align-items: center;
             z-index: 100;
             color: var(--neon-blue);
-            letter-spacing: 8px;
+            letter-spacing: 10px;
             font-weight: bold;
-            text-shadow: 0 0 10px var(--neon-blue);
+            text-shadow: 0 0 15px var(--neon-blue);
         }
 
         #axtarget-ui {
@@ -94,7 +94,7 @@
             z-index: 20;
             pointer-events: none;
             opacity: 0;
-            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            transition: all 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275);
             text-shadow: 0 0 20px var(--neon-blue), 0 0 40px var(--neon-blue);
             letter-spacing: 15px;
             text-transform: uppercase;
@@ -102,26 +102,26 @@
 
         #axtarget-ui.active {
             opacity: 1;
-            transform: translate(-50%, -50%) scale(1);
-            animation: glitch 0.3s infinite;
+            transform: translate(-50%, -50%) scale(1.2);
+            animation: glitch 0.2s infinite;
         }
 
         @keyframes glitch {
-            0% { text-shadow: 2px 0 red, -2px 0 blue; }
-            50% { text-shadow: -2px 0 red, 2px 0 blue; }
-            100% { text-shadow: 2px 0 red, -2px 0 blue; }
+            0% { text-shadow: 4px 0 red, -4px 0 blue; }
+            50% { text-shadow: -4px 0 red, 4px 0 blue; }
+            100% { text-shadow: 4px 0 red, -4px 0 blue; }
         }
     </style>
 </head>
 <body>
 
-    <div id="loading-screen">SİSTEM HAZIRLANIR...</div>
+    <div id="loading-screen">PETA SİSTEM YÜKLƏNİR...</div>
     <div id="axtarget-ui">AxtarGet</div>
 
     <div class="ui-overlay">
         <div id="status-badge" class="status-badge">
-            <div style="font-size: 0.8rem; opacity: 0.7; letter-spacing: 2px;">KOSMİK ENERJİ</div>
-            <div style="font-size: 1.6rem; font-weight: 300;" id="mode-text">ƏL GÖZLƏNİLİR</div>
+            <div style="font-size: 0.8rem; opacity: 0.7; letter-spacing: 3px;">PETA KOSMİK STRUKTUR</div>
+            <div style="font-size: 1.8rem; font-weight: 300;" id="mode-text">ƏL GÖZLƏNİLİR</div>
         </div>
     </div>
 
@@ -139,40 +139,40 @@
         const handCtx = handCanvas.getContext('2d');
 
         const scene = new THREE.Scene();
-        const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
-        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        const camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 5000);
+        const renderer = new THREE.WebGLRenderer({ antialias: false, alpha: true, powerPreference: "high-performance" });
         renderer.setSize(window.innerWidth, window.innerHeight);
-        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.2));
         document.getElementById('canvas-container').appendChild(renderer.domElement);
 
-        const maxParticles = 25000; 
+        // Hissəcik sayı 90,000
+        const maxParticles = 90000; 
+        const planetRadius = 28.0; 
+        const ringInnerRadius = 34.0; 
+        const ringOuterRadius = 52.0; 
+
         const particlesGeometry = new THREE.BufferGeometry();
-        
         const posArray = new Float32Array(maxParticles * 3);
         const targetPosArray = new Float32Array(maxParticles * 3);
         const velocityArray = new Float32Array(maxParticles * 3); 
 
-        const planetRadius = 5.8; 
-        const ringInnerRadius = 8.0; 
-        const ringOuterRadius = 12.5; 
-
         for(let i=0; i < maxParticles; i++) {
             const i3 = i * 3;
-            posArray[i3] = (Math.random() - 0.5) * 120;
-            posArray[i3+1] = (Math.random() - 0.5) * 100;
-            posArray[i3+2] = (Math.random() - 0.5) * 100;
+            posArray[i3] = (Math.random() - 0.5) * 600;
+            posArray[i3+1] = (Math.random() - 0.5) * 600;
+            posArray[i3+2] = (Math.random() - 0.5) * 600;
 
-            if (i < 15000) { 
-                const phi = Math.acos(-1 + (2 * i) / 15000);
-                const theta = Math.sqrt(15000 * Math.PI) * phi;
+            if (i < 55000) {
+                const phi = Math.acos(-1 + (2 * i) / 55000);
+                const theta = Math.sqrt(55000 * Math.PI) * phi;
                 targetPosArray[i3] = planetRadius * Math.cos(theta) * Math.sin(phi);
                 targetPosArray[i3+1] = planetRadius * Math.sin(theta) * Math.sin(phi);
                 targetPosArray[i3+2] = planetRadius * Math.cos(phi);
-            } else { 
+            } else {
                 const angle = Math.random() * Math.PI * 2;
                 const radius = ringInnerRadius + Math.random() * (ringOuterRadius - ringInnerRadius);
                 targetPosArray[i3] = Math.cos(angle) * radius;
-                targetPosArray[i3+1] = (Math.random() - 0.5) * 0.7; 
+                targetPosArray[i3+1] = (Math.random() - 0.5) * 2.0; 
                 targetPosArray[i3+2] = Math.sin(angle) * radius;
             }
         }
@@ -180,7 +180,7 @@
         particlesGeometry.setAttribute('position', new THREE.BufferAttribute(posArray, 3));
         
         const particlesMaterial = new THREE.PointsMaterial({
-            size: 0.16, 
+            size: 0.18,
             color: 0x00f2ff,
             transparent: true,
             opacity: 0,
@@ -192,14 +192,13 @@
         const particleMesh = new THREE.Points(particlesGeometry, particlesMaterial);
         scene.add(particleMesh);
 
-        camera.position.z = 30; 
+        // Saturn cüzi uzaqlaşdırıldı (45 -> 52)
+        camera.position.z = 52; 
 
         let formationProgress = 0; 
         let isExploding = false;
         let explosionLife = 0;
         let lastAvgDist = 0;
-        
-        // Barmaq ucu izləmə mövqeyi
         let fingerTarget = new THREE.Vector3(0, 0, 0);
         let isSingleFingerActive = false;
 
@@ -208,20 +207,16 @@
 
             const positions = particlesGeometry.attributes.position.array;
             const activeCount = Math.floor(formationProgress * maxParticles);
+            const time = Date.now() * 0.001;
             
             if (isExploding) {
                 particlesMaterial.opacity = explosionLife;
-                particlesMaterial.color.setHex(0xffffff);
-                explosionLife *= 0.95;
+                explosionLife *= 0.985;
                 if (explosionLife < 0.01) isExploding = false;
             } else {
-                if (isSingleFingerActive && formationProgress < 0.25) {
-                    particlesMaterial.color.lerp(new THREE.Color(0xffdd00), 0.1);
-                    particlesMaterial.opacity = 0.8;
-                } else {
-                    particlesMaterial.color.lerp(new THREE.Color(0x00f2ff), 0.1);
-                    particlesMaterial.opacity = Math.max(0.5, formationProgress);
-                }
+                const targetColor = isSingleFingerActive && formationProgress < 0.3 ? 0xffdd00 : 0x00f2ff;
+                particlesMaterial.color.lerp(new THREE.Color(targetColor), 0.05);
+                particlesMaterial.opacity = THREE.MathUtils.lerp(particlesMaterial.opacity, Math.max(0.45, formationProgress), 0.1);
             }
 
             for(let i=0; i < maxParticles; i++) {
@@ -231,48 +226,39 @@
                     positions[i3] += velocityArray[i3];
                     positions[i3+1] += velocityArray[i3+1];
                     positions[i3+2] += velocityArray[i3+2];
-                    velocityArray[i3] *= 0.985;
-                    velocityArray[i3+1] *= 0.985;
-                    velocityArray[i3+2] *= 0.985;
+                    velocityArray[i3] *= 0.995;
                 } else {
-                    // Şəhadət barmağı ilə tozları idarə etmə (Maqnit/Girdab effekti)
-                    if (isSingleFingerActive && formationProgress < 0.25) {
+                    if (isSingleFingerActive && formationProgress < 0.3) {
                         const dx = fingerTarget.x - positions[i3];
                         const dy = fingerTarget.y - positions[i3+1];
                         const dz = fingerTarget.z - positions[i3+2];
                         const dist = Math.sqrt(dx*dx + dy*dy + dz*dz);
                         
-                        if (dist < 12) {
-                            // Barmağa tərəf çəkmə gücü
-                            const attraction = (12 - dist) / 100;
+                        if (dist < 40) {
+                            const attraction = (40 - dist) / 250;
                             positions[i3] += dx * attraction;
                             positions[i3+1] += dy * attraction;
                             positions[i3+2] += dz * attraction;
-                            
-                            // Barmaq ucu ətrafında fırlanma (girdab)
-                            positions[i3] += Math.cos(Date.now() * 0.005 + i) * 0.1;
-                            positions[i3+1] += Math.sin(Date.now() * 0.005 + i) * 0.1;
                         }
                     }
 
                     if (i < activeCount) {
-                        const lerpSpeed = 0.08 + (formationProgress * 0.06);
+                        const lerpSpeed = 0.04 + (formationProgress * 0.04);
                         positions[i3] += (targetPosArray[i3] - positions[i3]) * lerpSpeed;
                         positions[i3+1] += (targetPosArray[i3+1] - positions[i3+1]) * lerpSpeed;
                         positions[i3+2] += (targetPosArray[i3+2] - positions[i3+2]) * lerpSpeed;
                     } else {
-                        // Təbii dalğalanma
-                        positions[i3] += Math.sin(Date.now() * 0.001 + i) * 0.025;
-                        positions[i3+1] += Math.cos(Date.now() * 0.001 + i) * 0.025;
+                        positions[i3] += Math.sin(time * 0.5 + i) * 0.08;
+                        positions[i3+1] += Math.cos(time * 0.5 + i) * 0.08;
                     }
                 }
             }
             particlesGeometry.attributes.position.needsUpdate = true;
 
             if (!isExploding) {
-                const rotSpeed = isSingleFingerActive ? 0.02 : (0.003 + (formationProgress * 0.015));
+                const rotSpeed = isSingleFingerActive ? 0.02 : 0.003;
                 particleMesh.rotation.y += rotSpeed;
-                particleMesh.rotation.x = 0.45;
+                particleMesh.rotation.x = THREE.MathUtils.lerp(particleMesh.rotation.x, 0.4, 0.02);
             }
 
             renderer.render(scene, camera);
@@ -282,15 +268,11 @@
             isExploding = true;
             explosionLife = 1.0;
             const positions = particlesGeometry.attributes.position.array;
-            
             for(let i=0; i < maxParticles; i++) {
                 const i3 = i * 3;
-                const dx = positions[i3];
-                const dy = positions[i3+1];
-                const dz = positions[i3+2];
+                const dx = positions[i3], dy = positions[i3+1], dz = positions[i3+2];
                 const mag = Math.sqrt(dx*dx + dy*dy + dz*dz) || 1;
-                
-                const push = 2.5 * force * (Math.random() + 0.4);
+                const push = 6.0 * force * (Math.random() + 0.5);
                 velocityArray[i3] = (dx / mag) * push;
                 velocityArray[i3+1] = (dy / mag) * push;
                 velocityArray[i3+2] = (dz / mag) * push;
@@ -298,95 +280,66 @@
         }
 
         function checkAxtarGetGesture(hand) {
-            const indexUp = hand[8].y < hand[6].y;
-            const middleUp = hand[12].y < hand[10].y;
-            const ringDown = hand[16].y > hand[14].y;
-            const pinkyDown = hand[20].y > hand[18].y;
-            return indexUp && middleUp && ringDown && pinkyDown;
+            return hand[8].y < hand[6].y && hand[12].y < hand[10].y && hand[16].y > hand[14].y && hand[20].y > hand[18].y;
         }
 
         function onResults(results) {
+            if (loadingScreen.style.display !== 'none') loadingScreen.style.display = 'none';
+
             handCanvas.width = window.innerWidth;
             handCanvas.height = window.innerHeight;
             handCtx.clearRect(0, 0, handCanvas.width, handCanvas.height);
 
-            if (loadingScreen.style.display !== 'none') loadingScreen.style.display = 'none';
-
             if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
-                for (const landmarks of results.multiHandLandmarks) {
-                    drawConnectors(handCtx, landmarks, HAND_CONNECTIONS, {color: isSingleFingerActive ? '#ffdd00' : '#00f2ff', lineWidth: 2});
-                    drawLandmarks(handCtx, landmarks, {color: '#ffffff', lineWidth: 1, radius: 2});
+                const hand = results.multiHandLandmarks[0];
+                drawConnectors(handCtx, hand, HAND_CONNECTIONS, {color: isSingleFingerActive ? '#ffdd00' : '#00f2ff', lineWidth: 2});
+                drawLandmarks(handCtx, hand, {color: '#ffffff', lineWidth: 1, radius: 2});
 
-                    const hand = landmarks;
-                    
-                    if (checkAxtarGetGesture(hand)) {
-                        axtargetUI.classList.add('active');
-                    } else {
-                        axtargetUI.classList.remove('active');
-                    }
+                if (checkAxtarGetGesture(hand)) axtargetUI.classList.add('active');
+                else axtargetUI.classList.remove('active');
 
-                    // Tək barmaq (Şəhadət barmağı) izləmə
-                    const indexTip = hand[8];
-                    const middleTip = hand[12];
-                    const ringTip = hand[16];
-                    const pinkyTip = hand[20];
-                    
-                    // Yalnız şəhadət barmağı tam açıq olduqda
-                    isSingleFingerActive = (indexTip.y < hand[6].y) && (middleTip.y > hand[10].y) && (ringTip.y > hand[14].y) && (pinkyTip.y > hand[18].y);
-                    
-                    if (isSingleFingerActive) {
-                        // Normalizə olunmuş koordinatları Three.js dünyasına çeviririk
-                        // MediaPipe x: 0-1 (soldan sağa), bizdə Three.js x mənfi/müsbət (sağdan sola güzgü əksi)
-                        fingerTarget.x = (0.5 - indexTip.x) * 40; 
-                        fingerTarget.y = (0.5 - indexTip.y) * 25;
-                        fingerTarget.z = 5;
-                    }
+                const indexTip = hand[8];
+                isSingleFingerActive = (indexTip.y < hand[6].y) && (hand[12].y > hand[10].y) && (hand[16].y > hand[14].y) && (hand[20].y > hand[18].y);
+                
+                if (isSingleFingerActive) {
+                    fingerTarget.x = (0.5 - indexTip.x) * 140;
+                    fingerTarget.y = (0.5 - indexTip.y) * 80;
+                    fingerTarget.z = 25;
+                }
 
-                    const wrist = hand[0];
-                    const tips = [hand[8], hand[12], hand[16], hand[20]];
-                    
-                    let distSum = 0;
-                    tips.forEach(t => {
-                        distSum += Math.sqrt(Math.pow(t.x - wrist.x, 2) + Math.pow(t.y - wrist.y, 2));
-                    });
-                    const avgDist = distSum / 4;
+                const wrist = hand[0];
+                const tips = [hand[8], hand[12], hand[16], hand[20]];
+                let distSum = 0;
+                tips.forEach(t => distSum += Math.sqrt(Math.pow(t.x - wrist.x, 2) + Math.pow(t.y - wrist.y, 2)));
+                const avgDist = distSum / 4;
 
-                    const velocity = avgDist - lastAvgDist;
-                    
-                    if (velocity > 0.02 && formationProgress > 0.5) {
-                        triggerExplosion(velocity * 70);
-                        formationProgress = 0;
-                        lastAvgDist = avgDist;
-                        return;
-                    }
-
-                    const minFistDist = 0.15; 
-                    const maxOpenDist = 0.28; 
-                    
-                    let strength = 1 - ((avgDist - minFistDist) / (maxOpenDist - minFistDist));
-                    strength = Math.max(0, Math.min(1, strength));
-
-                    if (!isExploding || strength > 0.4) {
-                        if (strength > 0.3) isExploding = false;
-                        formationProgress = strength;
-                    }
-
+                const velocity = avgDist - lastAvgDist;
+                if (velocity > 0.04 && formationProgress > 0.6) {
+                    triggerExplosion(velocity * 120);
+                    formationProgress = 0;
                     lastAvgDist = avgDist;
+                    return;
+                }
 
-                    const percent = Math.round(formationProgress * 100);
-                    
-                    if (isSingleFingerActive && formationProgress < 0.25) {
-                        modeText.innerText = "TOZLARLA OYUN";
-                        statusBadge.classList.add('gaming');
-                    } else {
-                        modeText.innerText = isExploding ? "ULTRA PARTLAYIŞ" : `GÜC: %${percent}`;
-                        statusBadge.classList.remove('gaming');
-                        modeText.style.color = isExploding ? "#fff" : "var(--neon-blue)";
-                    }
+                const minFistDist = 0.12; 
+                const maxOpenDist = 0.38; 
+                let targetStrength = 1 - ((avgDist - minFistDist) / (maxOpenDist - minFistDist));
+                targetStrength = Math.max(0, Math.min(1, targetStrength));
+
+                formationProgress = THREE.MathUtils.lerp(formationProgress, targetStrength, 0.15);
+                if (formationProgress > 0.45) isExploding = false;
+
+                lastAvgDist = avgDist;
+                
+                if (isSingleFingerActive && formationProgress < 0.3) {
+                    modeText.innerText = "PETA SİSTEM MANİPULYASİYASI";
+                    statusBadge.classList.add('gaming');
+                } else {
+                    modeText.innerText = isExploding ? "PETA NOVA PARTLAYIŞI" : `STRUKTUR GÜCÜ: %${Math.round(formationProgress * 100)}`;
+                    statusBadge.classList.remove('gaming');
                 }
             } else {
-                formationProgress *= 0.92;
-                lastAvgDist = 0;
+                formationProgress = THREE.MathUtils.lerp(formationProgress, 0, 0.05);
                 isSingleFingerActive = false;
                 modeText.innerText = "ƏL GÖZLƏNİLİR";
                 statusBadge.classList.remove('gaming');
@@ -421,7 +374,6 @@
             camera.updateProjectionMatrix();
             renderer.setSize(window.innerWidth, window.innerHeight);
         });
-
     </script>
 </body>
 </html>
