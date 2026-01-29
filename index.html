@@ -66,15 +66,20 @@
             text-shadow: 0 0 8px var(--neon-blue);
         }
 
-        /* Planet Butonu */
-        .planet-btn {
+        /* Naviqasiya Düymələri Konteyneri */
+        .nav-buttons {
             position: absolute;
             top: 20px;
             right: 20px;
             z-index: 20;
-            background: rgba(128, 0, 255, 0.1);
-            border: 2px solid var(--neon-purple);
-            color: var(--neon-purple);
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            pointer-events: auto;
+        }
+
+        .planet-btn, .kainat-btn {
+            background: rgba(0, 0, 0, 0.5);
             padding: 12px 25px;
             cursor: pointer;
             font-family: inherit;
@@ -82,18 +87,39 @@
             text-transform: uppercase;
             border-radius: 8px;
             transition: all 0.3s ease;
-            box-shadow: 0 0 15px rgba(255, 0, 234, 0.3);
-            pointer-events: auto;
             text-decoration: none;
             display: flex;
             align-items: center;
+            justify-content: center;
             gap: 10px;
+            min-width: 160px;
+        }
+
+        /* Planet Butonu */
+        .planet-btn {
+            border: 2px solid var(--neon-purple);
+            color: var(--neon-purple);
+            box-shadow: 0 0 15px rgba(255, 0, 234, 0.3);
         }
 
         .planet-btn:hover {
             background: var(--neon-purple);
             color: #fff;
             box-shadow: 0 0 30px var(--neon-purple);
+            transform: translateY(-2px);
+        }
+
+        /* Kainat Butonu */
+        .kainat-btn {
+            border: 2px solid var(--neon-green);
+            color: var(--neon-green);
+            box-shadow: 0 0 15px rgba(57, 255, 20, 0.3);
+        }
+
+        .kainat-btn:hover {
+            background: var(--neon-green);
+            color: #000;
+            box-shadow: 0 0 30px var(--neon-green);
             transform: translateY(-2px);
         }
 
@@ -198,8 +224,11 @@
         <p style="margin-top: 20px; letter-spacing: 3px;">YÜKLƏNİR...</p>
     </div>
 
-    <!-- Planet Butonu -->
-    <a href="saturn.html" class="planet-btn">🪐 PLANET</a>
+    <!-- Naviqasiya Düymələri -->
+    <div class="nav-buttons">
+        <a href="saturn.html" class="planet-btn">🪐 PLANET</a>
+        <a href="kainat.html" class="kainat-btn">🌌 KAİNAT</a>
+    </div>
 
     <!-- Rəng Seçimi -->
     <div class="color-palette">
@@ -476,7 +505,10 @@
             canvasCtx.strokeStyle = 'rgba(0, 242, 255, 0.4)';
             canvasCtx.lineWidth = 2;
             
-            HAND_CONNECTIONS.forEach(([start, end]) => {
+            // MediaPipe HAND_CONNECTIONS variable is usually available globally
+            const connections = [[0,1],[1,2],[2,3],[3,4],[0,5],[5,6],[6,7],[7,8],[5,9],[9,10],[10,11],[11,12],[9,13],[13,14],[14,15],[15,16],[13,17],[17,18],[18,19],[19,20],[0,17]];
+            
+            connections.forEach(([start, end]) => {
                 const p1 = landmarks[start];
                 const p2 = landmarks[end];
                 canvasCtx.beginPath();
