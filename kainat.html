@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="az">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Quantum Galaxy - Proportional Control</title>
+    <style>
+        body { margin: 0; overflow: hidden; background: #000; font-family: 'Segoe UI', Tahoma, sans-serif; }
+        canvas { display: block; }
+        
+        #ui-container {
+            position: absolute;
+            top: 25px;
+            left: 25px;
+            color: #00f2ff;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            pointer-events: none;
+            z-index: 100;
+        }
+
+        .hud-line { display: flex; align-items: center; margin-bottom: 8px; }
+        .status-dot {
+            width: 8px; height: 8px; background: #00f2ff; border-radius: 50%;
+            margin-right: 10px; box-shadow: 0 0 10px #00f2ff; animation: pulse 1.5s infinite;
+        }
+
+        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.3; } 100% { opacity: 1; } }
+        #status-text { font-size: 12px; font-weight: 300; opacity: 0.8; }
+        #action-text { font-size: 24px; font-weight: 800; color: #fff; text-shadow: 0 0 15px rgba(0,242,255,0.8); }
+
+        #video-element { position: absolute; visibility: hidden; pointer-events: none; }
+        
+        #loading-screen {
+            position: fixed; inset: 0; background: #000;
+            display: flex; justify-content: center; align-items: center;
+            color: white; z-index: 1000; transition: opacity 1s ease;
+            font-size: 14px; letter-spacing: 4px;
+        }
+    </style>
+</head>
+<body>
+
+<div id="loading-screen">KVANT MATRİSİ YÜKLƏNİR...</div>
+
+<div id="ui-container">
+    <div class="hud-line">
+        <div class="status-dot"></div>
+        <div id="status-text">SİSTEM ANALİZİ: AKTİV</div>
+    </div>
+    <div id="action-text">ƏL GÖZLƏNİR</div>
+</div>
+
+<video id="video-element" playsinline></video>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/0.160.0/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+
+<script>
+/**
+ * Professional 3D Galaxy with Quantum Density Control
+ */
+
+let scene, camera, renderer, particles, starMaterial;
+let hands, cameraPipe;
+let handGroup, joints = [], bones = [];
+
+const particleCount = 145000;
+let positions, originalPositions, targetPositions, colors, sizes, velocities;
+let clock = new THREE.Clock();
+
+// Global State
+let fistIntensity = 0; 
+let isHandPresent = false;
+let isFistActive = false;
+let interactionMode = 'FLOAT'; 
+let explosionTime = 0;
+
+const COLORS = {
+    core: new THREE.Color(0xffaa55),
+    planet: [0x4488ff, 0xff4444, 0x44ff88, 0xffaa44, 0xaa44ff, 0x44ffff, 0xbbbbbb, 0xffffff, 0x8844ff],
+    dust: new THREE.Color(0x112288),
+    glow: new THREE.Color(0x00f2ff), // Əl görünəndə bu rəngə doğru parlayacaq
+    joint: 0x00f2ff,
+    bone: 0x004466
+};
+
+async function init() {
+    scene = new THREE.Scene();
+    
+    camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 1, 5000);
+    camera.position.set(500, 500, 750);
+    camera.lookAt(0, 0, 0);
+
+    renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    document.body.appendChild(renderer.domElement);
+
+    handGroup = new THREE.Group();
+    scene.add(handGroup);
+    createSkeletonObjects();
+
+    initParticles();
+    initMediaPipe();
+
+    window.addEventListener('resize', onWindowResize);
+    animate();
+    
+    document.getElementById('loading-screen').style.opacity = '0';
+    setTimeout(() => document.getElementById('loading-screen').remove(), 1000);
+}
+
+function createSkeletonObjects() {
+    const jointGeo = new THREE.SphereGeometry(4.5, 12, 12);
+    const jointMat = new THREE.MeshBasicMaterial({ color: COLORS.joint, transparent: true, opacity: 0.9 });
+
+    for (let i = 0; i < 21; i++) {
+        const mesh = new THREE.Mesh(jointGeo, jointMat);
+        mesh.visible = false;
+        joints.push(mesh);
+        handGroup.add(mesh);
+    }
+
+    const boneMat = new THREE.LineBasicMaterial({ color: COLORS.bone, transparent: true, opacity: 0.8 });
+    for(let i = 0; i < 21; i++) {
+        const lineGeo = new THREE.BufferGeometry();
+        lineGeo.setAttribute('position', new THREE.Float32BufferAttribute([0,0,0,0,0,0], 3));
+        const line = new THREE.Line(lineGeo, boneMat);
+        line.visible = false;
+        bones.push(line);
+        handGroup.add(line);
+    }
+}
+
+function initParticles() {
+    const geometry = new THREE.BufferGeometry();
+    positions = new Float32Array(particleCount * 3);
+    originalPositions = new Float32Array(particleCount * 3);
+    targetPositions = new Float32Array(particleCount * 3);
+    colors = new Float32Array(particleCount * 3);
+    sizes = new Float32Array(particleCount);
+    velocities = new Float32Array(particleCount * 3);
+
+    for (let i = 0; i < particleCount; i++) {
+        const r = 500 + Math.random() * 1200;
+        const theta = Math.random() * Math.PI * 2;
+        const phi = Math.acos(2 * Math.random() - 1);
+
+        positions[i*3] = r * Math.sin(phi) * Math.cos(theta);
+        positions[i*3+1] = r * Math.sin(phi) * Math.sin(theta);
+        positions[i*3+2] = r * Math.cos(phi);
+
+        originalPositions[i*3] = positions[i*3];
+        originalPositions[i*3+1] = positions[i*3+1];
+        originalPositions[i*3+2] = positions[i*3+2];
+
+        velocities[i*3] = (Math.random() - 0.5) * 0.5;
+        velocities[i*3+1] = (Math.random() - 0.5) * 0.5;
+        velocities[i*3+2] = (Math.random() - 0.5) * 0.5;
+
+        colors[i*3] = COLORS.dust.r; colors[i*3+1] = COLORS.dust.g; colors[i*3+2] = COLORS.dust.b;
+        sizes[i] = Math.random() * 2.5 + 0.5;
+    }
+
+    calculateGalaxyTargets();
+
+    geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+    geometry.setAttribute('size', new THREE.BufferAttribute(sizes, 1));
+
+    starMaterial = new THREE.ShaderMaterial({
+        uniforms: { 
+            time: { value: 0 }, 
+            intensity: { value: 0 },
+            glowLevel: { value: 0 } // Əl varlığı üçün xüsusi uniform
+        },
+        vertexShader: `
+            attribute float size;
+            attribute vec3 color;
+            varying vec3 vColor;
+            uniform float time;
+            uniform float intensity;
+            uniform float glowLevel;
+            void main() {
+                vColor = color;
+                vec3 pos = position;
+                float vib = intensity * 2.0;
+                pos.x += sin(time * 5.0 + position.y) * vib;
+                pos.y += cos(time * 5.0 + position.z) * vib;
+
+                vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
+                // Parlaqlıq artdıqca ölçü də bir az artır
+                float pSize = size * (450.0 / -mvPosition.z);
+                gl_PointSize = pSize * (1.0 + intensity * 1.5 + glowLevel * 0.5);
+                gl_Position = projectionMatrix * mvPosition;
+            }
+        `,
+        fragmentShader: `
+            varying vec3 vColor;
+            uniform float glowLevel;
+            void main() {
+                float d = distance(gl_PointCoord, vec2(0.5));
+                if (d > 0.5) discard;
+                
+                // Əl olanda rəngi ağa və ya parlaq maviye yaxınlaşdırırıq
+                vec3 finalColor = mix(vColor, vec3(1.0, 1.0, 1.0), glowLevel * 0.4);
+                float alpha = 1.0 - pow(d * 2.0, 1.2);
+                
+                // Əl olanda alpha (şəffaflıq) da bir az artır ki, "parlasın"
+                gl_FragColor = vec4(finalColor, alpha * (0.8 + glowLevel * 0.4));
+            }
+        `,
+        transparent: true, blending: THREE.AdditiveBlending, depthWrite: false
+    });
+
+    particles = new THREE.Points(geometry, starMaterial);
+    scene.add(particles);
+}
+
+function initMediaPipe() {
+    const video = document.getElementById('video-element');
+    hands = new Hands({ locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}` });
+    hands.setOptions({ maxNumHands: 1, modelComplexity: 1, minDetectionConfidence: 0.8, minTrackingConfidence: 0.8 });
+    hands.onResults(onHandResults);
+
+    cameraPipe = new Camera(video, {
+        onFrame: async () => { await hands.send({ image: video }); },
+        width: 640, height: 480
+    });
+    cameraPipe.start();
+}
+
+function onHandResults(results) {
+    const actionText = document.getElementById('action-text');
+    
+    if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+        isHandPresent = true; // ƏL GÖRÜNDÜ
+        const lm = results.multiHandLandmarks[0];
+        updateSkeleton(lm);
+        
+        const palm = lm[0];
+        const tips = [lm[8], lm[12], lm[16], lm[20]];
+        const dist = (p1, p2) => Math.sqrt((p1.x-p2.x)**2 + (p1.y-p2.y)**2 + (p1.z-p2.z)**2);
+        const avgDist = tips.reduce((acc, tip) => acc + dist(tip, palm), 0) / 4;
+        
+        let rawIntensity = Math.max(0, Math.min(1, (0.33 - avgDist) / 0.21));
+        fistIntensity = Math.pow(rawIntensity, 1.5); 
+        
+        starMaterial.uniforms.intensity.value = fistIntensity;
+
+        if (fistIntensity > 0.05) {
+            interactionMode = 'FORMING';
+            actionText.innerText = "SIXILMA: " + Math.round(fistIntensity * 100) + "%";
+            isFistActive = true;
+        } else {
+            if (isFistActive) {
+                interactionMode = 'EXPLODING';
+                actionText.innerText = "KOSMİK PARTLAYIŞ";
+                explosionTime = 0;
+                triggerExplosion();
+                saveCurrentAsOriginal();
+            }
+            isFistActive = false;
+        }
+    } else {
+        // ƏL İTDİ
+        isHandPresent = false;
+        hideSkeleton();
+        fistIntensity = 0;
+        starMaterial.uniforms.intensity.value = 0;
+        if (interactionMode !== 'EXPLODING') {
+            interactionMode = 'FLOAT';
+            actionText.innerText = "ƏL AXTARILIR";
+        }
+    }
+}
+
+function updateSkeleton(landmarks) {
+    landmarks.forEach((pt, i) => {
+        const x = (0.5 - pt.x) * 1350; 
+        const y = (0.5 - pt.y) * 1000;
+        const z = -pt.z * 1200; 
+
+        joints[i].position.set(x, y, z);
+        joints[i].visible = true;
+    });
+
+    const pairs = [
+        [0,1],[1,2],[2,3],[3,4], [0,5],[5,6],[6,7],[7,8],
+        [5,9],[9,10],[10,11],[11,12], [9,13],[13,14],[14,15],[15,16],
+        [13,17],[17,18],[18,19],[19,20],[0,17]
+    ];
+
+    pairs.forEach((pair, i) => {
+        if (bones[i]) {
+            const p1 = joints[pair[0]].position;
+            const p2 = joints[pair[1]].position;
+            const posAttr = bones[i].geometry.attributes.position;
+            posAttr.setXYZ(0, p1.x, p1.y, p1.z);
+            posAttr.setXYZ(1, p2.x, p2.y, p2.z);
+            posAttr.needsUpdate = true;
+            bones[i].visible = true;
+        }
+    });
+}
+
+function hideSkeleton() {
+    joints.forEach(j => j.visible = false);
+    bones.forEach(b => b.visible = false);
+}
+
+function calculateGalaxyTargets() {
+    let idx = 0;
+    const sunC = 25000;
+    for (let i = 0; i < sunC; i++) {
+        const r = Math.pow(Math.random(), 2) * 45;
+        const theta = Math.random() * Math.PI * 2;
+        const phi = Math.acos(2 * Math.random() - 1);
+        targetPositions[idx*3] = r * Math.sin(phi) * Math.cos(theta);
+        targetPositions[idx*3+1] = r * Math.sin(phi) * Math.sin(theta);
+        targetPositions[idx*3+2] = r * Math.cos(phi);
+        idx++;
+    }
+
+    const pNum = 9;
+    const perP = Math.floor((particleCount - sunC) / (pNum + 1));
+    for (let p = 0; p < pNum; p++) {
+        const orbR = 140 + p * 55;
+        for (let i = 0; i < perP; i++) {
+            const r = Math.random() * 15;
+            const ang = Math.random() * Math.PI * 2;
+            const ox = Math.cos(ang) * orbR;
+            const oz = Math.sin(ang) * orbR;
+            const theta = Math.random() * Math.PI * 2;
+            const phi = Math.acos(2 * Math.random() - 1);
+            targetPositions[idx*3] = ox + r * Math.sin(phi) * Math.cos(theta);
+            targetPositions[idx*3+1] = (r * Math.sin(phi) * Math.sin(theta)) * 0.3; 
+            targetPositions[idx*3+2] = oz + r * Math.cos(phi);
+            idx++;
+        }
+    }
+    
+    while (idx < particleCount) {
+        const dist = 1800 + Math.random() * 1000;
+        const theta = Math.random() * Math.PI * 2;
+        targetPositions[idx*3] = Math.cos(theta) * dist;
+        targetPositions[idx*3+1] = (Math.random() - 0.5) * 800;
+        targetPositions[idx*3+2] = Math.sin(theta) * dist;
+        idx++;
+    }
+}
+
+function saveCurrentAsOriginal() {
+    const pPos = particles.geometry.attributes.position.array;
+    for (let i = 0; i < pPos.length; i++) {
+        originalPositions[i] = pPos[i];
+    }
+}
+
+function triggerExplosion() {
+    const pPos = particles.geometry.attributes.position.array;
+    for (let i = 0; i < particleCount; i++) {
+        const x = pPos[i*3], y = pPos[i*3+1], z = pPos[i*3+2];
+        const d = Math.sqrt(x*x + y*y + z*z) + 1;
+        const force = 35.0 / (d * 0.02 + 1);
+        velocities[i*3] = (x/d) * force * (5 + Math.random()*8);
+        velocities[i*3+1] = (y/d) * force * (5 + Math.random()*8);
+        velocities[i*3+2] = (z/d) * force * (5 + Math.random()*8);
+    }
+}
+
+function animate() {
+    requestAnimationFrame(animate);
+    const dt = clock.getDelta();
+    const t = clock.elapsedTime;
+    starMaterial.uniforms.time.value = t;
+
+    // Glow effekti üçün hamar keçid (Lerp)
+    const targetGlow = isHandPresent ? 1.0 : 0.0;
+    starMaterial.uniforms.glowLevel.value += (targetGlow - starMaterial.uniforms.glowLevel.value) * 0.1;
+
+    const pPos = particles.geometry.attributes.position.array;
+    const pCol = particles.geometry.attributes.color.array;
+
+    if (interactionMode === 'FLOAT') {
+        for (let i = 0; i < particleCount; i++) {
+            const ix = i * 3;
+            pPos[ix] += velocities[ix];
+            pPos[ix+1] += velocities[ix+1];
+            pPos[ix+2] += velocities[ix+2];
+            
+            // Əl kamerada olanda rəngləri parlayan maviye (glow) doğru dəyişirik
+            const glow = starMaterial.uniforms.glowLevel.value;
+            const r = COLORS.dust.r + (0.5 - COLORS.dust.r) * glow;
+            const g = COLORS.dust.g + (0.9 - COLORS.dust.g) * glow;
+            const b = COLORS.dust.b + (1.0 - COLORS.dust.b) * glow;
+            pCol[ix] = r; pCol[ix+1] = g; pCol[ix+2] = b;
+
+            if (Math.abs(pPos[ix]) > 2500) velocities[ix] *= -1;
+            if (Math.abs(pPos[ix+1]) > 2500) velocities[ix+1] *= -1;
+            if (Math.abs(pPos[ix+2]) > 2500) velocities[ix+2] *= -1;
+        }
+        particles.geometry.attributes.color.needsUpdate = true;
+    } else if (interactionMode === 'FORMING') {
+        for (let i = 0; i < particleCount; i++) {
+            const ix = i * 3;
+            const targetX = originalPositions[ix] + (targetPositions[ix] - originalPositions[ix]) * fistIntensity;
+            const targetY = originalPositions[ix+1] + (targetPositions[ix+1] - originalPositions[ix+1]) * fistIntensity;
+            const targetZ = originalPositions[ix+2] + (targetPositions[ix+2] - originalPositions[ix+2]) * fistIntensity;
+            
+            pPos[ix] += (targetX - pPos[ix]) * 0.15;
+            pPos[ix+1] += (targetY - pPos[ix+1]) * 0.15;
+            pPos[ix+2] += (targetZ - pPos[ix+2]) * 0.15;
+
+            // SIXILMA zamanı rəng keçidi (Narıncı nüvə)
+            const r = COLORS.dust.r + (COLORS.core.r - COLORS.dust.r) * fistIntensity;
+            const g = COLORS.dust.g + (COLORS.core.g - COLORS.dust.g) * fistIntensity;
+            const b = COLORS.dust.b + (COLORS.core.b - COLORS.dust.b) * fistIntensity;
+            pCol[ix] = r; pCol[ix+1] = g; pCol[ix+2] = b;
+        }
+        particles.rotation.y += dt * (0.1 + fistIntensity * 1.2); 
+        particles.geometry.attributes.color.needsUpdate = true;
+    } else if (interactionMode === 'EXPLODING') {
+        explosionTime += dt;
+        for (let i = 0; i < particleCount; i++) {
+            const ix = i * 3;
+            pPos[ix] += velocities[ix];
+            pPos[ix+1] += velocities[ix+1];
+            pPos[ix+2] += velocities[ix+2];
+            velocities[ix] *= 0.94; velocities[ix+1] *= 0.94; velocities[ix+2] *= 0.94;
+        }
+        
+        if (explosionTime < 0.8) {
+            camera.position.x = 500 + (Math.random()-0.5)*40;
+            camera.position.y = 500 + (Math.random()-0.5)*40;
+        } else {
+            camera.position.set(500, 500, 750);
+            if (explosionTime > 5.0) interactionMode = 'FLOAT';
+        }
+    }
+
+    camera.lookAt(0,0,0);
+    particles.geometry.attributes.position.needsUpdate = true;
+    renderer.render(scene, camera);
+}
+
+function onWindowResize() {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+}
+
+window.onload = init;
+</script>
+</body>
+</html>
