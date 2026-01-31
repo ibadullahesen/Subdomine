@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="az">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Axtarget - 3D Particle & Bone Gestures</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #000; font-family: 'Inter', sans-serif; }
+        canvas { display: block; }
+        #ui-layer {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            color: white;
+            pointer-events: none;
+            z-index: 10;
+        }
+        .status-badge {
+            background: rgba(0, 0, 0, 0.7);
+            padding: 8px 15px;
+            border-radius: 20px;
+            border: 1px solid rgba(59, 130, 246, 0.3);
+            backdrop-filter: blur(8px);
+        }
+        #loading-screen {
+            position: fixed;
+            inset: 0;
+            background: black;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+            color: white;
+        }
+        #input_video {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="loading-screen">
+        <div class="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-blue-500 mb-4"></div>
+        <p class="text-xl font-light italic">Axtarget 3D Sistem yüklənir...</p>
+    </div>
+
+    <div id="ui-layer">
+        <h1 class="text-3xl font-black mb-2 tracking-tighter text-blue-500">AXTARGET</h1>
+        <div class="status-badge inline-block">
+            Status: <span id="gesture-status" class="font-mono text-blue-400 text-xl">Sistem gözlənilir...</span>
+        </div>
+    </div>
+
+    <video id="input_video"></video>
+
+    <script>
+        let scene, camera, renderer, particleSystem;
+        let targetPositions = [];
+        const PARTICLE_COUNT = 15000; 
+        let currentTextIndex = -1;
+        let isFist = false;
+        let handPos = new THREE.Vector3(0, 0, 0);
+        let prevHandPos = new THREE.Vector3(0, 0, 0);
+        let handVelocity = new THREE.Vector3(0, 0, 0);
+
+        let handSkeletonGroup;
+        let handJoints = [];
+        let handLines = [];
+
+        // Yenilənmiş Mesajlar
+        const messages = [
+            "Takipçi axtarırsan?",                           // 1 barmaq
+            "100 - 0.16 AZN",                                 // 2 barmaq
+            "Bəyəni axtarırsan?",                            // 3 barmaq
+            "100 - 0.02 AZN",                                 // 4 barmaq
+            "AxtarGet.xyz Takipçi xidməti ilə tanış olun"    // 5 barmaq
+        ];
+
+        const textCanvas = document.createElement('canvas');
+        const tCtx = textCanvas.getContext('2d');
+        textCanvas.width = 1024; 
+        textCanvas.height = 512;
+
+        function initThree() {
+            scene = new THREE.Scene();
+            camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.z = 8;
+
+            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            document.body.appendChild(renderer.domElement);
+
+            const geometry = new THREE.BufferGeometry();
+            const positions = new Float32Array(PARTICLE_COUNT * 3);
+            const colors = new Float32Array(PARTICLE_COUNT * 3);
+            const initialPos = new Float32Array(PARTICLE_COUNT * 3);
+
+            for (let i = 0; i < PARTICLE_COUNT; i++) {
+                const x = (Math.random() - 0.5) * 20;
+                const y = (Math.random() - 0.5) * 20;
+                const z = (Math.random() - 0.5) * 10;
+                
+                positions[i * 3] = x;
+                positions[i * 3 + 1] = y;
+                positions[i * 3 + 2] = z;
+
+                initialPos[i * 3] = x;
+                initialPos[i * 3 + 1] = y;
+                initialPos[i * 3 + 2] = z;
+
+                colors[i * 3] = 0.3; colors[i * 3 + 1] = 0.6; colors[i * 3 + 2] = 1.0; 
+            }
+
+            geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+            geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+            geometry.setAttribute('initialPos', new THREE.BufferAttribute(initialPos, 3));
+
+            const material = new THREE.PointsMaterial({
+                size: 0.035,
+                vertexColors: true,
+                transparent: true,
+                opacity: 0.8,
+                blending: THREE.AdditiveBlending
+            });
+
+            particleSystem = new THREE.Points(geometry, material);
+            scene.add(particleSystem);
+
+            handSkeletonGroup = new THREE.Group();
+            scene.add(handSkeletonGroup);
+
+            for (let i = 0; i < 21; i++) {
+                const sphereGeom = new THREE.SphereGeometry(0.06, 8, 8);
+                const sphereMat = new THREE.MeshBasicMaterial({ color: 0x3b82f6 });
+                const sphere = new THREE.Mesh(sphereGeom, sphereMat);
+                sphere.visible = false;
+                handJoints.push(sphere);
+                handSkeletonGroup.add(sphere);
+            }
+
+            const connections = [
+                [0,1,2,3,4], [0,5,6,7,8], [5,9,10,11,12], 
+                [9,13,14,15,16], [13,17,18,19,20], [0,17]
+            ];
+            
+            connections.forEach(path => {
+                const points = [];
+                for(let i=0; i<path.length; i++) points.push(new THREE.Vector3());
+                const lineGeom = new THREE.BufferGeometry().setFromPoints(points);
+                const lineMat = new THREE.LineBasicMaterial({ color: 0x60a5fa, transparent: true, opacity: 0.5 });
+                const line = new THREE.Line(lineGeom, lineMat);
+                line.visible = false;
+                handLines.push({ line, path });
+                handSkeletonGroup.add(line);
+            });
+
+            window.addEventListener('resize', onWindowResize);
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        function wrapText(context, text, x, y, maxWidth, lineHeight) {
+            const words = text.split(' ');
+            let line = '';
+            let currentY = y;
+            for(let n = 0; n < words.length; n++) {
+                let testLine = line + words[n] + ' ';
+                let metrics = context.measureText(testLine);
+                if (metrics.width > maxWidth && n > 0) {
+                    context.fillText(line, x, currentY);
+                    line = words[n] + ' ';
+                    currentY += lineHeight;
+                } else {
+                    line = testLine;
+                }
+            }
+            context.fillText(line, x, currentY);
+        }
+
+        function createTextTarget(text) {
+            tCtx.clearRect(0, 0, textCanvas.width, textCanvas.height);
+            tCtx.fillStyle = 'white';
+            tCtx.font = 'bold 70px sans-serif'; 
+            tCtx.textAlign = 'center';
+            tCtx.textBaseline = 'middle';
+            wrapText(tCtx, text, textCanvas.width / 2, textCanvas.height / 2, 900, 95);
+
+            const imageData = tCtx.getImageData(0, 0, textCanvas.width, textCanvas.height);
+            const points = [];
+            for (let y = 0; y < textCanvas.height; y += 3) { 
+                for (let x = 0; x < textCanvas.width; x += 3) {
+                    if (imageData.data[(y * textCanvas.width + x) * 4 + 3] > 120) {
+                        points.push({
+                            x: (x - textCanvas.width / 2) * 0.018,
+                            y: -(y - textCanvas.height / 2) * 0.018
+                        });
+                    }
+                }
+            }
+
+            targetPositions = [];
+            for (let i = 0; i < PARTICLE_COUNT; i++) {
+                if (points.length > 0) {
+                    const p = points[i % points.length];
+                    targetPositions.push(p.x, p.y, (Math.random() - 0.5) * 0.1);
+                } else {
+                    targetPositions.push((Math.random() - 0.5) * 15, (Math.random() - 0.5) * 15, 0);
+                }
+            }
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            const positions = particleSystem.geometry.attributes.position.array;
+            const colors = particleSystem.geometry.attributes.color.array;
+            const initialPositions = particleSystem.geometry.attributes.initialPos.array;
+            const time = Date.now() * 0.001;
+
+            handVelocity.subVectors(handPos, prevHandPos);
+            
+            for (let i = 0; i < PARTICLE_COUNT; i++) {
+                const i3 = i * 3;
+                const pVec = new THREE.Vector3(positions[i3], positions[i3+1], positions[i3+2]);
+                
+                if (isFist) {
+                    const dist = pVec.distanceTo(handPos);
+                    const repulsionRadius = 3.0;
+                    
+                    if (dist < repulsionRadius) {
+                        const dir = new THREE.Vector3().subVectors(pVec, handPos).normalize();
+                        const force = (repulsionRadius - dist) / repulsionRadius;
+                        
+                        positions[i3] += dir.x * force * 0.2;
+                        positions[i3+1] += dir.y * force * 0.2;
+                        positions[i3+2] += dir.z * force * 0.2;
+
+                        colors[i3] += (1.0 - colors[i3]) * 0.1;
+                        colors[i3+1] += (0.84 - colors[i3+1]) * 0.1;
+                        colors[i3+2] += (0.0 - colors[i3+2]) * 0.1;
+                    } else {
+                        colors[i3] += (0.3 - colors[i3]) * 0.05;
+                        colors[i3+1] += (0.6 - colors[i3+1]) * 0.05;
+                        colors[i3+2] += (1.0 - colors[i3+2]) * 0.05;
+                    }
+                    
+                    positions[i3] += Math.sin(time + i) * 0.01;
+                    positions[i3+1] += Math.cos(time + i) * 0.01;
+
+                } else if (targetPositions.length > 0) {
+                    positions[i3] += (targetPositions[i3] - positions[i3]) * 0.12;
+                    positions[i3+1] += (targetPositions[i3+1] - positions[i3+1]) * 0.12;
+                    positions[i3+2] += (targetPositions[i3+2] - positions[i3+2]) * 0.12;
+                    
+                    colors[i3] += (0.3 - colors[i3]) * 0.1;
+                    colors[i3+1] += (0.6 - colors[i3+1]) * 0.1;
+                    colors[i3+2] += (1.0 - colors[i3+2]) * 0.1;
+                } else {
+                    positions[i3] += (initialPositions[i3] - positions[i3]) * 0.02;
+                    positions[i3+1] += (initialPositions[i3+1] - positions[i3+1]) * 0.02;
+                    positions[i3+2] += (initialPositions[i3+2] - positions[i3+2]) * 0.02;
+                    
+                    colors[i3] += (0.3 - colors[i3]) * 0.05;
+                    colors[i3+1] += (0.6 - colors[i3+1]) * 0.05;
+                    colors[i3+2] += (1.0 - colors[i3+2]) * 0.05;
+                }
+            }
+
+            prevHandPos.copy(handPos);
+            particleSystem.geometry.attributes.position.needsUpdate = true;
+            particleSystem.geometry.attributes.color.needsUpdate = true;
+            renderer.render(scene, camera);
+        }
+
+        const videoElement = document.getElementById('input_video');
+        const statusLabel = document.getElementById('gesture-status');
+
+        function updateSkeleton(landmarks) {
+            landmarks.forEach((lm, i) => {
+                const x = -(lm.x - 0.5) * 16;
+                const y = -(lm.y - 0.5) * 12;
+                const z = -lm.z * 10;
+                handJoints[i].position.set(x, y, z);
+                handJoints[i].visible = true;
+            });
+
+            handLines.forEach(obj => {
+                const posArr = [];
+                obj.path.forEach(idx => {
+                    posArr.push(handJoints[idx].position.clone());
+                });
+                obj.line.geometry.setFromPoints(posArr);
+                obj.line.visible = true;
+            });
+        }
+
+        function hideSkeleton() {
+            handJoints.forEach(j => j.visible = false);
+            handLines.forEach(l => l.line.visible = false);
+        }
+
+        function onResults(results) {
+            let count = 0;
+            let handDetected = false;
+
+            if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+                handDetected = true;
+                const landmarks = results.multiHandLandmarks[0];
+                updateSkeleton(landmarks);
+
+                handPos.set(
+                    -(landmarks[9].x - 0.5) * 16,
+                    -(landmarks[9].y - 0.5) * 12,
+                    -landmarks[9].z * 10
+                );
+
+                const tipIds = [4, 8, 12, 16, 20];
+                const isRightHand = results.multiHandedness[0].label === 'Right';
+                
+                if (isRightHand) {
+                    if (landmarks[tipIds[0]].x < landmarks[tipIds[0] - 1].x) count++;
+                } else {
+                    if (landmarks[tipIds[0]].x > landmarks[tipIds[0] - 1].x) count++;
+                }
+                for (let i = 1; i < 5; i++) {
+                    if (landmarks[tipIds[i]].y < landmarks[tipIds[i] - 2].y) count++;
+                }
+            } else {
+                hideSkeleton();
+            }
+
+            if (handDetected) {
+                if (count === 0) {
+                    isFist = true;
+                    currentTextIndex = -1;
+                    statusLabel.innerText = "Yumruq: Zərrəciklər qızılı rəngdə qaçır";
+                    statusLabel.style.color = "#fbbf24";
+                } else {
+                    isFist = false;
+                    const msgIndex = (count >= 1 && count <= 5) ? count - 1 : -1;
+                    statusLabel.innerText = count + " Barmaq Aktividir";
+                    statusLabel.style.color = "#60a5fa";
+                    if (msgIndex !== -1 && currentTextIndex !== msgIndex) {
+                        currentTextIndex = msgIndex;
+                        createTextTarget(messages[msgIndex]);
+                    }
+                }
+            } else {
+                isFist = false;
+                if (currentTextIndex !== -2) {
+                    currentTextIndex = -2;
+                    targetPositions = [];
+                    statusLabel.innerText = "Əl gözlənilir...";
+                    statusLabel.style.color = "#94a3b8";
+                }
+            }
+        }
+
+        const hands = new Hands({
+            locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+        });
+
+        hands.setOptions({
+            maxNumHands: 1,
+            modelComplexity: 1,
+            minDetectionConfidence: 0.7,
+            minTrackingConfidence: 0.7
+        });
+        hands.onResults(onResults);
+
+        const cameraFeed = new Camera(videoElement, {
+            onFrame: async () => { await hands.send({ image: videoElement }); },
+            width: 640, height: 480
+        });
+
+        window.onload = () => {
+            initThree();
+            animate();
+            cameraFeed.start().then(() => {
+                document.getElementById('loading-screen').style.display = 'none';
+            });
+        };
+    </script>
+</body>
+</html>
+
+
