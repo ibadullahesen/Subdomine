@@ -77,6 +77,8 @@
         let currentTextIndex = -1;
         let isFist = false;
         let handPos = { x: 0, y: 0 };
+        let prevHandPos = { x: 0, y: 0 };
+        let handVelocity = { x: 0, y: 0 };
 
         const messages = [
             "Təklikdən sıxılmısan?",       
@@ -111,7 +113,7 @@
                 positions[i * 3 + 2] = (Math.random() - 0.5) * 10;
 
                 colors[i * 3] = 0.3; 
-                colors[i * 3 + 1] = 0.6; // Burada ':' xətası düzəldildi
+                colors[i * 3 + 1] = 0.6;
                 colors[i * 3 + 2] = 1.0; 
             }
 
@@ -119,7 +121,7 @@
             geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
 
             const material = new THREE.PointsMaterial({
-                size: 0.03,
+                size: 0.035,
                 vertexColors: true,
                 transparent: true,
                 opacity: 0.8,
@@ -166,8 +168,8 @@
 
             const imageData = tCtx.getImageData(0, 0, textCanvas.width, textCanvas.height);
             const points = [];
-            for (let y = 0; y < textCanvas.height; y += 2) { 
-                for (let x = 0; x < textCanvas.width; x += 2) {
+            for (let y = 0; y < textCanvas.height; y += 3) { 
+                for (let x = 0; x < textCanvas.width; x += 3) {
                     if (imageData.data[(y * textCanvas.width + x) * 4 + 3] > 120) {
                         points.push({
                             x: (x - textCanvas.width / 2) * 0.018,
@@ -195,24 +197,35 @@
             const colors = particleSystem.geometry.attributes.color.array;
             const time = Date.now() * 0.001;
 
+            // Hərəkət sürətini hesabla
+            handVelocity.x = handPos.x - prevHandPos.x;
+            handVelocity.y = handPos.y - prevHandPos.y;
+            const moveSpeed = Math.sqrt(handVelocity.x ** 2 + handVelocity.y ** 2);
+
             for (let i = 0; i < PARTICLE_COUNT; i++) {
                 const i3 = i * 3;
                 
                 if (isFist) {
-                    // Yumruq animasiyası
-                    const angle = time * 2 + i * 0.01;
-                    const radius = 1.5 + Math.sin(time + i) * 0.5;
+                    // Yumruq animasiyası: Dinamik quyruq və qasırğa effekti
+                    const angle = time * 3 + i * (0.01 + moveSpeed * 0.05);
+                    const stretch = 1 + moveSpeed * 2; // Hərəkət edəndə forma uzanır
                     
-                    const tx = handPos.x + Math.cos(angle) * radius;
-                    const ty = handPos.y + Math.sin(angle) * radius;
-                    const tz = Math.sin(time * 0.5 + i) * 2;
+                    // Zərrəciklərin əl ətrafında paylanması
+                    const radius = (1.2 + Math.sin(time + i * 0.5) * 0.6) * (1 + Math.random() * 0.2);
+                    
+                    // Sürətə görə əlavə ofset (quyruq effekti üçün)
+                    const lag = (i / PARTICLE_COUNT) * 10 * moveSpeed;
+                    const tx = handPos.x - handVelocity.x * lag + Math.cos(angle) * radius * stretch;
+                    const ty = handPos.y - handVelocity.y * lag + Math.sin(angle) * radius;
+                    const tz = Math.sin(time * 2 + i) * (1 + moveSpeed * 5);
 
-                    positions[i3] += (tx - positions[i3]) * 0.05;
-                    positions[i3+1] += (ty - positions[i3+1]) * 0.05;
-                    positions[i3+2] += (tz - positions[i3+2]) * 0.05;
+                    positions[i3] += (tx - positions[i3]) * 0.08;
+                    positions[i3+1] += (ty - positions[i3+1]) * 0.08;
+                    positions[i3+2] += (tz - positions[i3+2]) * 0.08;
 
-                    colors[i3] = 0.5 + Math.sin(time + i * 0.01) * 0.5;
-                    colors[i3+1] = 0.8;
+                    // Sürətli hərəkətdə rənglər neonlaşır
+                    colors[i3] = 0.4 + Math.sin(time + i * 0.02) * 0.3 + moveSpeed * 0.5;
+                    colors[i3+1] = 0.7 + moveSpeed;
                     colors[i3+2] = 1.0;
                 } else if (targetPositions.length > 0) {
                     positions[i3] += (targetPositions[i3] - positions[i3]) * 0.12;
@@ -225,6 +238,9 @@
                     positions[i3+1] += Math.cos(time + i) * 0.002;
                 }
             }
+
+            prevHandPos.x = handPos.x;
+            prevHandPos.y = handPos.y;
 
             particleSystem.geometry.attributes.position.needsUpdate = true;
             particleSystem.geometry.attributes.color.needsUpdate = true;
@@ -242,8 +258,8 @@
                 handDetected = true;
                 const landmarks = results.multiHandLandmarks[0];
                 
-                handPos.x = -(landmarks[9].x - 0.5) * 15; 
-                handPos.y = -(landmarks[9].y - 0.5) * 10;
+                handPos.x = -(landmarks[9].x - 0.5) * 16; 
+                handPos.y = -(landmarks[9].y - 0.5) * 12;
 
                 const tipIds = [4, 8, 12, 16, 20];
                 const isRightHand = results.multiHandedness[0].label === 'Right';
@@ -262,7 +278,7 @@
                 if (count === 0) {
                     isFist = true;
                     currentTextIndex = -1;
-                    statusLabel.innerText = "Yumruq: Əlini hərəkət etdir!";
+                    statusLabel.innerText = "Enerji Dalğası: Tərpət!";
                     statusLabel.style.color = "#3b82f6";
                 } else if (count > 0 && count <= 5) {
                     isFist = false;
