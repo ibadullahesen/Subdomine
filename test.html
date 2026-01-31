@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="az">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Axtarget - 3D Particle Gestures</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #000; font-family: 'Inter', sans-serif; }
+        canvas { display: block; }
+        #video-container {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            width: 180px;
+            height: 135px;
+            border-radius: 12px;
+            overflow: hidden;
+            border: 2px solid rgba(59, 130, 246, 0.5);
+            transform: scaleX(-1);
+            z-index: 10;
+        }
+        #ui-layer {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            color: white;
+            pointer-events: none;
+            z-index: 10;
+        }
+        .status-badge {
+            background: rgba(0, 0, 0, 0.7);
+            padding: 8px 15px;
+            border-radius: 20px;
+            border: 1px solid rgba(59, 130, 246, 0.3);
+            backdrop-filter: blur(8px);
+        }
+        #loading-screen {
+            position: fixed;
+            inset: 0;
+            background: black;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="loading-screen">
+        <div class="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-blue-500 mb-4"></div>
+        <p class="text-xl font-light italic">Axtarget AI yüklənir...</p>
+    </div>
+
+    <div id="ui-layer">
+        <h1 class="text-3xl font-black mb-2 tracking-tighter text-blue-500">AXTARGET</h1>
+        <div class="status-badge inline-block">
+            Status: <span id="gesture-status" class="font-mono text-blue-400 text-xl">Hazırlanır...</span>
+        </div>
+    </div>
+
+    <div id="video-container">
+        <video id="input_video" style="width: 100%; height: 100%; object-fit: cover;"></video>
+    </div>
+
+    <script>
+        let scene, camera, renderer, particleSystem;
+        let targetPositions = [];
+        const PARTICLE_COUNT = 15000; 
+        let currentTextIndex = -1;
+        let isFist = false;
+        let handPos = { x: 0, y: 0 };
+
+        const messages = [
+            "Təklikdən sıxılmısan?",       
+            "Axtargetlə tanış deyilsən?", 
+            "Axtarget Anonim Chat",      
+            "Daxil ol və sadəcə başla!",  
+            "Sistem səni yeni insanlarla tanış edəcək"     
+        ];
+
+        const textCanvas = document.createElement('canvas');
+        const tCtx = textCanvas.getContext('2d');
+        textCanvas.width = 1024; 
+        textCanvas.height = 512;
+
+        function initThree() {
+            scene = new THREE.Scene();
+            camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.z = 8;
+
+            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            document.body.appendChild(renderer.domElement);
+
+            const geometry = new THREE.BufferGeometry();
+            const positions = new Float32Array(PARTICLE_COUNT * 3);
+            const colors = new Float32Array(PARTICLE_COUNT * 3);
+
+            for (let i = 0; i < PARTICLE_COUNT; i++) {
+                positions[i * 3] = (Math.random() - 0.5) * 20;
+                positions[i * 3 + 1] = (Math.random() - 0.5) * 20;
+                positions[i * 3 + 2] = (Math.random() - 0.5) * 10;
+
+                colors[i * 3] = 0.3; 
+                colors[i * 3 + 1] = 0.6; // Burada ':' xətası düzəldildi
+                colors[i * 3 + 2] = 1.0; 
+            }
+
+            geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+            geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+
+            const material = new THREE.PointsMaterial({
+                size: 0.03,
+                vertexColors: true,
+                transparent: true,
+                opacity: 0.8,
+                blending: THREE.AdditiveBlending
+            });
+
+            particleSystem = new THREE.Points(geometry, material);
+            scene.add(particleSystem);
+
+            window.addEventListener('resize', onWindowResize);
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        function wrapText(context, text, x, y, maxWidth, lineHeight) {
+            const words = text.split(' ');
+            let line = '';
+            let currentY = y;
+            for(let n = 0; n < words.length; n++) {
+                let testLine = line + words[n] + ' ';
+                let metrics = context.measureText(testLine);
+                if (metrics.width > maxWidth && n > 0) {
+                    context.fillText(line, x, currentY);
+                    line = words[n] + ' ';
+                    currentY += lineHeight;
+                } else {
+                    line = testLine;
+                }
+            }
+            context.fillText(line, x, currentY);
+        }
+
+        function createTextTarget(text) {
+            tCtx.clearRect(0, 0, textCanvas.width, textCanvas.height);
+            tCtx.fillStyle = 'white';
+            tCtx.font = 'bold 70px sans-serif'; 
+            tCtx.textAlign = 'center';
+            tCtx.textBaseline = 'middle';
+            wrapText(tCtx, text, textCanvas.width / 2, textCanvas.height / 2, 900, 95);
+
+            const imageData = tCtx.getImageData(0, 0, textCanvas.width, textCanvas.height);
+            const points = [];
+            for (let y = 0; y < textCanvas.height; y += 2) { 
+                for (let x = 0; x < textCanvas.width; x += 2) {
+                    if (imageData.data[(y * textCanvas.width + x) * 4 + 3] > 120) {
+                        points.push({
+                            x: (x - textCanvas.width / 2) * 0.018,
+                            y: -(y - textCanvas.height / 2) * 0.018
+                        });
+                    }
+                }
+            }
+
+            targetPositions = [];
+            for (let i = 0; i < PARTICLE_COUNT; i++) {
+                if (points.length > 0) {
+                    const p = points[i % points.length];
+                    targetPositions.push(p.x, p.y, (Math.random() - 0.5) * 0.1);
+                } else {
+                    targetPositions.push((Math.random() - 0.5) * 15, (Math.random() - 0.5) * 15, 0);
+                }
+            }
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            const positions = particleSystem.geometry.attributes.position.array;
+            const colors = particleSystem.geometry.attributes.color.array;
+            const time = Date.now() * 0.001;
+
+            for (let i = 0; i < PARTICLE_COUNT; i++) {
+                const i3 = i * 3;
+                
+                if (isFist) {
+                    // Yumruq animasiyası
+                    const angle = time * 2 + i * 0.01;
+                    const radius = 1.5 + Math.sin(time + i) * 0.5;
+                    
+                    const tx = handPos.x + Math.cos(angle) * radius;
+                    const ty = handPos.y + Math.sin(angle) * radius;
+                    const tz = Math.sin(time * 0.5 + i) * 2;
+
+                    positions[i3] += (tx - positions[i3]) * 0.05;
+                    positions[i3+1] += (ty - positions[i3+1]) * 0.05;
+                    positions[i3+2] += (tz - positions[i3+2]) * 0.05;
+
+                    colors[i3] = 0.5 + Math.sin(time + i * 0.01) * 0.5;
+                    colors[i3+1] = 0.8;
+                    colors[i3+2] = 1.0;
+                } else if (targetPositions.length > 0) {
+                    positions[i3] += (targetPositions[i3] - positions[i3]) * 0.12;
+                    positions[i3+1] += (targetPositions[i3+1] - positions[i3+1]) * 0.12;
+                    positions[i3+2] += (targetPositions[i3+2] - positions[i3+2]) * 0.12;
+
+                    colors[i3] = 0.3; colors[i3+1] = 0.6; colors[i3+2] = 1.0;
+                } else {
+                    positions[i3] += Math.sin(time + i) * 0.002;
+                    positions[i3+1] += Math.cos(time + i) * 0.002;
+                }
+            }
+
+            particleSystem.geometry.attributes.position.needsUpdate = true;
+            particleSystem.geometry.attributes.color.needsUpdate = true;
+            renderer.render(scene, camera);
+        }
+
+        const videoElement = document.getElementById('input_video');
+        const statusLabel = document.getElementById('gesture-status');
+
+        function onResults(results) {
+            let count = 0;
+            let handDetected = false;
+
+            if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+                handDetected = true;
+                const landmarks = results.multiHandLandmarks[0];
+                
+                handPos.x = -(landmarks[9].x - 0.5) * 15; 
+                handPos.y = -(landmarks[9].y - 0.5) * 10;
+
+                const tipIds = [4, 8, 12, 16, 20];
+                const isRightHand = results.multiHandedness[0].label === 'Right';
+                
+                if (isRightHand) {
+                    if (landmarks[tipIds[0]].x < landmarks[tipIds[0] - 1].x) count++;
+                } else {
+                    if (landmarks[tipIds[0]].x > landmarks[tipIds[0] - 1].x) count++;
+                }
+                for (let i = 1; i < 5; i++) {
+                    if (landmarks[tipIds[i]].y < landmarks[tipIds[i] - 2].y) count++;
+                }
+            }
+
+            if (handDetected) {
+                if (count === 0) {
+                    isFist = true;
+                    currentTextIndex = -1;
+                    statusLabel.innerText = "Yumruq: Əlini hərəkət etdir!";
+                    statusLabel.style.color = "#3b82f6";
+                } else if (count > 0 && count <= 5) {
+                    isFist = false;
+                    const msgIndex = count - 1;
+                    statusLabel.innerText = count + " Barmaq";
+                    statusLabel.style.color = "#60a5fa";
+                    if (currentTextIndex !== msgIndex) {
+                        currentTextIndex = msgIndex;
+                        createTextTarget(messages[msgIndex]);
+                    }
+                }
+            } else {
+                isFist = false;
+                if (currentTextIndex !== -2) {
+                    currentTextIndex = -2;
+                    targetPositions = [];
+                    statusLabel.innerText = "Əl gözlənilir...";
+                    statusLabel.style.color = "#94a3b8";
+                }
+            }
+        }
+
+        const hands = new Hands({
+            locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+        });
+
+        hands.setOptions({
+            maxNumHands: 1,
+            modelComplexity: 1,
+            minDetectionConfidence: 0.7,
+            minTrackingConfidence: 0.7
+        });
+        hands.onResults(onResults);
+
+        const cameraFeed = new Camera(videoElement, {
+            onFrame: async () => { await hands.send({ image: videoElement }); },
+            width: 640, height: 480
+        });
+
+        window.onload = () => {
+            initThree();
+            animate();
+            cameraFeed.start().then(() => {
+                document.getElementById('loading-screen').style.display = 'none';
+            });
+        };
+    </script>
+</body>
+</html>
