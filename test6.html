@@ -112,12 +112,12 @@
     }
 
     function isFingerFolded(landmarks, fingerTipIdx, fingerPipIdx) {
-        // Barmaq ucu boğumdan aşağıdadırsa bükülü sayılır
+        // Barmaq ucu boğumdan (knuckle) aşağıdadırsa bükülü sayılır
         return landmarks[fingerTipIdx].y > landmarks[fingerPipIdx].y;
     }
 
     function isHandFist(landmarks) {
-        // Sağ əl üçün yumruq testi
+        // Sağ əl üçün tam yumruq testi
         return isFingerFolded(landmarks, 8, 6) && 
                isFingerFolded(landmarks, 12, 10) && 
                isFingerFolded(landmarks, 16, 14) && 
@@ -135,7 +135,7 @@
                 if (label === 'Right') leftHand = landmark;
             });
 
-            // 1. Sağ Əl - İzləmə və Yumruqla Fren
+            // 1. Sağ Əl - İzləmə və Yumruqla Dayandırma
             if (rightHand) {
                 const fingerTip = rightHand[8]; 
                 targetPos.x = ((1 - fingerTip.x) - 0.5) * 10;
@@ -146,34 +146,36 @@
                 }
             }
 
-            // 2. Sol Əl - İrəli itələdikdə SOLA fırlanma və ZOOM Komutu
+            // 2. Sol Əl - İrəli itələdikdə SOLA fırlanma və ZOOM
             if (leftHand) {
-                // Fırlanma (İrəli = Sola)
+                // Fırlanma (İrəli hərəkət edəndə sola dönsün)
                 const currentZ = leftHand[8].z; 
                 if (lastZ !== null) {
                     const zDelta = currentZ - lastZ;
-                    if (zDelta < -0.002) { // İrəli hərəkət
+                    if (zDelta < -0.002) { // İrəli hərəkət (kameraya doğru)
                         rotationVelocity -= Math.abs(zDelta) * 5.0; 
                     }
                 }
                 lastZ = currentZ;
 
-                // ZOOM Mexanikası
-                // ŞƏRT: Orta, Adsız və Çitçə barmaqlar bükülü (yumulu) olmalıdır
-                const isMiddleFolded = isFingerFolded(leftHand, 12, 10);
-                const isRingFolded = isFingerFolded(leftHand, 16, 14);
-                const isPinkyFolded = isFingerFolded(leftHand, 20, 18);
+                // ZOOM Mexanikası (DÜZƏLİŞ EDİLDİ)
+                const isMiddleFolded = isFingerFolded(leftHand, 12, 9);
+                const isRingFolded = isFingerFolded(leftHand, 16, 13);
+                const isPinkyFolded = isFingerFolded(leftHand, 20, 17);
 
+                // ŞƏRT: Yalnız orta, adsız və kiçik barmaq bükülü olanda zoom aktivləşir
                 if (isMiddleFolded && isRingFolded && isPinkyFolded) {
-                    // Yalnız bu halda baş barmaq və şəhadət barmağı məsafəsi dünyanı miqyaslandırır
                     const thumbTip = leftHand[4];
                     const indexTip = leftHand[8];
                     const distance = getDistance(thumbTip, indexTip);
                     
+                    // Zoom həssaslığı tənzimləndi
                     let newScale = distance * 8.0; 
                     targetScale = Math.min(Math.max(newScale, 0.4), 2.8);
+                } else {
+                    // Əgər barmaqlar açılarsa, targetScale dəyişmir (sonuncu vəziyyətdə qalır)
+                    // və ya istersəniz targetScale = 1.0; edərək standart ölçüyə qaytara bilərik.
                 }
-                // Əgər barmaqlar açıqdırsa, zoom hesablanmır (dünya sabit qalır)
             } else {
                 lastZ = null;
             }
@@ -191,16 +193,13 @@
     function animate() {
         requestAnimationFrame(animate);
         
-        // Hamar Mövqe İzləmə
         globe.position.x += (targetPos.x - globe.position.x) * easing;
         globe.position.y += (targetPos.y - globe.position.y) * easing;
 
-        // Hamar Ölçü Keçidi
         globe.scale.x += (targetScale - globe.scale.x) * 0.1;
         globe.scale.y += (targetScale - globe.scale.y) * 0.1;
         globe.scale.z += (targetScale - globe.scale.z) * 0.1;
 
-        // Dönmə
         globe.rotation.y += rotationVelocity;
         
         if (Math.abs(rotationVelocity) > 0.0001) {
