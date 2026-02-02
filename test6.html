@@ -58,6 +58,7 @@
 
     function initThree() {
         scene = new THREE.Scene();
+        // Perspektivi bir az dəyişərək dünyanı daha yaxın hiss etdiririk
         camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
         
         renderer = new THREE.WebGLRenderer({ canvas: canvasElement, alpha: true, antialias: true });
@@ -91,7 +92,8 @@
         const clouds = new THREE.Mesh(cloudGeo, cloudMat);
         globe.add(clouds);
 
-        camera.position.z = 5;
+        // Kameranı dünyadan bir az daha yaxın yerləşdiririk (əvvəl 5 idi, indi 4)
+        camera.position.z = 4;
     }
 
     const hands = new Hands({
@@ -112,12 +114,10 @@
     }
 
     function isFingerFolded(landmarks, fingerTipIdx, fingerPipIdx) {
-        // Barmaq ucu boğumdan (knuckle) aşağıdadırsa bükülü sayılır
         return landmarks[fingerTipIdx].y > landmarks[fingerPipIdx].y;
     }
 
     function isHandFist(landmarks) {
-        // Sağ əl üçün tam yumruq testi
         return isFingerFolded(landmarks, 8, 6) && 
                isFingerFolded(landmarks, 12, 10) && 
                isFingerFolded(landmarks, 16, 14) && 
@@ -135,11 +135,12 @@
                 if (label === 'Right') leftHand = landmark;
             });
 
-            // 1. Sağ Əl - İzləmə və Yumruqla Dayandırma
+            // 1. Sağ Əl - İzləmə (Koordinatları barmaq uclarına daha yaxın etdik)
             if (rightHand) {
                 const fingerTip = rightHand[8]; 
-                targetPos.x = ((1 - fingerTip.x) - 0.5) * 10;
-                targetPos.y = -(fingerTip.y - 0.5) * 6 + 2.5; 
+                // Multiplier (vuran) dəyərlərini tənzimləyərək dünyanı barmaq ucuna daha sıx bağlayırıq
+                targetPos.x = ((1 - fingerTip.x) - 0.5) * 8; 
+                targetPos.y = -(fingerTip.y - 0.5) * 5 + 1.5; 
 
                 if (isHandFist(rightHand)) {
                     rotationVelocity = 0;
@@ -148,33 +149,26 @@
 
             // 2. Sol Əl - İrəli itələdikdə SOLA fırlanma və ZOOM
             if (leftHand) {
-                // Fırlanma (İrəli hərəkət edəndə sola dönsün)
                 const currentZ = leftHand[8].z; 
                 if (lastZ !== null) {
                     const zDelta = currentZ - lastZ;
-                    if (zDelta < -0.002) { // İrəli hərəkət (kameraya doğru)
+                    if (zDelta < -0.002) { 
                         rotationVelocity -= Math.abs(zDelta) * 5.0; 
                     }
                 }
                 lastZ = currentZ;
 
-                // ZOOM Mexanikası (DÜZƏLİŞ EDİLDİ)
                 const isMiddleFolded = isFingerFolded(leftHand, 12, 9);
                 const isRingFolded = isFingerFolded(leftHand, 16, 13);
                 const isPinkyFolded = isFingerFolded(leftHand, 20, 17);
 
-                // ŞƏRT: Yalnız orta, adsız və kiçik barmaq bükülü olanda zoom aktivləşir
                 if (isMiddleFolded && isRingFolded && isPinkyFolded) {
                     const thumbTip = leftHand[4];
                     const indexTip = leftHand[8];
                     const distance = getDistance(thumbTip, indexTip);
                     
-                    // Zoom həssaslığı tənzimləndi
                     let newScale = distance * 8.0; 
                     targetScale = Math.min(Math.max(newScale, 0.4), 2.8);
-                } else {
-                    // Əgər barmaqlar açılarsa, targetScale dəyişmir (sonuncu vəziyyətdə qalır)
-                    // və ya istersəniz targetScale = 1.0; edərək standart ölçüyə qaytara bilərik.
                 }
             } else {
                 lastZ = null;
