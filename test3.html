@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="az">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AxtarGet - Terminal Animation</title>
+    <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        :root {
+            --neon-blue: #00BFFF;
+            --neon-glow: 0 0 15px rgba(0, 191, 255, 0.8), 0 0 30px rgba(0, 191, 255, 0.6);
+        }
+
+        body {
+            background-color: #000000;
+            color: var(--neon-blue);
+            font-family: 'Fira Code', monospace;
+            overflow: hidden;
+            margin: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            cursor: pointer;
+        }
+
+        /* Video Container - Sunum üçün tam ekran və ən sol tərəf */
+        #video-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            background: #000;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: flex-start;
+            padding-left: 5%; /* Ən sola yaxın, amma kənara dəymir */
+            transition: opacity 0.8s ease;
+            z-index: 5;
+        }
+
+        canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+            pointer-events: none;
+        }
+
+        #display-area {
+            position: relative;
+            z-index: 10;
+            width: 90%;
+        }
+
+        .text-line {
+            min-height: 1.2em;
+            margin-bottom: 1.5rem;
+            text-shadow: var(--neon-glow);
+            letter-spacing: -1px; /* Böyük yazıda daha sıx və professional görünüş */
+            white-space: pre-wrap;
+            text-align: left;
+            font-size: 3.5rem; /* Çox böyük şrift uzaqdan oxunmaq üçün */
+            line-height: 1.1;
+        }
+
+        @media (max-width: 768px) {
+            .text-line { font-size: 2rem; } /* Mobil üçün bir az kiçiltmə */
+        }
+
+        .cursor {
+            display: inline-block;
+            width: 25px;
+            height: 1em;
+            background-color: var(--neon-blue);
+            margin-left: 10px;
+            vertical-align: middle;
+            animation: blink 0.8s infinite;
+            box-shadow: var(--neon-glow);
+        }
+
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0; }
+        }
+
+        /* Scanlines Effect */
+        #video-container::after {
+            content: " ";
+            display: block;
+            position: absolute;
+            top: 0; left: 0; bottom: 0; right: 0;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.15) 50%);
+            z-index: 15;
+            background-size: 100% 6px;
+            pointer-events: none;
+        }
+
+        .glitch {
+            animation: glitch-anim 0.2s;
+        }
+
+        @keyframes glitch-anim {
+            0% { transform: translate(0); }
+            20% { transform: translate(-5px, 3px); color: #ff00ff; }
+            40% { transform: translate(-5px, -3px); color: #00ffff; }
+            60% { transform: translate(5px, 3px); }
+            100% { transform: translate(0); }
+        }
+
+        #start-prompt {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 1.5rem;
+            opacity: 0.8;
+            animation: pulse-text 2s infinite;
+            z-index: 20;
+            text-align: center;
+            border: 2px solid var(--neon-blue);
+            padding: 20px;
+        }
+
+        @keyframes pulse-text {
+            0%, 100% { opacity: 0.4; box-shadow: 0 0 5px var(--neon-blue); }
+            50% { opacity: 1; box-shadow: 0 0 20px var(--neon-blue); }
+        }
+
+        .impact {
+            font-weight: 800;
+            color: #00FFFF;
+        }
+    </style>
+</head>
+<body onclick="startVideo()">
+
+    <div id="start-prompt">Play</div>
+
+    <canvas id="dustCanvas"></canvas>
+
+    <div id="video-container">
+        <div id="display-area">
+            <div id="line1" class="text-line"></div>
+            <div id="line2" class="text-line"></div>
+            <div id="line3" class="text-line"></div>
+        </div>
+        <span id="cursor" class="cursor"></span>
+    </div>
+
+    <script>
+        const container = document.getElementById('video-container');
+        const line1 = document.getElementById('line1');
+        const line2 = document.getElementById('line2');
+        const line3 = document.getElementById('line3');
+        const cursor = document.getElementById('cursor');
+        const startPrompt = document.getElementById('start-prompt');
+        const canvas = document.getElementById('dustCanvas');
+        const ctx = canvas.getContext('2d');
+
+        let isPlaying = false;
+
+        // Particles / Dust effect
+        let particles = [];
+        function initParticles() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            particles = [];
+            for (let i = 0; i < 150; i++) {
+                particles.push({
+                    x: Math.random() * canvas.width,
+                    y: Math.random() * canvas.height,
+                    size: Math.random() * 3,
+                    speedX: (Math.random() - 0.5) * 5,
+                    speedY: (Math.random() - 0.5) * 5,
+                    opacity: Math.random()
+                });
+            }
+        }
+
+        function drawParticles() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = '#00BFFF';
+            particles.forEach(p => {
+                ctx.globalAlpha = p.opacity;
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+                ctx.fill();
+                
+                p.x += p.speedX;
+                p.y += p.speedY;
+
+                if (p.x < 0) p.x = canvas.width;
+                if (p.x > canvas.width) p.x = 0;
+                if (p.y < 0) p.y = canvas.height;
+                if (p.y > canvas.height) p.y = 0;
+            });
+            requestAnimationFrame(drawParticles);
+        }
+
+        window.onload = () => {
+            initParticles();
+            drawParticles();
+        };
+        window.onresize = initParticles;
+
+        async function typeWriter(text, element, speed = 50) {
+            for (let i = 0; i < text.length; i++) {
+                element.innerHTML += text.charAt(i);
+                await new Promise(r => setTimeout(r, speed));
+            }
+        }
+
+        async function backspace(element, speed = 20) {
+            let text = element.innerHTML;
+            while (text.length > 0) {
+                text = text.slice(0, -1);
+                element.innerHTML = text;
+                await new Promise(r => setTimeout(r, speed));
+            }
+        }
+
+        async function clearAll() {
+            line1.innerHTML = "";
+            line2.innerHTML = "";
+            line3.innerHTML = "";
+            line1.style.fontSize = "3.5rem";
+            line2.style.fontSize = "3.5rem";
+            line3.style.fontSize = "3.5rem";
+        }
+
+        async function glitchEffect() {
+            container.classList.add('glitch');
+            setTimeout(() => container.classList.remove('glitch'), 400);
+        }
+
+        async function startVideo() {
+            if (isPlaying) return;
+            isPlaying = true;
+            
+            startPrompt.style.display = 'none';
+            await clearAll();
+            
+            // ⏱ 0–3 saniyə
+            await typeWriter("İş və ya İşçi axtarırsan?", line1);
+            await new Promise(r => setTimeout(r, 1500));
+
+            // ⏱ 3–4.5 saniyə
+            await backspace(line1, 15);
+            await new Promise(r => setTimeout(r, 400));
+
+            // ⏱ 4.5–8 saniyə
+            glitchEffect();
+            await typeWriter("> Sizi AxtarGet-lə Tanış edim.", line1, 50);
+            await typeWriter("Elan paylaş. Sürətli.", line2, 40);
+            await typeWriter("Rahat. Pulsuz.", line3, 40);
+            line3.classList.add('impact');
+            await new Promise(r => setTimeout(r, 2000));
+
+            // ⏱ 8–11 saniyə
+            await backspace(line3, 10);
+            await backspace(line2, 10);
+            await backspace(line1, 10);
+            await new Promise(r => setTimeout(r, 600));
+
+            // ⏱ 11–14 saniyə
+            await typeWriter("Birbaşa giriş:", line1, 50);
+            line2.classList.add('impact');
+            await typeWriter("Vakansiya.AxtarGet.xyz", line2, 70);
+            await new Promise(r => setTimeout(r, 2000));
+
+            // ⏱ 14–17 saniyə
+            await backspace(line2, 15);
+            await backspace(line1, 15);
+            await new Promise(r => setTimeout(r, 300));
+            await typeWriter("və ya", line1, 50);
+            await typeWriter("AxtarGet.xyz Hər xidmətin tək ünvanı", line2, 50);
+            await typeWriter("daxil ol", line3, 50);
+            await new Promise(r => setTimeout(r, 1500));
+
+            // ⏱ 17–20 saniyə
+            await clearAll();
+            glitchEffect();
+            line1.classList.add('impact');
+            line1.style.fontSize = "4.5rem";
+            await typeWriter("Elan Paylaşımı TAM ÖDƏNİŞSİZDİR.", line1, 40);
+            
+            // Final Pulse
+            line1.style.animation = "pulse 0.8s infinite alternate";
+            
+            await new Promise(r => setTimeout(r, 3500));
+            
+            container.style.opacity = "0";
+            await new Promise(r => setTimeout(r, 1000));
+            
+            window.location.href = "https://Vakansiya.axtarget.xyz";
+        }
+
+        const style = document.createElement('style');
+        style.textContent = `
+            @keyframes pulse {
+                from { text-shadow: var(--neon-glow); transform: scale(1); }
+                to { text-shadow: 0 0 40px #00FFFF, 0 0 70px #00FFFF; transform: scale(1.02); }
+            }
+        `;
+        document.head.appendChild(style);
+    </script>
+</body>
+</html>
