@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="az">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sürətli Barmaq Quşu - Proqressiv Bonus</title>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { margin: 0; overflow: hidden; background: #0f172a; font-family: sans-serif; }
+        canvas { display: block; border-radius: 12px; cursor: pointer; }
+        #video { display: none; }
+        #loading { 
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
+            background: #0f172a; color: white; display: flex; 
+            flex-direction: column; justify-content: center; align-items: center; z-index: 100; 
+        }
+        .spinner { border: 4px solid rgba(255,255,255,0.1); border-top: 4px solid #f59e0b; border-radius: 50%; width: 50px; height: 50px; animation: spin 1s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        
+        #bonusContainer {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 200px;
+            height: 10px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 5px;
+            overflow: hidden;
+            display: none;
+            border: 1px solid rgba(255,215,0,0.5);
+        }
+        #bonusBar {
+            height: 100%;
+            width: 100%;
+            background: linear-gradient(90deg, #ffd700, #ff8c00);
+            box-shadow: 0 0 10px #ffd700;
+        }
+    </style>
+</head>
+<body class="flex items-center justify-center h-screen">
+
+    <div id="loading">
+        <div class="spinner"></div>
+        <p class="mt-4 font-medium text-lg text-white">Sistem hazırlanır...</p>
+    </div>
+
+    <div class="relative shadow-2xl overflow-hidden rounded-xl border-4 border-slate-700 bg-slate-800">
+        <canvas id="gameCanvas"></canvas>
+        
+        <!-- 2X Bonus Bar -->
+        <div id="bonusContainer">
+            <div id="bonusBar"></div>
+            <div class="absolute inset-0 flex items-center justify-center text-[8px] font-bold text-white uppercase tracking-tighter">2X AKTİVDİR</div>
+        </div>
+
+        <!-- UI -->
+        <div class="absolute top-4 left-6 text-white pointer-events-none select-none flex flex-col gap-1">
+            <div class="text-3xl font-black drop-shadow-md">XAL: <span id="scoreDisplay" class="text-yellow-400">0</span></div>
+            <div class="text-xl font-bold opacity-90">REKORD: <span id="highScoreDisplay" class="text-green-400">0</span></div>
+            <div class="text-xs font-bold opacity-60 uppercase tracking-widest">Sürət: <span id="speedDisplay">1.0</span>x</div>
+        </div>
+
+        <!-- Xəbərdarlıqlar -->
+        <div id="noHandWarning" class="absolute bottom-10 left-1/2 -translate-x-1/2 bg-red-600/80 text-white px-4 py-2 rounded-lg text-sm font-bold animate-pulse hidden">
+            ⚠️ ƏLİNİZİ GÖSTƏRİN
+        </div>
+        
+        <div id="instructions" class="absolute inset-0 flex items-center justify-center text-white bg-slate-900/90 hidden z-20 cursor-pointer">
+            <div class="text-center p-8 rounded-2xl border-4 border-yellow-500 shadow-2xl transform scale-110 pointer-events-none">
+                <h1 class="text-4xl font-black mb-2 text-red-500">OYUN DAYANDI!</h1>
+                <p class="text-2xl mb-1 text-white">Xalınız: <span id="finalScore" class="text-yellow-400 font-bold">0</span></p>
+                <p class="text-lg mb-6 opacity-75 text-white">Ən yaxşı nəticə: <span id="finalHigh">0</span></p>
+                <div class="bg-white text-slate-900 px-6 py-3 rounded-full font-black animate-pulse uppercase">
+                    BAŞLAMAQ ÜÇÜN KLİKLƏYİN
+                </div>
+            </div>
+        </div>
+
+        <div id="startPrompt" class="absolute inset-0 flex items-center justify-center text-white bg-slate-900/40 z-10">
+            <div class="text-center bg-blue-600 px-8 py-4 rounded-2xl shadow-xl border-2 border-blue-400">
+                <p class="text-xl font-bold">Barmağınızı göstərərək başlayın</p>
+            </div>
+        </div>
+    </div>
+
+    <video id="video" playsinline></video>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const video = document.getElementById('video');
+        const loadingDiv = document.getElementById('loading');
+        const scoreDisplay = document.getElementById('scoreDisplay');
+        const highScoreDisplay = document.getElementById('highScoreDisplay');
+        const speedDisplay = document.getElementById('speedDisplay');
+        const instructions = document.getElementById('instructions');
+        const finalScoreText = document.getElementById('finalScore');
+        const finalHighText = document.getElementById('finalHigh');
+        const startPrompt = document.getElementById('startPrompt');
+        const noHandWarning = document.getElementById('noHandWarning');
+        const bonusContainer = document.getElementById('bonusContainer');
+        const bonusBar = document.getElementById('bonusBar');
+
+        canvas.width = 800;
+        canvas.height = 500;
+
+        let bird = { x: 100, y: 250, radius: 18, color: '#f59e0b' };
+        let obstacles = [];
+        let bonuses = [];
+        let score = 0;
+        let obstaclesPassedCount = 0; // Keçilən maneə sayı (bonus hesabı üçün)
+        let nextBonusThreshold = 10;   // Növbəti bonus üçün hədəf (10, 30, 60...)
+        let bonusStep = 10;            // Artım addımı (10, 20, 30...)
+        
+        let highScore = localStorage.getItem('birdHighScore') || 0;
+        let gameSpeed = 4;
+        let isGameOver = false;
+        let isGameStarted = false;
+        let lastTargetY = 250;
+        let currentHandLandmarks = null;
+        
+        let isDoublePoints = false;
+        let doublePointsTimer = 0;
+        const DOUBLE_DURATION = 10000;
+
+        highScoreDisplay.innerText = highScore;
+
+        const hands = new Hands({
+            locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+        });
+
+        hands.setOptions({
+            maxNumHands: 1,
+            modelComplexity: 0,
+            minDetectionConfidence: 0.6,
+            minTrackingConfidence: 0.6
+        });
+
+        hands.onResults((results) => {
+            if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+                currentHandLandmarks = results.multiHandLandmarks[0];
+                const indexFinger = currentHandLandmarks[8];
+                lastTargetY = indexFinger.y * canvas.height;
+                noHandWarning.classList.add('hidden');
+
+                if (!isGameStarted && !isGameOver) {
+                    isGameStarted = true;
+                    startPrompt.classList.add('hidden');
+                }
+            } else {
+                currentHandLandmarks = null;
+                if (isGameStarted && !isGameOver) {
+                    noHandWarning.classList.remove('hidden');
+                }
+            }
+        });
+
+        const camera = new Camera(video, {
+            onFrame: async () => { await hands.send({ image: video }); },
+            width: 640, height: 480
+        });
+
+        async function init() {
+            try {
+                await camera.start();
+                loadingDiv.style.display = 'none';
+                requestAnimationFrame(gameLoop);
+            } catch (e) {
+                alert("Kamera xətası: " + e.message);
+            }
+        }
+
+        function createObstacle() {
+            const gap = Math.max(130, 190 - (score * 1.5)); 
+            const minHeight = 50;
+            const height = Math.random() * (canvas.height - gap - minHeight * 2) + minHeight;
+            const obsX = canvas.width;
+            
+            obstacles.push({
+                x: obsX,
+                topHeight: height,
+                bottomY: height + gap,
+                width: 70,
+                passed: false
+            });
+        }
+
+        const restartGame = () => {
+            if (isGameOver) {
+                isGameOver = false;
+                score = 0;
+                obstaclesPassedCount = 0;
+                nextBonusThreshold = 10;
+                bonusStep = 10;
+                gameSpeed = 4;
+                bird.y = 250;
+                lastTargetY = 250;
+                obstacles = [];
+                bonuses = [];
+                isDoublePoints = false;
+                doublePointsTimer = 0;
+                
+                bonusContainer.style.display = 'none';
+                instructions.classList.add('hidden');
+                scoreDisplay.innerText = score;
+                speedDisplay.innerText = "1.0";
+                
+                isGameStarted = true; 
+            }
+        };
+
+        window.addEventListener('mousedown', restartGame);
+        window.addEventListener('touchstart', (e) => {
+            if(isGameOver) {
+                e.preventDefault();
+                restartGame();
+            }
+        }, { passive: false });
+
+        function update(deltaTime) {
+            if (!isGameStarted || isGameOver) return;
+
+            if (isDoublePoints) {
+                doublePointsTimer -= deltaTime;
+                const percent = (doublePointsTimer / DOUBLE_DURATION) * 100;
+                bonusBar.style.width = percent + "%";
+                if (doublePointsTimer <= 0) {
+                    isDoublePoints = false;
+                    bonusContainer.style.display = 'none';
+                }
+            }
+
+            bird.y += (lastTargetY - bird.y) * 0.15;
+
+            // Bonus obyektləri
+            for (let i = bonuses.length - 1; i >= 0; i--) {
+                bonuses[i].x -= gameSpeed;
+                const dist = Math.hypot(bird.x - bonuses[i].x, bird.y - bonuses[i].y);
+                if (dist < bird.radius + bonuses[i].radius) {
+                    isDoublePoints = true;
+                    doublePointsTimer = DOUBLE_DURATION;
+                    bonusContainer.style.display = 'block';
+                    bonuses.splice(i, 1);
+                    continue;
+                }
+                if (bonuses[i].x < -50) bonuses.splice(i, 1);
+            }
+
+            // Maneələr
+            for (let i = obstacles.length - 1; i >= 0; i--) {
+                obstacles[i].x -= gameSpeed;
+
+                if (bird.x + bird.radius > obstacles[i].x && bird.x - bird.radius < obstacles[i].x + obstacles[i].width) {
+                    if (bird.y - bird.radius < obstacles[i].topHeight || bird.y + bird.radius > obstacles[i].bottomY) {
+                        endGame();
+                    }
+                }
+
+                if (!obstacles[i].passed && obstacles[i].x + obstacles[i].width < bird.x) {
+                    const pointsToAdd = isDoublePoints ? 2 : 1;
+                    score += pointsToAdd;
+                    obstaclesPassedCount++; // Həqiqi keçilən maneə sayı
+                    obstacles[i].passed = true;
+                    scoreDisplay.innerText = score;
+                    
+                    // SÜRƏT ARTIMI: Hər keçilən maneədə 0.2 artır
+                    gameSpeed += 0.2; 
+                    speedDisplay.innerText = (gameSpeed / 4).toFixed(1);
+
+                    // PROQRESSİV BONUS MƏNTİQİ (10, 20, 30...)
+                    if (obstaclesPassedCount === nextBonusThreshold) {
+                        const obs = obstacles[i];
+                        bonuses.push({
+                            x: canvas.width + 150, // Bir az sonra gəlsin
+                            y: obs.topHeight + ((obs.bottomY - obs.topHeight) / 2),
+                            radius: 15
+                        });
+                        
+                        // Növbəti hədəfi hesabla: 10 + 20 = 30, sonra 30 + 30 = 60
+                        bonusStep += 10;
+                        nextBonusThreshold += bonusStep;
+                    }
+                    
+                    if (score > highScore) {
+                        highScore = score;
+                        localStorage.setItem('birdHighScore', highScore);
+                        highScoreDisplay.innerText = highScore;
+                    }
+                }
+
+                if (obstacles[i].x + obstacles[i].width < 0) obstacles.splice(i, 1);
+            }
+
+            if (obstacles.length === 0 || canvas.width - obstacles[obstacles.length - 1].x > 320) {
+                createObstacle();
+            }
+
+            if (bird.y < 0 || bird.y > canvas.height) endGame();
+        }
+
+        function endGame() {
+            if(isGameOver) return;
+            isGameOver = true;
+            isGameStarted = false;
+            finalScoreText.innerText = score;
+            finalHighText.innerText = highScore;
+            instructions.classList.remove('hidden');
+            noHandWarning.classList.add('hidden');
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+            gradient.addColorStop(0, '#1e293b');
+            gradient.addColorStop(1, '#0f172a');
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            obstacles.forEach(obs => {
+                ctx.fillStyle = '#22c55e';
+                ctx.fillRect(obs.x, 0, obs.width, obs.topHeight);
+                ctx.fillRect(obs.x, obs.bottomY, obs.width, canvas.height - obs.bottomY);
+                ctx.fillStyle = '#16a34a';
+                ctx.fillRect(obs.x - 5, obs.topHeight - 20, obs.width + 10, 20);
+                ctx.fillRect(obs.x - 5, obs.bottomY, obs.width + 10, 20);
+            });
+
+            bonuses.forEach(bonus => {
+                ctx.save();
+                ctx.shadowBlur = 15;
+                ctx.shadowColor = '#ffd700';
+                ctx.fillStyle = '#ffd700';
+                ctx.beginPath();
+                ctx.arc(bonus.x, bonus.y, bonus.radius, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.fillStyle = '#000';
+                ctx.font = 'bold 12px Arial';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText('2X', bonus.x, bonus.y);
+                ctx.restore();
+            });
+
+            if (currentHandLandmarks) {
+                ctx.save();
+                const mirroredLandmarks = currentHandLandmarks.map(l => ({
+                    x: 1 - l.x,
+                    y: l.y
+                }));
+                drawConnectors(ctx, mirroredLandmarks, HAND_CONNECTIONS, {color: 'rgba(255, 255, 255, 0.25)', lineWidth: 2});
+                drawLandmarks(ctx, mirroredLandmarks, {color: 'rgba(255, 255, 255, 0.4)', lineWidth: 1, radius: 2});
+                ctx.restore();
+            }
+
+            if (isGameStarted || isGameOver) {
+                ctx.save();
+                ctx.translate(bird.x, bird.y);
+                ctx.shadowBlur = isDoublePoints ? 20 : 15;
+                ctx.shadowColor = isDoublePoints ? '#ffd700' : 'rgba(245, 158, 11, 0.5)';
+                ctx.beginPath();
+                ctx.arc(0, 0, bird.radius, 0, Math.PI * 2);
+                ctx.fillStyle = isDoublePoints ? '#ffd700' : bird.color;
+                ctx.fill();
+                ctx.lineWidth = 3;
+                ctx.strokeStyle = '#fff';
+                ctx.stroke();
+                ctx.fillStyle = 'white'; ctx.beginPath(); ctx.arc(8, -5, 5, 0, Math.PI * 2); ctx.fill();
+                ctx.fillStyle = 'black'; ctx.beginPath(); ctx.arc(10, -5, 2.5, 0, Math.PI * 2); ctx.fill();
+                ctx.fillStyle = '#ef4444'; ctx.beginPath(); ctx.moveTo(15, 0); ctx.lineTo(25, 5); ctx.lineTo(15, 10); ctx.fill();
+                ctx.restore();
+            }
+        }
+
+        let lastTime = 0;
+        function gameLoop(timestamp) {
+            const deltaTime = timestamp - lastTime;
+            lastTime = timestamp;
+            update(deltaTime);
+            draw();
+            requestAnimationFrame(gameLoop);
+        }
+
+        init();
+    </script>
+</body>
+</html>
