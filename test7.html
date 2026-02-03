@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sürətli Barmaq Quşu - Proqressiv Bonus</title>
+    <title>Realistik Qanadlı Barmaq Quşu</title>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils"></script>
@@ -51,20 +51,17 @@
     <div class="relative shadow-2xl overflow-hidden rounded-xl border-4 border-slate-700 bg-slate-800">
         <canvas id="gameCanvas"></canvas>
         
-        <!-- 2X Bonus Bar -->
         <div id="bonusContainer">
             <div id="bonusBar"></div>
             <div class="absolute inset-0 flex items-center justify-center text-[8px] font-bold text-white uppercase tracking-tighter">2X AKTİVDİR</div>
         </div>
 
-        <!-- UI -->
         <div class="absolute top-4 left-6 text-white pointer-events-none select-none flex flex-col gap-1">
             <div class="text-3xl font-black drop-shadow-md">XAL: <span id="scoreDisplay" class="text-yellow-400">0</span></div>
             <div class="text-xl font-bold opacity-90">REKORD: <span id="highScoreDisplay" class="text-green-400">0</span></div>
             <div class="text-xs font-bold opacity-60 uppercase tracking-widest">Sürət: <span id="speedDisplay">1.0</span>x</div>
         </div>
 
-        <!-- Xəbərdarlıqlar -->
         <div id="noHandWarning" class="absolute bottom-10 left-1/2 -translate-x-1/2 bg-red-600/80 text-white px-4 py-2 rounded-lg text-sm font-bold animate-pulse hidden">
             ⚠️ ƏLİNİZİ GÖSTƏRİN
         </div>
@@ -108,13 +105,22 @@
         canvas.width = 800;
         canvas.height = 500;
 
-        let bird = { x: 100, y: 250, radius: 18, color: '#f59e0b' };
+        let bird = { 
+            x: 100, 
+            y: 250, 
+            radius: 18, 
+            color: '#f59e0b',
+            rotation: 0,
+            wingPhase: 0, // 0-dan 1-ə qədər animasiya fazası
+            eyeBlink: 0
+        };
+
         let obstacles = [];
         let bonuses = [];
         let score = 0;
-        let obstaclesPassedCount = 0; // Keçilən maneə sayı (bonus hesabı üçün)
-        let nextBonusThreshold = 10;   // Növbəti bonus üçün hədəf (10, 30, 60...)
-        let bonusStep = 10;            // Artım addımı (10, 20, 30...)
+        let obstaclesPassedCount = 0;
+        let nextBonusThreshold = 10;
+        let bonusStep = 10;
         
         let highScore = localStorage.getItem('birdHighScore') || 0;
         let gameSpeed = 4;
@@ -198,6 +204,8 @@
                 bonusStep = 10;
                 gameSpeed = 4;
                 bird.y = 250;
+                bird.rotation = 0;
+                bird.wingPhase = 0;
                 lastTargetY = 250;
                 obstacles = [];
                 bonuses = [];
@@ -234,9 +242,18 @@
                 }
             }
 
+            const prevY = bird.y;
             bird.y += (lastTargetY - bird.y) * 0.15;
+            const diffY = bird.y - prevY;
+            bird.rotation = Math.max(-0.6, Math.min(0.6, diffY * 0.08));
 
-            // Bonus obyektləri
+            // Qanad animasiya fazası (Sürətə görə dəyişir)
+            bird.wingPhase += 0.15 + (Math.abs(diffY) * 0.02);
+            if (bird.wingPhase > Math.PI * 2) bird.wingPhase -= Math.PI * 2;
+
+            if (Math.random() > 0.985) bird.eyeBlink = 6;
+            if (bird.eyeBlink > 0) bird.eyeBlink--;
+
             for (let i = bonuses.length - 1; i >= 0; i--) {
                 bonuses[i].x -= gameSpeed;
                 const dist = Math.hypot(bird.x - bonuses[i].x, bird.y - bonuses[i].y);
@@ -250,55 +267,43 @@
                 if (bonuses[i].x < -50) bonuses.splice(i, 1);
             }
 
-            // Maneələr
             for (let i = obstacles.length - 1; i >= 0; i--) {
                 obstacles[i].x -= gameSpeed;
-
-                if (bird.x + bird.radius > obstacles[i].x && bird.x - bird.radius < obstacles[i].x + obstacles[i].width) {
-                    if (bird.y - bird.radius < obstacles[i].topHeight || bird.y + bird.radius > obstacles[i].bottomY) {
+                if (bird.x + bird.radius - 5 > obstacles[i].x && bird.x - bird.radius + 5 < obstacles[i].x + obstacles[i].width) {
+                    if (bird.y - bird.radius + 5 < obstacles[i].topHeight || bird.y + bird.radius - 5 > obstacles[i].bottomY) {
                         endGame();
                     }
                 }
-
                 if (!obstacles[i].passed && obstacles[i].x + obstacles[i].width < bird.x) {
                     const pointsToAdd = isDoublePoints ? 2 : 1;
                     score += pointsToAdd;
-                    obstaclesPassedCount++; // Həqiqi keçilən maneə sayı
+                    obstaclesPassedCount++;
                     obstacles[i].passed = true;
                     scoreDisplay.innerText = score;
-                    
-                    // SÜRƏT ARTIMI: Hər keçilən maneədə 0.2 artır
                     gameSpeed += 0.2; 
                     speedDisplay.innerText = (gameSpeed / 4).toFixed(1);
-
-                    // PROQRESSİV BONUS MƏNTİQİ (10, 20, 30...)
                     if (obstaclesPassedCount === nextBonusThreshold) {
                         const obs = obstacles[i];
                         bonuses.push({
-                            x: canvas.width + 150, // Bir az sonra gəlsin
+                            x: canvas.width + 150,
                             y: obs.topHeight + ((obs.bottomY - obs.topHeight) / 2),
                             radius: 15
                         });
-                        
-                        // Növbəti hədəfi hesabla: 10 + 20 = 30, sonra 30 + 30 = 60
                         bonusStep += 10;
                         nextBonusThreshold += bonusStep;
                     }
-                    
                     if (score > highScore) {
                         highScore = score;
                         localStorage.setItem('birdHighScore', highScore);
                         highScoreDisplay.innerText = highScore;
                     }
                 }
-
                 if (obstacles[i].x + obstacles[i].width < 0) obstacles.splice(i, 1);
             }
 
             if (obstacles.length === 0 || canvas.width - obstacles[obstacles.length - 1].x > 320) {
                 createObstacle();
             }
-
             if (bird.y < 0 || bird.y > canvas.height) endGame();
         }
 
@@ -310,6 +315,37 @@
             finalHighText.innerText = highScore;
             instructions.classList.remove('hidden');
             noHandWarning.classList.add('hidden');
+        }
+
+        // Realistik Qanad Çəkmə Funksiyası
+        function drawWing(ctx, x, y, size, phase, color, isFront) {
+            ctx.save();
+            ctx.translate(x, y);
+            
+            // Qanadın yuxarı-aşağı bucağı
+            const angle = Math.sin(phase) * 1.2; 
+            ctx.rotate(angle);
+
+            ctx.fillStyle = color;
+            ctx.strokeStyle = '#fff';
+            ctx.lineWidth = 1;
+
+            // Qanadın əsas lələkləri (3 dənə lələk)
+            for (let i = 0; i < 3; i++) {
+                ctx.save();
+                ctx.rotate(i * 0.2); // Hər lələk bir az meyilli
+                
+                ctx.beginPath();
+                // Lələk forması: uzunsov və ucu sivri
+                ctx.moveTo(0, 0);
+                ctx.quadraticCurveTo(-size * 1.5, -size * 0.8, -size * 2, 0);
+                ctx.quadraticCurveTo(-size * 1.5, size * 0.8, 0, 0);
+                ctx.fill();
+                ctx.stroke();
+                ctx.restore();
+            }
+            
+            ctx.restore();
         }
 
         function draw() {
@@ -346,32 +382,58 @@
                 ctx.restore();
             });
 
-            if (currentHandLandmarks) {
-                ctx.save();
-                const mirroredLandmarks = currentHandLandmarks.map(l => ({
-                    x: 1 - l.x,
-                    y: l.y
-                }));
-                drawConnectors(ctx, mirroredLandmarks, HAND_CONNECTIONS, {color: 'rgba(255, 255, 255, 0.25)', lineWidth: 2});
-                drawLandmarks(ctx, mirroredLandmarks, {color: 'rgba(255, 255, 255, 0.4)', lineWidth: 1, radius: 2});
-                ctx.restore();
-            }
-
             if (isGameStarted || isGameOver) {
                 ctx.save();
                 ctx.translate(bird.x, bird.y);
-                ctx.shadowBlur = isDoublePoints ? 20 : 15;
-                ctx.shadowColor = isDoublePoints ? '#ffd700' : 'rgba(245, 158, 11, 0.5)';
+                ctx.rotate(bird.rotation);
+
+                ctx.shadowBlur = isDoublePoints ? 20 : 10;
+                ctx.shadowColor = isDoublePoints ? '#ffd700' : 'rgba(0,0,0,0.2)';
+
+                // Arxa qanad (Daha tünd rəngdə)
+                drawWing(ctx, -5, -2, 12, bird.wingPhase + 0.3, isDoublePoints ? '#d97706' : '#92400e', false);
+
+                // Bədən
                 ctx.beginPath();
                 ctx.arc(0, 0, bird.radius, 0, Math.PI * 2);
                 ctx.fillStyle = isDoublePoints ? '#ffd700' : bird.color;
                 ctx.fill();
-                ctx.lineWidth = 3;
                 ctx.strokeStyle = '#fff';
+                ctx.lineWidth = 2;
                 ctx.stroke();
-                ctx.fillStyle = 'white'; ctx.beginPath(); ctx.arc(8, -5, 5, 0, Math.PI * 2); ctx.fill();
-                ctx.fillStyle = 'black'; ctx.beginPath(); ctx.arc(10, -5, 2.5, 0, Math.PI * 2); ctx.fill();
-                ctx.fillStyle = '#ef4444'; ctx.beginPath(); ctx.moveTo(15, 0); ctx.lineTo(25, 5); ctx.lineTo(15, 10); ctx.fill();
+
+                // Ön qanad (Bədənin rəngində)
+                drawWing(ctx, -2, 2, 14, bird.wingPhase, isDoublePoints ? '#fbbf24' : '#f59e0b', true);
+
+                // Göz
+                ctx.fillStyle = 'white';
+                ctx.beginPath();
+                ctx.arc(8, -5, 5, 0, Math.PI * 2);
+                ctx.fill();
+                if (bird.eyeBlink === 0) {
+                    ctx.fillStyle = 'black';
+                    ctx.beginPath();
+                    ctx.arc(10, -5, 2.5, 0, Math.PI * 2);
+                    ctx.fill();
+                } else {
+                    ctx.strokeStyle = 'black';
+                    ctx.lineWidth = 1;
+                    ctx.beginPath(); ctx.moveTo(6, -5); ctx.lineTo(12, -5); ctx.stroke();
+                }
+
+                // Dimdik
+                ctx.fillStyle = '#ef4444';
+                ctx.beginPath();
+                ctx.moveTo(15, -2); ctx.lineTo(26, 4); ctx.lineTo(15, 10); ctx.closePath();
+                ctx.fill(); ctx.stroke();
+
+                ctx.restore();
+            }
+
+            if (currentHandLandmarks) {
+                ctx.save();
+                const mirroredLandmarks = currentHandLandmarks.map(l => ({ x: 1 - l.x, y: l.y }));
+                drawConnectors(ctx, mirroredLandmarks, HAND_CONNECTIONS, {color: 'rgba(255, 255, 255, 0.15)', lineWidth: 1});
                 ctx.restore();
             }
         }
