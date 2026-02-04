@@ -1,0 +1,697 @@
+<!DOCTYPE html>
+<html lang="az">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AXTARGET - Anonim Chat</title>
+    <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@300;400;700&family=Space+Grotesk:wght@700;800&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --hacker-green: #00ff41;
+            --hacker-red: #ff003c;
+            --hacker-blue: #00f0ff;
+            --hacker-purple: #a020f0;
+            --hacker-pink: #ff00ff;
+            --bg-dark: #050505;
+            --bg-darker: #000000;
+        }
+
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, var(--bg-darker) 0%, #0a0015 100%);
+            color: var(--hacker-green);
+            font-family: 'Fira Code', monospace;
+            overflow: hidden;
+            user-select: none;
+            font-smooth: antialiased;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        #scene-container > div h1 {
+            letter-spacing: -0.03em;
+            line-height: 1;
+        }
+
+        .subtitle {
+            position: fixed;
+            bottom: 40px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 150;
+            opacity: 0;
+            font-size: 1.5rem;
+            max-width: 90%;
+            text-align: center;
+            color: var(--hacker-blue);
+            text-shadow: 0 0 10px var(--hacker-blue);
+            font-weight: 700;
+        }
+
+        .subtitle.active {
+            animation: subtitle-fade 3s ease-in-out forwards;
+        }
+
+        @keyframes subtitle-fade {
+            0% { opacity: 0; transform: translateX(-50%) translateY(20px); }
+            10% { opacity: 1; transform: translateX(-50%) translateY(0); }
+            90% { opacity: 1; transform: translateX(-50%) translateY(0); }
+            100% { opacity: 0; transform: translateX(-50%) translateY(-20px); }
+        }
+
+        .crt::before {
+            content: " ";
+            display: block;
+            position: absolute;
+            top: 0; left: 0; bottom: 0; right: 0;
+            background: 
+                linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.35) 50%),
+                linear-gradient(90deg, rgba(255, 0, 0, 0.1), rgba(0, 255, 0, 0.05), rgba(0, 0, 255, 0.1));
+            z-index: 100;
+            background-size: 100% 2px, 2px 100%;
+            pointer-events: none;
+            animation: flicker 0.15s infinite;
+            will-change: opacity;
+        }
+
+        @keyframes flicker {
+            0%, 100% { opacity: 0.8; }
+            50% { opacity: 0.9; }
+        }
+
+        .scanline {
+            width: 100%;
+            height: 100px;
+            z-index: 101;
+            background: linear-gradient(0deg, rgba(0, 0, 0, 0) 0%, rgba(255, 255, 255, 0.15) 50%, rgba(0, 0, 0, 0) 100%);
+            opacity: 0.08;
+            position: absolute;
+            bottom: 100%;
+            animation: scanline 4s linear infinite;
+        }
+
+        @keyframes scanline {
+            0% { bottom: 100%; }
+            100% { bottom: -100px; }
+        }
+
+        .glitch-flash {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: radial-gradient(circle at center, rgba(255,255,255,0.9), transparent);
+            z-index: 200;
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .ambient-glow {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            width: 800px;
+            height: 800px;
+            transform: translate(-50%, -50%);
+            background: radial-gradient(circle, rgba(0, 255, 65, 0.05), transparent 70%);
+            z-index: 1;
+            filter: blur(40px);
+            animation: pulse-glow 4s ease-in-out infinite;
+        }
+
+        @keyframes pulse-glow {
+            0%, 100% { opacity: 0.5; }
+            50% { opacity: 1; }
+        }
+
+        #scene-container {
+            perspective: 1200px;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: transform 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+
+        .floating-layer {
+            position: absolute;
+            transform-style: preserve-3d;
+            pointer-events: none;
+            will-change: transform;
+        }
+
+        .cursor {
+            display: inline-block;
+            width: 12px;
+            height: 1.2em;
+            background: linear-gradient(90deg, var(--hacker-green), var(--hacker-blue));
+            margin-left: 5px;
+            animation: blink 0.6s infinite;
+            box-shadow: 0 0 10px var(--hacker-green), 0 0 20px var(--hacker-green);
+        }
+
+        @keyframes blink {
+            0%, 49% { opacity: 1; }
+            50%, 100% { opacity: 0.3; }
+        }
+
+        .stage {
+            display: none;
+            width: 100%;
+            height: 100%;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            animation: stage-fade-in 0.8s ease-out;
+        }
+
+        @keyframes stage-fade-in {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        .stage.active {
+            display: flex;
+        }
+
+        .code-fragment {
+            position: absolute;
+            color: rgba(0, 255, 65, 0.3);
+            font-size: 0.8rem;
+            white-space: nowrap;
+            font-weight: 700;
+            text-shadow: 0 0 10px rgba(0, 255, 65, 0.5);
+        }
+
+        .chat-bubble {
+            background: rgba(0, 255, 65, 0.08);
+            border-left: 4px solid var(--hacker-green);
+            border-right: 1px solid rgba(0, 255, 65, 0.2);
+            border-top: 1px solid rgba(0, 255, 65, 0.1);
+            border-bottom: 1px solid rgba(0, 255, 65, 0.1);
+            padding: 12px 24px;
+            margin: 12px;
+            border-radius: 2px 12px 12px 2px;
+            font-size: 1.1rem;
+            opacity: 0;
+            transform: translateZ(0);
+            backdrop-filter: blur(10px);
+            box-shadow: 0 8px 32px rgba(0, 255, 65, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+            animation: bubble-enter 0.4s ease-out forwards;
+        }
+
+        @keyframes bubble-enter {
+            from {
+                opacity: 0;
+                transform: translateX(-30px) translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0) translateY(0);
+            }
+        }
+
+        .glitch-text {
+            animation: glitch-anim 0.3s infinite;
+            text-shadow: 
+                2px 0 var(--hacker-red),
+                -2px 0 var(--hacker-blue),
+                0 0 20px rgba(0, 255, 65, 0.5);
+        }
+
+        @keyframes glitch-anim {
+            0% { text-shadow: 2px 0 var(--hacker-red), -2px 0 var(--hacker-blue), 0 0 20px rgba(0, 255, 65, 0.5); }
+            50% { text-shadow: -2px 0 var(--hacker-blue), 2px 0 var(--hacker-red), 0 0 20px rgba(0, 255, 65, 0.3); }
+            100% { text-shadow: 2px 0 var(--hacker-red), -2px 0 var(--hacker-blue), 0 0 20px rgba(0, 255, 65, 0.5); }
+        }
+
+        .vignette {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: 
+                radial-gradient(ellipse at center, transparent 0%, rgba(0, 0, 0, 0.4) 100%);
+            z-index: 50;
+            pointer-events: none;
+        }
+
+        #purpose-q {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: clamp(3rem, 10vw, 8rem);
+            font-weight: 800;
+            letter-spacing: -0.02em;
+            background: linear-gradient(135deg, var(--hacker-green), var(--hacker-blue));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            animation: title-pulse 3s ease-in-out infinite;
+            margin-bottom: 2rem;
+        }
+
+        @keyframes title-pulse {
+            0%, 100% { filter: drop-shadow(0 0 20px rgba(0, 255, 65, 0.3)); }
+            50% { filter: drop-shadow(0 0 40px rgba(0, 255, 65, 0.6)); }
+        }
+
+        #stage5 {
+            background: radial-gradient(circle at center, rgba(0, 255, 65, 0.02), transparent);
+        }
+
+        #stage5 .border {
+            animation: border-glow 2s ease-in-out infinite;
+        }
+
+        @keyframes border-glow {
+            0%, 100% { 
+                box-shadow: 0 0 20px rgba(0, 255, 65, 0.3), inset 0 0 20px rgba(0, 255, 65, 0.05);
+            }
+            50% { 
+                box-shadow: 0 0 40px rgba(0, 255, 65, 0.6), inset 0 0 30px rgba(0, 255, 65, 0.1);
+            }
+        }
+
+        #stage5 h1 {
+            font-family: 'Space Grotesk', sans-serif;
+            letter-spacing: -0.03em;
+            background: linear-gradient(135deg, var(--hacker-green), var(--hacker-blue), var(--hacker-green));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            animation: title-flicker 2s ease-in-out infinite;
+        }
+
+        @keyframes title-flicker {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.85; }
+        }
+
+        #terminal-out {
+            font-size: clamp(1rem, 1.5vw, 1.5rem);
+            line-height: 1.6;
+            font-weight: 400;
+            min-height: 150px;
+        }
+
+        .text-left {
+            text-align: left;
+        }
+
+        .w-full {
+            width: 100%;
+        }
+
+        .max-w-2xl {
+            max-width: 42rem;
+        }
+
+        .p-8 {
+            padding: 2rem;
+        }
+
+        .flex {
+            display: flex;
+        }
+
+        .flex-col {
+            flex-direction: column;
+        }
+
+        .items-center {
+            align-items: center;
+        }
+
+        .justify-center {
+            justify-content: center;
+        }
+
+        #purpose-a {
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+            margin-top: 2rem;
+        }
+
+        .purpose-row {
+            opacity: 0;
+            transform: translateY(16px);
+            transition: all 0.5s ease-out;
+            font-size: clamp(1.25rem, 2vw, 1.5rem);
+            font-weight: 600;
+        }
+
+        .purpose-row.show {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        #stage5 > div {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            gap: 2rem;
+            max-width: 800px;
+        }
+
+        #stage5 h1 {
+            font-size: clamp(2rem, 5vw, 4rem);
+            margin: 0;
+        }
+
+        #stage5 p {
+            font-size: clamp(1rem, 1.5vw, 1.25rem);
+            line-height: 1.6;
+            margin: 0;
+        }
+    </style>
+</head>
+<body>
+    <div id="subtitle" class="subtitle"></div>
+    <div class="scanline"></div>
+    <div class="ambient-glow"></div>
+    <div class="glitch-flash" id="flash"></div>
+    <div class="vignette"></div>
+
+    <div id="scene-container" class="crt">
+        <!-- STAGE 1: SYSTEM ACCESS -->
+        <div id="stage1" class="stage active">
+            <div class="text-left w-full max-w-2xl p-8">
+                <div id="terminal-out"></div>
+                <div id="cursor1" class="cursor"></div>
+            </div>
+        </div>
+
+        <!-- STAGE 2: DATA ZOOM -->
+        <div id="stage2" class="stage">
+            <div id="zoom-field" class="w-full" style="height: 100%; position: relative; overflow: hidden;">
+                <!-- Fragments generated by JS -->
+            </div>
+        </div>
+
+        <!-- STAGE 3: ANONIM CHAT REVEAL -->
+        <div id="stage3" class="stage">
+            <div id="chat-stream" class="flex flex-col items-center justify-center w-full max-w-2xl">
+                <!-- Chat bubbles generated by JS -->
+            </div>
+        </div>
+
+        <!-- STAGE 4: PURPOSE -->
+        <div id="stage4" class="stage">
+            <div class="w-full max-w-2xl p-8">
+                <div id="purpose-q"></div>
+                <div id="purpose-a"></div>
+            </div>
+        </div>
+
+        <!-- STAGE 5: FINAL MESSAGE -->
+        <div id="stage5" class="stage">
+            <div class="border" style="border: 1px solid rgba(0, 255, 65, 0.2); padding: 3rem; border-radius: 8px;">
+                <h1>AXTARGET</h1>
+                <p>Tam Anonim Chat Platformu</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const terminalOut = document.getElementById('terminal-out');
+        const flash = document.getElementById('flash');
+        const sceneContainer = document.getElementById('scene-container');
+
+        function sleep(ms) {
+            return new Promise(resolve => setTimeout(resolve, ms));
+        }
+
+        async function triggerFlash(duration = 50, intensity = 0.8) {
+            if (flash) {
+                flash.style.opacity = intensity;
+                flash.style.transition = 'opacity 0.05s ease-out';
+                await sleep(duration);
+                flash.style.opacity = '0';
+            }
+        }
+
+        async function typeText(el, text, speed = 15) {
+            for (let char of text) {
+                el.innerHTML += char;
+                await sleep(speed + Math.random() * 8);
+            }
+            el.innerHTML += '<br>';
+        }
+
+        async function randomGlitch() {
+            if (Math.random() > 0.85) {
+                await triggerFlash(20, 0.3);
+            }
+        }
+
+        function showSubtitle(text, duration = 3000) {
+            const subtitleEl = document.getElementById('subtitle');
+            if (subtitleEl) {
+                subtitleEl.innerText = text;
+                subtitleEl.classList.add('active');
+            }
+            return new Promise(resolve => {
+                setTimeout(() => {
+                    subtitleEl?.classList.remove('active');
+                    resolve(null);
+                }, duration);
+            });
+        }
+
+        async function startCinematic() {
+            if (!terminalOut || !flash || !sceneContainer) return;
+
+            // --- STAGE 1 ---
+            await sleep(400);
+            await showSubtitle("Sistem başlayır...", 2000);
+
+            terminalOut.style.textShadow = '0 0 20px rgba(0, 255, 65, 0.5)';
+            await typeText(terminalOut, "> SYSTEM INITIALIZING...");
+            await sleep(200);
+
+            await showSubtitle("AXTARGET şəbəkəsinə qoşulur", 2000);
+            await typeText(terminalOut, "> connecting to AXTARGET network...");
+            await sleep(250);
+
+            await randomGlitch();
+            await showSubtitle("Kimlik doğrulama atlanır", 2000);
+            await typeText(terminalOut, "> bypassing identity verification layer...");
+            await sleep(200);
+
+            await randomGlitch();
+            await showSubtitle("İstifadəçi məlumatı axtarılır...", 2000);
+            await typeText(terminalOut, "> scanning for user data...");
+            await sleep(150);
+
+            await typeText(terminalOut, "> identity: <span style='color: #ff003c; text-shadow: 0 0 10px #ff003c;'>NOT FOUND</span>", 8);
+            await sleep(400);
+            await showSubtitle("Mükəmməl. Sən anonim olacaqsan.", 2500);
+
+            const cursor1 = document.getElementById('cursor1');
+            if (cursor1) cursor1.style.display = 'none';
+            await triggerFlash(150, 0.6);
+
+            // --- STAGE 2 ---
+            await sleep(300);
+            await showSubtitle("Məlumatlar təmizlənir", 2000);
+
+            const stage1 = document.getElementById('stage1');
+            const stage2 = document.getElementById('stage2');
+            stage1?.classList.remove('active');
+            stage2?.classList.add('active');
+
+            await sleep(200);
+            await showSubtitle("Kimlik heç bir yerdə qeyd edilmədi", 2500);
+
+            const zoomField = document.getElementById('zoom-field');
+            const azWords = ["ad yoxdur", "profil yoxdur", "iz yoxdur", "anonim", "sifr", "gizli"];
+
+            if (zoomField) {
+                for (let i = 0; i < 80; i++) {
+                    const frag = document.createElement('div');
+                    frag.className = 'code-fragment';
+                    frag.innerText = Math.random() > 0.5
+                        ? Math.random().toString(16).substring(2, 10)
+                        : azWords[Math.floor(Math.random() * azWords.length)];
+                    frag.style.left = Math.random() * 100 + '%';
+                    frag.style.top = Math.random() * 100 + '%';
+                    frag.style.fontSize = Math.random() * 2.5 + 0.8 + 'rem';
+                    frag.style.color =
+                        Math.random() > 0.7
+                            ? 'rgba(0, 240, 255, 0.4)'
+                            : 'rgba(0, 255, 65, 0.3)';
+                    zoomField.appendChild(frag);
+
+                    frag.animate(
+                        [
+                            {
+                                transform: 'translateZ(-1500px) scale(0) rotateY(-45deg)',
+                                opacity: '0'
+                            },
+                            {
+                                transform: 'translateZ(0) scale(1.5) rotateY(0deg)',
+                                opacity: '0.8'
+                            },
+                            {
+                                transform: 'translateZ(1500px) scale(4) rotateY(45deg)',
+                                opacity: '0'
+                            }
+                        ],
+                        {
+                            duration: 1000,
+                            delay: i * 8,
+                            easing: 'cubic-bezier(0.34, 1.56, 0.64, 1)',
+                            fill: 'forwards'
+                        }
+                    );
+                }
+            }
+
+            sceneContainer.style.transform = 'scale(6) rotate(8deg)';
+            await sleep(1200);
+            await triggerFlash(100, 0.7);
+
+            // --- STAGE 3 ---
+            await sleep(400);
+            await showSubtitle("Real insanlar gerçek söyləyir", 2000);
+
+            sceneContainer.style.transform = 'scale(1) rotate(0deg)';
+            stage2?.classList.remove('active');
+            const stage3 = document.getElementById('stage3');
+            stage3?.classList.add('active');
+
+            const msgs = [
+                "salam",
+                "burda kimsə var?",
+                "səni tanımıram",
+                "kimdir bu?",
+                "sistem stabil mi?",
+                "mesaj silindi",
+                "iz qalmadı",
+                "anonim dəstəyi",
+                "kimin adı?"
+            ];
+            const chatStream = document.getElementById('chat-stream');
+
+            if (chatStream) {
+                for (let i = 0; i < 10; i++) {
+                    const bubble = document.createElement('div');
+                    bubble.className = 'chat-bubble';
+                    bubble.style.animationDelay = `${i * 0.1}s`;
+                    chatStream.appendChild(bubble);
+
+                    await typeText(bubble, msgs[i % msgs.length], 10 + Math.random() * 8);
+                    bubble.style.opacity = '1';
+                    bubble.style.transform = `translateX(${Math.random() * 60 - 30}px) translateZ(${Math.random() * 150}px)`;
+
+                    if (Math.random() > 0.6) {
+                        bubble.classList.add('glitch-text');
+                        bubble.style.borderLeftColor = Math.random() > 0.5 ? '#00f0ff' : '#ff003c';
+                    }
+
+                    await sleep(150 + Math.random() * 100);
+                    sceneContainer.style.transform = `scale(${1 + i * 0.015}) rotate(${i * 0.3}deg)`;
+                    await randomGlitch();
+                }
+            }
+
+            await sleep(600);
+            await showSubtitle("Heç kim sənin kim olduğunu bilməz", 2500);
+            await sleep(400);
+            await triggerFlash(200, 0.8);
+
+            // --- STAGE 4 ---
+            await sleep(500);
+            stage3?.classList.remove('active');
+            const stage4 = document.getElementById('stage4');
+            stage4?.classList.add('active');
+
+            await showSubtitle("Nə mənalı bir söhbət yaradır?", 2000);
+
+            const q = document.getElementById('purpose-q');
+            if (q) {
+                q.innerText = "MARAĞI NƏDİR?";
+                q.style.opacity = '1';
+                q.style.transform = 'scale(0.8)';
+                q.animate(
+                    [
+                        { opacity: '0', transform: 'scale(0.5)' },
+                        { opacity: '1', transform: 'scale(1)' }
+                    ],
+                    {
+                        duration: 500,
+                        easing: 'cubic-bezier(0.34, 1.56, 0.64, 1)',
+                        fill: 'forwards'
+                    }
+                );
+            }
+
+            await sleep(500);
+
+            const answers = [
+                "➤ əsl kimliksiz söhbət",
+                "➤ heç bir yerdə iz qoymadan",
+                "➤ əslində özün olmaq"
+            ];
+            const aContainer = document.getElementById('purpose-a');
+
+            if (aContainer) {
+                for (let idx = 0; idx < answers.length; idx++) {
+                    const ans = answers[idx];
+                    const row = document.createElement('div');
+                    row.className = 'purpose-row';
+                    row.style.color = idx % 2 === 0 ? '#00ff41' : '#00f0ff';
+                    row.innerText = ans;
+                    aContainer.appendChild(row);
+                    await sleep(400);
+                    row.classList.add('show');
+                    await triggerFlash(30, 0.3);
+                }
+            }
+
+            await sleep(800);
+            await triggerFlash(120, 0.9);
+
+            // --- STAGE 5 ---
+            await sleep(600);
+            await showSubtitle("AXTARGET - Tam Anonim Chat Platformu", 3000);
+
+            stage4?.classList.remove('active');
+            const stage5 = document.getElementById('stage5');
+            stage5?.classList.add('active');
+            sceneContainer.style.transform = 'scale(1) perspective(1000px) rotateX(2deg)';
+
+            await sleep(1000);
+            await showSubtitle("Qeydiyyat. Kimlik. Məlumat. Heç biri yoxdur.", 3000);
+
+            await sleep(1000);
+            await showSubtitle("Sənin kimliyin sənə xasdır. Qorumaq üçün AXTARGET.", 3000);
+
+            let glitchInterval = setInterval(() => {
+                if (Math.random() > 0.92) {
+                    triggerFlash(30 + Math.random() * 40, 0.2 + Math.random() * 0.3);
+                }
+            }, 150);
+
+            const finalContainer = document.querySelector('#stage5 > div');
+            if (finalContainer) {
+                setInterval(() => {
+                    const rotation = Math.sin(Date.now() * 0.0005) * 0.5;
+                    finalContainer.style.transform = `perspective(1200px) rotateY(${rotation}deg)`;
+                }, 50);
+            }
+        }
+
+        // Start animation when page loads
+        startCinematic();
+    </script>
+</body>
+</html>
