@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="az">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AxtarGet - Həssas Yazı Sistemi</title>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+    <style>
+        :root {
+            --neon-blue: #00f2ff;
+            --deep-space: #010103;
+            --glow-gold: #ffdd00;
+        }
+
+        body, html {
+            margin: 0; padding: 0;
+            width: 100%; height: 100%;
+            overflow: hidden;
+            background-color: var(--deep-space);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            touch-action: none;
+        }
+
+        #canvas-container {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            z-index: 1;
+        }
+
+        .ui-panel {
+            position: absolute;
+            bottom: 40px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 10;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 20px;
+            width: 100%;
+            max-width: 500px;
+            padding: 0 20px;
+            pointer-events: none; /* UI üzərində mouse keçəndə arxadakı canvasa mane olmasın */
+        }
+
+        .input-group {
+            display: flex;
+            width: 100%;
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(15px);
+            border: 1px solid rgba(0, 242, 255, 0.3);
+            border-radius: 50px;
+            overflow: hidden;
+            box-shadow: 0 0 30px rgba(0, 242, 255, 0.1);
+            transition: all 0.3s ease;
+            pointer-events: auto;
+        }
+
+        .input-group:focus-within {
+            border-color: var(--neon-blue);
+            box-shadow: 0 0 40px rgba(0, 242, 255, 0.25);
+        }
+
+        input {
+            flex: 1;
+            background: transparent;
+            border: none;
+            padding: 15px 25px;
+            color: white;
+            font-size: 1.1rem;
+            outline: none;
+            letter-spacing: 1px;
+        }
+
+        button {
+            background: var(--neon-blue);
+            color: black;
+            border: none;
+            padding: 0 30px;
+            font-weight: bold;
+            cursor: pointer;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            transition: all 0.3s ease;
+        }
+
+        button:hover {
+            background: white;
+            box-shadow: 0 0 20px white;
+        }
+
+        #loading-screen {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: #000;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+            color: var(--neon-blue);
+            letter-spacing: 5px;
+            font-weight: bold;
+        }
+
+        #text-canvas {
+            display: none;
+        }
+
+        .footer-text {
+            color: rgba(255,255,255,0.4); 
+            font-size: 0.7rem; 
+            letter-spacing: 2px;
+            pointer-events: auto;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="loading-screen">SİSTEM HAZIRLANIR...</div>
+
+    <div class="ui-panel">
+        <div class="input-group">
+            <input type="text" id="text-input" placeholder="Yazını daxil edin..." maxlength="15" autocomplete="off">
+            <button id="transform-btn">DƏVAM ET</button>
+        </div>
+        <div class="footer-text">AXTAR-GET PARTICLE ENGINE V2.1 (SENSITIVE)</div>
+    </div>
+
+    <canvas id="text-canvas"></canvas>
+    <div id="canvas-container"></div>
+
+    <script>
+        const textInput = document.getElementById('text-input');
+        const transformBtn = document.getElementById('transform-btn');
+        const loadingScreen = document.getElementById('loading-screen');
+        const textCanvas = document.getElementById('text-canvas');
+        const tCtx = textCanvas.getContext('2d');
+
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        document.getElementById('canvas-container').appendChild(renderer.domElement);
+
+        const particleCount = 45000; // Stabil işləməsi üçün bir az optimizasiya olundu
+        const positions = new Float32Array(particleCount * 3);
+        const targetPositions = new Float32Array(particleCount * 3);
+        const colors = new Float32Array(particleCount * 3);
+        const velocities = new Float32Array(particleCount * 3);
+        const geometry = new THREE.BufferGeometry();
+
+        let isTextMode = false;
+        let mouse = new THREE.Vector3(-1000, -1000, 0);
+        let raycaster = new THREE.Raycaster();
+
+        // Rəng sabitləri
+        const baseColor = new THREE.Color(0x00f2ff);
+        const goldColor = new THREE.Color(0xffdd00);
+
+        function createSphere() {
+            isTextMode = false;
+            const radius = 30;
+            for (let i = 0; i < particleCount; i++) {
+                const i3 = i * 3;
+                const u = Math.random();
+                const v = Math.random();
+                const theta = 2 * Math.PI * u;
+                const phi = Math.acos(2 * v - 1);
+                
+                targetPositions[i3] = radius * Math.sin(phi) * Math.cos(theta);
+                targetPositions[i3 + 1] = radius * Math.sin(phi) * Math.sin(theta);
+                targetPositions[i3 + 2] = radius * Math.cos(phi);
+            }
+        }
+
+        function textToPoints(text) {
+            isTextMode = true;
+            const size = 150;
+            textCanvas.width = size * 8; 
+            textCanvas.height = size;
+            
+            tCtx.fillStyle = 'white';
+            tCtx.font = `bold 70px Arial`; 
+            tCtx.textAlign = 'center';
+            tCtx.textBaseline = 'middle';
+            tCtx.clearRect(0, 0, textCanvas.width, textCanvas.height);
+            tCtx.fillText(text, textCanvas.width / 2, textCanvas.height / 2);
+
+            const imageData = tCtx.getImageData(0, 0, textCanvas.width, textCanvas.height);
+            const pixels = imageData.data;
+            const points = [];
+
+            // Daha yaxşı yazı keyfiyyəti üçün sıxlıq
+            for (let y = 0; y < textCanvas.height; y += 1) {
+                for (let x = 0; x < textCanvas.width; x += 1) {
+                    const alpha = pixels[(y * textCanvas.width + x) * 4 + 3];
+                    if (alpha > 128) {
+                        points.push({
+                            x: (x - textCanvas.width / 2) * 0.6,
+                            y: (textCanvas.height / 2 - y) * 0.6
+                        });
+                    }
+                }
+            }
+
+            for (let i = 0; i < particleCount; i++) {
+                const i3 = i * 3;
+                const p = points[i % points.length];
+                const noise = 0.5; 
+                targetPositions[i3] = p.x + (Math.random() - 0.5) * noise;
+                targetPositions[i3 + 1] = p.y + (Math.random() - 0.5) * noise;
+                targetPositions[i3 + 2] = (Math.random() - 0.5) * noise;
+            }
+        }
+
+        // İlkin vəziyyət
+        for (let i = 0; i < particleCount; i++) {
+            const i3 = i * 3;
+            positions[i3] = (Math.random() - 0.5) * 800;
+            positions[i3 + 1] = (Math.random() - 0.5) * 800;
+            positions[i3 + 2] = (Math.random() - 0.5) * 800;
+            
+            colors[i3] = baseColor.r;
+            colors[i3 + 1] = baseColor.g;
+            colors[i3 + 2] = baseColor.b;
+        }
+        createSphere();
+
+        geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+        geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+
+        const material = new THREE.PointsMaterial({
+            size: 0.15,
+            vertexColors: true,
+            transparent: true,
+            opacity: 0.8,
+            blending: THREE.AdditiveBlending,
+            depthWrite: false
+        });
+
+        const pointsObj = new THREE.Points(geometry, material);
+        scene.add(pointsObj);
+
+        camera.position.z = 100;
+
+        // Mouse hərəkət izləyicisi
+        window.addEventListener('mousemove', (e) => {
+            const rect = renderer.domElement.getBoundingClientRect();
+            const x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+            const y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+            
+            // Mouse-u 3D koordinata çeviririk
+            const vector = new THREE.Vector3(x, y, 0.5);
+            vector.unproject(camera);
+            const dir = vector.sub(camera.position).normalize();
+            const distance = -camera.position.z / dir.z;
+            mouse = camera.position.clone().add(dir.multiplyScalar(distance));
+        });
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            const posAttr = geometry.attributes.position;
+            const colAttr = geometry.attributes.color;
+            
+            const mouseInfluenceRadius = isTextMode ? 15 : 25;
+            const mouseStrength = 0.8;
+
+            for (let i = 0; i < particleCount; i++) {
+                const i3 = i * 3;
+                
+                let tx = targetPositions[i3];
+                let ty = targetPositions[i3 + 1];
+                let tz = targetPositions[i3 + 2];
+
+                // Sphere modunda fırlanmanı nəzərə alırıq
+                if (!isTextMode) {
+                    const angle = pointsObj.rotation.y;
+                    const cos = Math.cos(angle);
+                    const sin = Math.sin(angle);
+                    const rx = tx * cos + tz * sin;
+                    const rz = -tx * sin + tz * cos;
+                    tx = rx;
+                    tz = rz;
+                }
+
+                // Mouse itələmə məntiqi
+                const dx = posAttr.array[i3] - mouse.x;
+                const dy = posAttr.array[i3 + 1] - mouse.y;
+                const dz = posAttr.array[i3 + 2] - mouse.z;
+                const distSq = dx*dx + dy*dy + dz*dz;
+                const dist = Math.sqrt(distSq);
+
+                if (dist < mouseInfluenceRadius) {
+                    const force = (mouseInfluenceRadius - dist) / mouseInfluenceRadius;
+                    velocities[i3] += (dx / dist) * force * mouseStrength;
+                    velocities[i3 + 1] += (dy / dist) * force * mouseStrength;
+                    velocities[i3 + 2] += (dz / dist) * force * mouseStrength;
+
+                    // Qızılı rəngə boya
+                    colAttr.array[i3] += (goldColor.r - colAttr.array[i3]) * 0.15;
+                    colAttr.array[i3+1] += (goldColor.g - colAttr.array[i3+1]) * 0.15;
+                    colAttr.array[i3+2] += (goldColor.b - colAttr.array[i3+2]) * 0.15;
+                } else {
+                    // Orijinal rəngə qayıt
+                    colAttr.array[i3] += (baseColor.r - colAttr.array[i3]) * 0.05;
+                    colAttr.array[i3+1] += (baseColor.g - colAttr.array[i3+1]) * 0.05;
+                    colAttr.array[i3+2] += (baseColor.b - colAttr.array[i3+2]) * 0.05;
+                }
+
+                // Fizika və Lerp (Geri qayıtma gücü)
+                const springForce = 0.03;
+                velocities[i3] += (tx - posAttr.array[i3]) * springForce;
+                velocities[i3+1] += (ty - posAttr.array[i3+1]) * springForce;
+                velocities[i3+2] += (tz - posAttr.array[i3+2]) * springForce;
+
+                // Sürtünmə (Hərəkəti yumşaltmaq üçün)
+                velocities[i3] *= 0.85;
+                velocities[i3+1] *= 0.85;
+                velocities[i3+2] *= 0.85;
+
+                // Mövqeyi yenilə
+                posAttr.array[i3] += velocities[i3];
+                posAttr.array[i3+1] += velocities[i3+1];
+                posAttr.array[i3+2] += velocities[i3+2];
+            }
+
+            posAttr.needsUpdate = true;
+            colAttr.needsUpdate = true;
+
+            if (!isTextMode) {
+                pointsObj.rotation.y += 0.003;
+            } else {
+                pointsObj.rotation.y *= 0.9;
+            }
+
+            renderer.render(scene, camera);
+        }
+
+        function handleTransform() {
+            const val = textInput.value.trim();
+            if (val === "") {
+                createSphere();
+            } else {
+                textToPoints(val);
+            }
+        }
+
+        transformBtn.addEventListener('click', handleTransform);
+        textInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') handleTransform();
+        });
+
+        window.onload = () => {
+            loadingScreen.style.opacity = '0';
+            setTimeout(() => loadingScreen.style.display = 'none', 500);
+            animate();
+        };
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+    </script>
+</body>
+</html>
