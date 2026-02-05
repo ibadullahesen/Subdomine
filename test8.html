@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AxtarGet - Həssas Yazı Sistemi</title>
+    <title>AxtarGet - Sürətli Bitişmə Sistemi</title>
     
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 
@@ -43,7 +43,7 @@
             width: 100%;
             max-width: 500px;
             padding: 0 20px;
-            pointer-events: none; /* UI üzərində mouse keçəndə arxadakı canvasa mane olmasın */
+            pointer-events: none;
         }
 
         .input-group {
@@ -127,7 +127,6 @@
             <input type="text" id="text-input" placeholder="Yazını daxil edin..." maxlength="15" autocomplete="off">
             <button id="transform-btn">DƏVAM ET</button>
         </div>
-        <div class="footer-text">AXTAR-GET PARTICLE ENGINE V2.1 (SENSITIVE)</div>
     </div>
 
     <canvas id="text-canvas"></canvas>
@@ -147,18 +146,16 @@
         renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
         document.getElementById('canvas-container').appendChild(renderer.domElement);
 
-        const particleCount = 45000; // Stabil işləməsi üçün bir az optimizasiya olundu
+        const particleCount = 45000; 
         const positions = new Float32Array(particleCount * 3);
         const targetPositions = new Float32Array(particleCount * 3);
+        const velocities = new Float32Array(particleCount * 3); 
         const colors = new Float32Array(particleCount * 3);
-        const velocities = new Float32Array(particleCount * 3);
         const geometry = new THREE.BufferGeometry();
 
         let isTextMode = false;
         let mouse = new THREE.Vector3(-1000, -1000, 0);
-        let raycaster = new THREE.Raycaster();
 
-        // Rəng sabitləri
         const baseColor = new THREE.Color(0x00f2ff);
         const goldColor = new THREE.Color(0xffdd00);
 
@@ -195,7 +192,6 @@
             const pixels = imageData.data;
             const points = [];
 
-            // Daha yaxşı yazı keyfiyyəti üçün sıxlıq
             for (let y = 0; y < textCanvas.height; y += 1) {
                 for (let x = 0; x < textCanvas.width; x += 1) {
                     const alpha = pixels[(y * textCanvas.width + x) * 4 + 3];
@@ -218,7 +214,6 @@
             }
         }
 
-        // İlkin vəziyyət
         for (let i = 0; i < particleCount; i++) {
             const i3 = i * 3;
             positions[i3] = (Math.random() - 0.5) * 800;
@@ -248,13 +243,11 @@
 
         camera.position.z = 100;
 
-        // Mouse hərəkət izləyicisi
         window.addEventListener('mousemove', (e) => {
             const rect = renderer.domElement.getBoundingClientRect();
             const x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
             const y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
             
-            // Mouse-u 3D koordinata çeviririk
             const vector = new THREE.Vector3(x, y, 0.5);
             vector.unproject(camera);
             const dir = vector.sub(camera.position).normalize();
@@ -269,7 +262,12 @@
             const colAttr = geometry.attributes.color;
             
             const mouseInfluenceRadius = isTextMode ? 15 : 25;
-            const mouseStrength = 0.8;
+            
+            // Sürət parametrləri:
+            // lerpSpeed artırıldı (0.012 -> 0.04) ki, hissəciklər yerinə çox tez çatsın
+            const lerpSpeed = 0.04; 
+            // friction bir qədər azaldıldı ki, hərəkət daha kəskin olsun və gecikməsin
+            const friction = 0.88;   
 
             for (let i = 0; i < particleCount; i++) {
                 const i3 = i * 3;
@@ -278,7 +276,6 @@
                 let ty = targetPositions[i3 + 1];
                 let tz = targetPositions[i3 + 2];
 
-                // Sphere modunda fırlanmanı nəzərə alırıq
                 if (!isTextMode) {
                     const angle = pointsObj.rotation.y;
                     const cos = Math.cos(angle);
@@ -289,7 +286,6 @@
                     tz = rz;
                 }
 
-                // Mouse itələmə məntiqi
                 const dx = posAttr.array[i3] - mouse.x;
                 const dy = posAttr.array[i3 + 1] - mouse.y;
                 const dz = posAttr.array[i3 + 2] - mouse.z;
@@ -298,36 +294,32 @@
 
                 if (dist < mouseInfluenceRadius) {
                     const force = (mouseInfluenceRadius - dist) / mouseInfluenceRadius;
-                    velocities[i3] += (dx / dist) * force * mouseStrength;
-                    velocities[i3 + 1] += (dy / dist) * force * mouseStrength;
-                    velocities[i3 + 2] += (dz / dist) * force * mouseStrength;
+                    velocities[i3] += (dx / dist) * force * 1.2;
+                    velocities[i3 + 1] += (dy / dist) * force * 1.2;
+                    velocities[i3 + 2] += (dz / dist) * force * 1.2;
 
-                    // Qızılı rəngə boya
                     colAttr.array[i3] += (goldColor.r - colAttr.array[i3]) * 0.15;
                     colAttr.array[i3+1] += (goldColor.g - colAttr.array[i3+1]) * 0.15;
                     colAttr.array[i3+2] += (goldColor.b - colAttr.array[i3+2]) * 0.15;
                 } else {
-                    // Orijinal rəngə qayıt
                     colAttr.array[i3] += (baseColor.r - colAttr.array[i3]) * 0.05;
                     colAttr.array[i3+1] += (baseColor.g - colAttr.array[i3+1]) * 0.05;
                     colAttr.array[i3+2] += (baseColor.b - colAttr.array[i3+2]) * 0.05;
                 }
 
-                // Fizika və Lerp (Geri qayıtma gücü)
-                const springForce = 0.03;
-                velocities[i3] += (tx - posAttr.array[i3]) * springForce;
-                velocities[i3+1] += (ty - posAttr.array[i3+1]) * springForce;
-                velocities[i3+2] += (tz - posAttr.array[i3+2]) * springForce;
+                // Sürət tətbiqi (Mouse effekti)
+                velocities[i3] *= friction;
+                velocities[i3+1] *= friction;
+                velocities[i3+2] *= friction;
 
-                // Sürtünmə (Hərəkəti yumşaltmaq üçün)
-                velocities[i3] *= 0.85;
-                velocities[i3+1] *= 0.85;
-                velocities[i3+2] *= 0.85;
-
-                // Mövqeyi yenilə
                 posAttr.array[i3] += velocities[i3];
                 posAttr.array[i3+1] += velocities[i3+1];
                 posAttr.array[i3+2] += velocities[i3+2];
+
+                // Bitişmə (Recovery): Çox daha sürətli və dəqiq qayıdış
+                posAttr.array[i3] += (tx - posAttr.array[i3]) * lerpSpeed;
+                posAttr.array[i3 + 1] += (ty - posAttr.array[i3 + 1]) * lerpSpeed;
+                posAttr.array[i3 + 2] += (tz - posAttr.array[i3 + 2]) * lerpSpeed;
             }
 
             posAttr.needsUpdate = true;
@@ -336,7 +328,7 @@
             if (!isTextMode) {
                 pointsObj.rotation.y += 0.003;
             } else {
-                pointsObj.rotation.y *= 0.9;
+                pointsObj.rotation.y *= 0.95;
             }
 
             renderer.render(scene, camera);
