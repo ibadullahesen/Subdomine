@@ -27,7 +27,7 @@
 </head>
 <body>
 
-<div id="ui">Status: Pəncərələr izlənilir...<br>Effekt: Maqnit Cəlbetmə</div>
+<div id="ui">Status: Digər kürələr axtarılır...<br>Effekt: Dinamik Maqnit Cəlbetmə (0-70%)</div>
 
 <script>
     let scene, camera, renderer, points;
@@ -35,7 +35,6 @@
     const radius = 2.8;
     const initialPos = new Float32Array(particleCount * 3);
     
-    // Pəncərələr arası əlaqə üçün kanal
     const bc = new BroadcastChannel('sphere_sync');
     let otherWindows = {};
     const myId = Math.random().toString(36).substr(2, 9);
@@ -79,14 +78,14 @@
         scene.add(points);
     }
 
-    // Pəncərənin ekran koordinatlarını göndərir
     function broadcastPosition() {
         bc.postMessage({
             id: myId,
             screenX: window.screenX,
             screenY: window.screenY,
             width: window.innerWidth,
-            height: window.innerHeight
+            height: window.innerHeight,
+            timestamp: Date.now()
         });
     }
 
@@ -98,19 +97,29 @@
         requestAnimationFrame(animate);
         broadcastPosition();
 
+        // Köhnəlmiş pəncərə məlumatlarını təmizlə
+        const now = Date.now();
+        for(let id in otherWindows) {
+            if (now - otherWindows[id].timestamp > 1000) delete otherWindows[id];
+        }
+
         const pos = points.geometry.attributes.position.array;
         
-        // Ən yaxın pəncərəni tap
         let closestWin = null;
         let minDist = Infinity;
 
+        // Ən yaxın pəncərəni və məsafəni tap
         for (let id in otherWindows) {
             if (id === myId) continue;
             const other = otherWindows[id];
             
-            // Pəncərələr arasındakı ekran məsafəsi
-            const dx = (window.screenX + window.innerWidth/2) - (other.screenX + other.width/2);
-            const dy = (window.screenY + window.innerHeight/2) - (other.screenY + other.height/2);
+            const myCenterX = window.screenX + window.innerWidth / 2;
+            const myCenterY = window.screenY + window.innerHeight / 2;
+            const otherCenterX = other.screenX + other.width / 2;
+            const otherCenterY = other.screenY + other.height / 2;
+
+            const dx = otherCenterX - myCenterX;
+            const dy = myCenterY - otherCenterY; // Y oxu ekranda aşağı doğrudur
             const dist = Math.sqrt(dx*dx + dy*dy);
             
             if (dist < minDist) {
@@ -119,39 +128,44 @@
             }
         }
 
-        // Maqnit effekti məntiqi
-        let attractX = 0;
-        let attractY = 0;
-        let pullFactor = 0;
+        let pullStrength = 0;
+        let targetX_Offset = 0;
+        let targetY_Offset = 0;
 
         if (closestWin) {
-            // 70% yaxınlıq həddi (təxmini 1000px ekran məsafəsi kimi götürək)
-            const threshold = 1000; 
+            const threshold = 1200; // Cəlbetmənin başladığı məsafə
             if (closestWin.dist < threshold) {
-                // Məsafə azaldıqca güclənən faktor (0-dan 1-ə)
-                pullFactor = Math.pow(1 - (closestWin.dist / threshold), 2);
+                // 0-dan 1-ə doğru güclənən faktor
+                pullStrength = 1 - (closestWin.dist / threshold);
                 
-                // Pəncərə kənarına getdikcə güclənən meyl
-                attractX = -closestWin.dx * 0.01 * pullFactor;
-                attractY = closestWin.dy * 0.01 * pullFactor; // Screen Y tərsdir
+                // Hissəciklərin hara doğru dartılacağı (digər pəncərənin mərkəzi)
+                // Three.js koordinat sisteminə uyğunlaşdırma (təxmini faktor: 0.015)
+                targetX_Offset = closestWin.dx * 0.015 * pullStrength;
+                targetY_Offset = closestWin.dy * 0.015 * pullStrength;
             }
         }
 
         for (let i = 0; i < particleCount; i++) {
             const ix = i * 3, iy = i * 3 + 1, iz = i * 3 + 2;
 
-            // Hissəcikləri digər pəncərəyə doğru çək
-            const targetX = initialPos[ix] + attractX;
-            const targetY = initialPos[iy] + attractY;
+            // Hər hissəcik üçün fərdi gecikmə/variasiya əlavə edirik ki, "axın" effekti yaransın
+            const variation = (Math.sin(i * 0.1) + 1) * 0.5;
+            const individualPull = pullStrength * (0.8 + variation * 0.4);
+
+            const targetX = initialPos[ix] + (targetX_Offset * (0.5 + variation));
+            const targetY = initialPos[iy] + (targetY_Offset * (0.5 + variation));
             const targetZ = initialPos[iz];
 
+            // Yumşaq keçid (Lerp)
             pos[ix] += (targetX - pos[ix]) * 0.1;
             pos[iy] += (targetY - pos[iy]) * 0.1;
             pos[iz] += (targetZ - pos[iz]) * 0.1;
         }
 
         points.geometry.attributes.position.needsUpdate = true;
-        points.rotation.y += 0.003;
+        
+        // Fırlanma hərəkəti (yaxınlaşdıqca yavaşlayır ki, birləşmə anı sabit görünsün)
+        points.rotation.y += 0.003 * (1 - pullStrength * 0.8);
 
         renderer.render(scene, camera);
     }
