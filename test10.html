@@ -3,248 +3,168 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Zərrəciklərin Cazibəsi - 3D Kosmik Sistem</title>
+    <title>Pəncərələrarası Maqnit Kürələr</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <style>
-        :root {
-            --neon-blue: #00f2ff;
-            --deep-space: #010103;
+        body { 
+            margin: 0; 
+            overflow: hidden; 
+            background-color: #000; 
+            font-family: 'Segoe UI', sans-serif; 
         }
-
-        body, html {
-            margin: 0;
-            padding: 0;
-            width: 100%;
-            height: 100%;
-            overflow: hidden;
-            background-color: var(--deep-space);
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-        }
-
-        canvas {
-            display: block;
-        }
-
-        .ui-overlay {
+        #ui {
             position: absolute;
-            top: 20px;
+            bottom: 20px;
             left: 20px;
-            z-index: 10;
-            color: white;
+            color: rgba(0, 242, 255, 0.7);
+            font-size: 14px;
+            letter-spacing: 1px;
             pointer-events: none;
-            text-shadow: 0 0 15px var(--neon-blue);
-        }
-
-        .status-badge {
-            background: rgba(0, 242, 255, 0.05);
-            border-left: 3px solid var(--neon-blue);
-            padding: 10px 20px;
-            backdrop-filter: blur(10px);
-            letter-spacing: 2px;
-            font-size: 0.7rem;
-            text-transform: uppercase;
+            border-left: 2px solid #00f2ff;
+            padding-left: 10px;
         }
     </style>
 </head>
 <body>
 
-<div class="ui-overlay">
-    <div class="status-badge">
-        Sistem: Aktiv <br>
-        <span id="particle-count-ui">Zərrəciklər: 90,000</span>
-    </div>
-</div>
-
-<canvas id="canvas"></canvas>
+<div id="ui">Status: Pəncərələr izlənilir...<br>Effekt: Maqnit Cəlbetmə</div>
 
 <script>
-    const canvas = document.getElementById('canvas');
-    const ctx = canvas.getContext('2d');
+    let scene, camera, renderer, points;
+    const particleCount = 28000;
+    const radius = 2.8;
+    const initialPos = new Float32Array(particleCount * 3);
     
-    const windowId = Math.random().toString(36).substr(2, 9);
-    let particles = [];
-    
-    // Zərrəcik sayını vizual olaraq daha dolğun etdik
-    const particleCount = 3500; 
-    const elasticRatio = 0.5; // Daha çox zərrəcik (50%) elastiklikdə iştirak edir
-    
-    function resize() {
-        canvas.width = window.innerWidth;
-        canvas.height = window.innerHeight;
+    // Pəncərələr arası əlaqə üçün kanal
+    const bc = new BroadcastChannel('sphere_sync');
+    let otherWindows = {};
+    const myId = Math.random().toString(36).substr(2, 9);
+
+    function init() {
+        scene = new THREE.Scene();
+        camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.z = 8;
+
+        renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        document.body.appendChild(renderer.domElement);
+
+        const geo = new THREE.BufferGeometry();
+        const posArray = new Float32Array(particleCount * 3);
+
+        for (let i = 0; i < particleCount; i++) {
+            const phi = Math.acos(-1 + (2 * i) / particleCount);
+            const theta = Math.sqrt(particleCount * Math.PI) * phi;
+
+            initialPos[i * 3]     = radius * Math.cos(theta) * Math.sin(phi);
+            initialPos[i * 3 + 1] = radius * Math.sin(theta) * Math.sin(phi);
+            initialPos[i * 3 + 2] = radius * Math.cos(phi);
+
+            posArray[i * 3] = initialPos[i * 3];
+            posArray[i * 3 + 1] = initialPos[i * 3 + 1];
+            posArray[i * 3 + 2] = initialPos[i * 3 + 2];
+        }
+
+        geo.setAttribute('position', new THREE.BufferAttribute(posArray, 3));
+        const mat = new THREE.PointsMaterial({
+            color: 0x00f2ff,
+            size: 0.02,
+            transparent: true,
+            opacity: 0.8,
+            blending: THREE.AdditiveBlending
+        });
+
+        points = new THREE.Points(geo, mat);
+        scene.add(points);
     }
 
-    window.addEventListener('resize', resize);
-    resize();
-
-    class Particle {
-        constructor(index) {
-            this.index = index;
-            this.isElastic = index < particleCount * elasticRatio;
-            this.init();
-        }
-
-        init() {
-            const angle = Math.random() * Math.PI * 2;
-            const isRing = Math.random() > 0.6;
-            
-            this.radiusLimit = isRing ? (130 + Math.random() * 50) : (Math.random() * 100);
-            
-            this.centerX = canvas.width / 2;
-            this.centerY = canvas.height / 2;
-            
-            this.relX = Math.cos(angle) * this.radiusLimit;
-            this.relY = Math.sin(angle) * this.radiusLimit;
-            
-            this.z = Math.random() * 2 - 1; 
-            
-            this.x = this.centerX + this.relX;
-            this.y = this.centerY + this.relY;
-            
-            this.vx = 0;
-            this.vy = 0;
-            
-            const colors = ['#00f2ff', '#00b0ff', '#ffffff', '#70fbff', '#4fc3f7'];
-            this.color = colors[Math.floor(Math.random() * colors.length)];
-            this.size = Math.random() * 1.6 + 0.3;
-            this.opacity = Math.random() * 0.8 + 0.2;
-        }
-
-        update(otherWindows) {
-            this.centerX = canvas.width / 2;
-            this.centerY = canvas.height / 2;
-            
-            let targetX = this.centerX + this.relX;
-            let targetY = this.centerY + this.relY;
-
-            if (this.isElastic) {
-                otherWindows.forEach(win => {
-                    if (win.id === windowId) return;
-
-                    // Cari pəncərədəki zərrəciyin ekran koordinatı
-                    const myAbsX = window.screenX + this.x;
-                    const myAbsY = window.screenY + this.y;
-                    
-                    // Digər pəncərənin mərkəzinin ekran koordinatı
-                    const otherAbsX = win.screenX + win.width / 2;
-                    const otherAbsY = win.screenY + win.height / 2;
-
-                    const dx = otherAbsX - myAbsX;
-                    const dy = otherAbsY - myAbsY;
-                    const distance = Math.sqrt(dx * dx + dy * dy);
-
-                    // Cazibə radiusunu 1000 pikselə qaldırdıq ki, uzaqda da bir-birini tanısınlar
-                    const influenceRadius = 1000;
-                    if (distance < influenceRadius) {
-                        // Məsafə azaldıqca güc eksponensial artır
-                        const pullFactor = Math.pow((influenceRadius - distance) / influenceRadius, 1.3);
-                        
-                        // Zərrəciklər qarşı tərəfə daha güclü (0.98 nisbətində) cəzb olunur
-                        targetX += dx * 0.98 * pullFactor;
-                        targetY += dy * 0.98 * pullFactor;
-                    }
-                });
-            }
-
-            const spring = 0.15; // Daha sürətli reaksiya
-            const friction = 0.8; // Daha az sürtünmə, daha çox hərəkətlilik
-
-            this.vx += (targetX - this.x) * spring;
-            this.vy += (targetY - this.y) * spring;
-            
-            this.vx *= friction;
-            this.vy *= friction;
-
-            this.x += this.vx;
-            this.y += this.vy;
-
-            const rotSpeed = 0.006;
-            const oldRelX = this.relX;
-            const oldRelY = this.relY;
-            this.relX = oldRelX * Math.cos(rotSpeed) - oldRelY * Math.sin(rotSpeed);
-            this.relY = oldRelX * Math.sin(rotSpeed) + oldRelY * Math.cos(rotSpeed);
-        }
-
-        draw() {
-            const s = this.size * (1 + this.z * 0.3);
-            
-            ctx.beginPath();
-            ctx.arc(this.x, this.y, s, 0, Math.PI * 2);
-            ctx.fillStyle = this.color;
-            ctx.globalAlpha = this.opacity;
-            ctx.fill();
-            
-            if (this.index % 8 === 0) {
-                ctx.shadowBlur = 8;
-                ctx.shadowColor = this.color;
-            } else {
-                ctx.shadowBlur = 0;
-            }
-        }
-    }
-
-    for (let i = 0; i < particleCount; i++) {
-        particles.push(new Particle(i));
-    }
-
-    function updateWindowState() {
-        const state = {
-            id: windowId,
+    // Pəncərənin ekran koordinatlarını göndərir
+    function broadcastPosition() {
+        bc.postMessage({
+            id: myId,
             screenX: window.screenX,
             screenY: window.screenY,
             width: window.innerWidth,
-            height: window.innerHeight,
-            timestamp: Date.now()
-        };
-        localStorage.setItem(`win_${windowId}`, JSON.stringify(state));
+            height: window.innerHeight
+        });
     }
 
-    function getOtherWindows() {
-        const windows = [];
-        for (let i = 0; i < localStorage.length; i++) {
-            const key = localStorage.key(i);
-            if (key && key.startsWith('win_')) {
-                try {
-                    const win = JSON.parse(localStorage.getItem(key));
-                    if (win && Date.now() - win.timestamp < 1000) {
-                        windows.push(win);
-                    } else {
-                        localStorage.removeItem(key);
-                    }
-                } catch(e) {}
-            }
-        }
-        return windows;
-    }
-
-    function drawSystemGlow() {
-        const grad = ctx.createRadialGradient(
-            canvas.width / 2, canvas.height / 2, 0,
-            canvas.width / 2, canvas.height / 2, 250
-        );
-        grad.addColorStop(0, 'rgba(0, 242, 255, 0.15)');
-        grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
-        ctx.fillStyle = grad;
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-    }
+    bc.onmessage = (ev) => {
+        otherWindows[ev.data.id] = ev.data;
+    };
 
     function animate() {
-        ctx.fillStyle = 'rgba(1, 1, 3, 0.4)';
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-        
-        drawSystemGlow();
-        updateWindowState();
-        const otherWindows = getOtherWindows();
-
-        particles.forEach(p => {
-            p.update(otherWindows);
-            p.draw();
-        });
-
         requestAnimationFrame(animate);
+        broadcastPosition();
+
+        const pos = points.geometry.attributes.position.array;
+        
+        // Ən yaxın pəncərəni tap
+        let closestWin = null;
+        let minDist = Infinity;
+
+        for (let id in otherWindows) {
+            if (id === myId) continue;
+            const other = otherWindows[id];
+            
+            // Pəncərələr arasındakı ekran məsafəsi
+            const dx = (window.screenX + window.innerWidth/2) - (other.screenX + other.width/2);
+            const dy = (window.screenY + window.innerHeight/2) - (other.screenY + other.height/2);
+            const dist = Math.sqrt(dx*dx + dy*dy);
+            
+            if (dist < minDist) {
+                minDist = dist;
+                closestWin = { dx, dy, dist };
+            }
+        }
+
+        // Maqnit effekti məntiqi
+        let attractX = 0;
+        let attractY = 0;
+        let pullFactor = 0;
+
+        if (closestWin) {
+            // 70% yaxınlıq həddi (təxmini 1000px ekran məsafəsi kimi götürək)
+            const threshold = 1000; 
+            if (closestWin.dist < threshold) {
+                // Məsafə azaldıqca güclənən faktor (0-dan 1-ə)
+                pullFactor = Math.pow(1 - (closestWin.dist / threshold), 2);
+                
+                // Pəncərə kənarına getdikcə güclənən meyl
+                attractX = -closestWin.dx * 0.01 * pullFactor;
+                attractY = closestWin.dy * 0.01 * pullFactor; // Screen Y tərsdir
+            }
+        }
+
+        for (let i = 0; i < particleCount; i++) {
+            const ix = i * 3, iy = i * 3 + 1, iz = i * 3 + 2;
+
+            // Hissəcikləri digər pəncərəyə doğru çək
+            const targetX = initialPos[ix] + attractX;
+            const targetY = initialPos[iy] + attractY;
+            const targetZ = initialPos[iz];
+
+            pos[ix] += (targetX - pos[ix]) * 0.1;
+            pos[iy] += (targetY - pos[iy]) * 0.1;
+            pos[iz] += (targetZ - pos[iz]) * 0.1;
+        }
+
+        points.geometry.attributes.position.needsUpdate = true;
+        points.rotation.y += 0.003;
+
+        renderer.render(scene, camera);
     }
 
-    window.onload = animate;
-    window.onunload = () => {
-        localStorage.removeItem(`win_${windowId}`);
+    window.addEventListener('resize', () => {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    window.onload = () => {
+        init();
+        animate();
     };
 </script>
 </body>
