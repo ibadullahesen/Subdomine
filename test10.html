@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Zərrəciklərin Cazibəsi - Kosmik Kürə</title>
+    <title>Zərrəciklərin Cazibəsi - Elastik Kürə</title>
     <style>
         body, html {
             margin: 0;
@@ -11,7 +11,7 @@
             width: 100%;
             height: 100%;
             overflow: hidden;
-            background-color: #020205; /* Daha dərin kosmik qara */
+            background-color: #020205; 
         }
         canvas {
             display: block;
@@ -28,8 +28,7 @@
     
     const windowId = Math.random().toString(36).substr(2, 9);
     let particles = [];
-    // Zərrəcik sayını artırırıq ki, "küre" dolğun görünsün
-    const particleCount = 800; 
+    const particleCount = 1000; 
     
     function resize() {
         canvas.width = window.innerWidth;
@@ -40,76 +39,78 @@
     resize();
 
     class Particle {
-        constructor() {
+        constructor(index) {
+            this.index = index;
+            // Zərrəciklərin təxminən 35%-i "həssas" (uzanan) olacaq
+            this.isElastic = index < particleCount * 0.35;
             this.init();
         }
 
         init() {
-            // Başlanğıcda zərrəcikləri kürə formasında paylayırıq
             const angle = Math.random() * Math.PI * 2;
-            const radius = Math.random() * 80; 
-            this.x = canvas.width / 2 + Math.cos(angle) * radius;
-            this.y = canvas.height / 2 + Math.sin(angle) * radius;
+            const radius = Math.random() * 90; 
             
-            this.vx = (Math.random() - 0.5) * 1;
-            this.vy = (Math.random() - 0.5) * 1;
+            // Kürənin mərkəzi nöqtəsi
+            this.centerX = canvas.width / 2;
+            this.centerY = canvas.height / 2;
             
-            // Fərqli ölçülər daha təbii toz/enerji görüntüsü verir
-            this.radius = Math.random() * 1.5 + 0.5;
+            // Zərrəciyin kürə daxilindəki nisbi mövqeyi
+            this.relX = Math.cos(angle) * radius;
+            this.relY = Math.sin(angle) * radius;
             
-            // Rəng palitrası: Mavi, bənövşəyi və ağ tonları (Dünya/Enerji effekti)
-            const colors = ['#4fc3f7', '#81d4fa', '#e1f5fe', '#7e57c2'];
+            this.x = this.centerX + this.relX;
+            this.y = this.centerY + this.relY;
+            
+            this.vx = 0;
+            this.vy = 0;
+            
+            this.radius = Math.random() * 1.2 + 0.6;
+            const colors = ['#4fc3f7', '#81d4fa', '#e1f5fe', '#ffffff'];
             this.color = colors[Math.floor(Math.random() * colors.length)];
-            this.opacity = Math.random() * 0.6 + 0.2;
+            this.opacity = Math.random() * 0.5 + 0.3;
         }
 
         update(otherWindows) {
-            let targetX = canvas.width / 2;
-            let targetY = canvas.height / 2;
-            let isAttracted = false;
+            this.centerX = canvas.width / 2;
+            this.centerY = canvas.height / 2;
+            
+            // Normal vəziyyətdə zərrəcik öz mərkəz nöqtəsinə qayıtmalıdır
+            let targetX = this.centerX + this.relX;
+            let targetY = this.centerY + this.relY;
 
-            // Digər pəncərələri yoxla
-            otherWindows.forEach(win => {
-                if (win.id === windowId) return;
+            if (this.isElastic) {
+                otherWindows.forEach(win => {
+                    if (win.id === windowId) return;
 
-                const myAbsX = window.screenX + this.x;
-                const myAbsY = window.screenY + this.y;
-                const otherAbsX = win.screenX + win.width / 2;
-                const otherAbsY = win.screenY + win.height / 2;
+                    const myAbsX = window.screenX + this.x;
+                    const myAbsY = window.screenY + this.y;
+                    const otherAbsX = win.screenX + win.width / 2;
+                    const otherAbsY = win.screenY + win.height / 2;
 
-                const dx = otherAbsX - myAbsX;
-                const dy = otherAbsY - myAbsY;
-                const distance = Math.sqrt(dx * dx + dy * dy);
+                    const dx = otherAbsX - myAbsX;
+                    const dy = otherAbsY - myAbsY;
+                    const distance = Math.sqrt(dx * dx + dy * dy);
 
-                // Əgər digər pəncərə yaxındırsa, hədəfi oraya yönəlt
-                if (distance < 1000) {
-                    const force = (1000 - distance) / 1000;
-                    this.vx += (dx / distance) * force * 0.8;
-                    this.vy += (dy / distance) * force * 0.8;
-                    isAttracted = true;
-                }
-            });
-
-            // Əgər cazibə yoxdursa, mərkəzi kürəyə qayıt
-            if (!isAttracted) {
-                const dxBase = (canvas.width / 2) - this.x;
-                const dyBase = (canvas.height / 2) - this.y;
-                const distBase = Math.sqrt(dxBase * dxBase + dyBase * dyBase);
-                
-                // Kürə forması saxlamaq üçün yumşaq daxili qüvvə
-                if (distBase > 100) {
-                    this.vx += dxBase * 0.002;
-                    this.vy += dyBase * 0.002;
-                } else {
-                    // Kürə daxilində axıcı hərəkət
-                    this.vx += (Math.random() - 0.5) * 0.2;
-                    this.vy += (Math.random() - 0.5) * 0.2;
-                }
+                    // Yalnız çox yaxın məsafədə (məsələn 400px) uzanma başlasın
+                    if (distance < 500) {
+                        const pullFactor = Math.pow((500 - distance) / 500, 2);
+                        // Hədəfi digər pəncərəyə doğru sürüşdürürük (saqqız effekti)
+                        targetX += (dx * 0.6) * pullFactor;
+                        targetY += (dy * 0.6) * pullFactor;
+                    }
+                });
             }
 
-            // Sürtünmə
-            this.vx *= 0.92;
-            this.vy *= 0.92;
+            // Fizika: Hədəfə doğru axıcı hərəkət
+            const ax = (targetX - this.x) * 0.08;
+            const ay = (targetY - this.y) * 0.08;
+            
+            this.vx += ax;
+            this.vy += ay;
+            
+            // Sürtünmə (titrəmənin qarşısını almaq üçün)
+            this.vx *= 0.85;
+            this.vy *= 0.85;
 
             this.x += this.vx;
             this.y += this.vy;
@@ -126,7 +127,7 @@
     }
 
     for (let i = 0; i < particleCount; i++) {
-        particles.push(new Particle());
+        particles.push(new Particle(i));
     }
 
     function updateWindowState() {
@@ -159,25 +160,22 @@
         return windows;
     }
 
-    function drawGlow() {
-        // Mərkəzdəki kürəyə atmosferik parıltı veririk
+    function drawAtmosphere() {
         const grad = ctx.createRadialGradient(
             canvas.width / 2, canvas.height / 2, 0,
-            canvas.width / 2, canvas.height / 2, 150
+            canvas.width / 2, canvas.height / 2, 120
         );
-        grad.addColorStop(0, 'rgba(64, 150, 255, 0.15)');
+        grad.addColorStop(0, 'rgba(0, 100, 255, 0.1)');
         grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
-        
         ctx.fillStyle = grad;
         ctx.fillRect(0, 0, canvas.width, canvas.height);
     }
 
     function animate() {
-        // "Trail" effekti üçün tam təmizləmirik, azca şəffaflıq saxlayırıq
-        ctx.fillStyle = 'rgba(2, 2, 5, 0.15)';
+        ctx.fillStyle = 'rgba(2, 2, 5, 0.2)';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
         
-        drawGlow();
+        drawAtmosphere();
         updateWindowState();
         const otherWindows = getOtherWindows();
 
@@ -190,7 +188,6 @@
     }
 
     window.onload = animate;
-
     window.onunload = () => {
         localStorage.removeItem(`win_${windowId}`);
     };
