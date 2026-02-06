@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="az">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stark HUD - Multi-Hand Overload</title>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #000;
+            color: #00f2ff;
+            font-family: 'Courier New', Courier, monospace;
+            transition: background-color 0.5s ease;
+        }
+
+        #canvas-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+        }
+
+        #hidden-image {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            opacity: 0;
+            transition: opacity 2s ease;
+        }
+
+        #overlay-canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 10;
+        }
+
+        #video-container {
+            position: absolute;
+            bottom: 25px;
+            right: 25px;
+            width: 240px;
+            height: 180px;
+            border: 1px solid rgba(0, 242, 255, 0.4);
+            border-radius: 8px;
+            overflow: hidden;
+            z-index: 100;
+            transform: scaleX(-1);
+            transition: border-color 0.3s ease;
+            box-shadow: 0 0 20px rgba(0, 242, 255, 0.15);
+            background: rgba(0, 0, 0, 0.6);
+        }
+
+        video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            opacity: 0.7;
+        }
+
+        #ui-overlay {
+            position: absolute;
+            top: 25px;
+            left: 25px;
+            z-index: 1000;
+            pointer-events: none;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            font-size: 13px;
+            text-shadow: 0 0 8px rgba(0, 242, 255, 0.8);
+            transition: color 0.3s ease;
+        }
+
+        /* Təhlükə vəziyyəti üçün kənar parıltısı */
+        #danger-vignette {
+            position: absolute;
+            inset: 0;
+            box-shadow: inset 0 0 150px rgba(255, 0, 0, 0);
+            z-index: 5;
+            pointer-events: none;
+            transition: box-shadow 0.5s ease;
+        }
+
+        .emergency #danger-vignette {
+            box-shadow: inset 0 0 150px rgba(255, 0, 0, 0.6);
+        }
+
+        .emergency #ui-overlay {
+            color: #ff3333;
+            text-shadow: 0 0 8px rgba(255, 51, 51, 0.8);
+        }
+
+        .emergency #video-container {
+            border-color: #ff3333;
+            box-shadow: 0 0 20px rgba(255, 51, 51, 0.3);
+        }
+    </style>
+</head>
+<body>
+
+    <div id="danger-vignette"></div>
+
+    <div id="ui-overlay">
+        <div id="sys-status" class="mb-1 opacity-70">SİSTEM: ON-LINE</div>
+        <div id="hand-status" class="mb-1">ANALİZ EDİLİR...</div>
+        <div id="power-level" class="font-bold">GÜC: 0%</div>
+    </div>
+    
+    <div id="canvas-container">
+        <img id="hidden-image" src="https://images.unsplash.com/photo-1501854140801-50d01698950b?auto=format&fit=crop&q=80&w=2560" alt="Kiber Təbiət Mənzərəsi">
+        <canvas id="overlay-canvas"></canvas>
+        <div id="video-container">
+            <video id="input-video" playsinline></video>
+        </div>
+    </div>
+
+    <script>
+        const videoElement = document.getElementById('input-video');
+        const canvasElement = document.getElementById('overlay-canvas');
+        const canvasCtx = canvasElement.getContext('2d');
+        const hiddenImage = document.getElementById('hidden-image');
+        const sysStatus = document.getElementById('sys-status');
+        const handStatus = document.getElementById('hand-status');
+        const powerLevelDisplay = document.getElementById('power-level');
+        const body = document.body;
+
+        let rotationAngle = 0;
+        let isEmergency = false;
+
+        function resize() {
+            canvasElement.width = window.innerWidth;
+            canvasElement.height = window.innerHeight;
+        }
+        window.addEventListener('resize', resize);
+        resize();
+
+        hiddenImage.onload = () => hiddenImage.style.opacity = "1";
+
+        function getFistContractFactor(landmarks) {
+            const handScale = Math.sqrt(
+                Math.pow(landmarks[9].x - landmarks[0].x, 2) + 
+                Math.pow(landmarks[9].y - landmarks[0].y, 2)
+            );
+            const fingerTips = [8, 12, 16, 20]; 
+            let totalDist = 0;
+            fingerTips.forEach(idx => {
+                const tip = landmarks[idx];
+                const base = landmarks[0];
+                const dist = Math.sqrt(Math.pow(tip.x - base.x, 2) + Math.pow(tip.y - base.y, 2));
+                totalDist += dist;
+            });
+            const normalizedDist = totalDist / (handScale * 4);
+            let factor = (1.8 - normalizedDist) / (1.8 - 1.1);
+            return Math.max(0, Math.min(1, factor));
+        }
+
+        function drawStarkUI(landmarks, power, themeColor) {
+            rotationAngle += 0.04;
+            const opacity = 0.2 + (power * 0.6);
+            canvasCtx.strokeStyle = themeColor.replace('1)', `${opacity})`);
+            canvasCtx.lineWidth = 1 + power * 1.5;
+            
+            const connections = [
+                [0, 1, 2, 3, 4], [0, 5, 6, 7, 8], [5, 9, 13, 17],
+                [9, 10, 11, 12], [13, 14, 15, 16], [17, 18, 19, 20], [0, 17]
+            ];
+
+            connections.forEach(path => {
+                canvasCtx.beginPath();
+                path.forEach((idx, i) => {
+                    const x = (1 - landmarks[idx].x) * canvasElement.width;
+                    const y = landmarks[idx].y * canvasElement.height;
+                    if (i === 0) canvasCtx.moveTo(x, y);
+                    else canvasCtx.lineTo(x, y);
+                });
+                canvasCtx.stroke();
+            });
+
+            const tips = [4, 8, 12, 16, 20];
+            tips.forEach(idx => {
+                const x = (1 - landmarks[idx].x) * canvasElement.width;
+                const y = landmarks[idx].y * canvasElement.height;
+                
+                canvasCtx.save();
+                canvasCtx.translate(x, y);
+                canvasCtx.rotate(rotationAngle * (idx % 2 === 0 ? 1 : -1));
+                
+                const size = 8 + power * 12;
+                canvasCtx.strokeStyle = themeColor;
+                canvasCtx.strokeRect(-size/2, -size/2, size, size);
+                canvasCtx.fillStyle = themeColor.replace('1)', `${0.1 + power * 0.6})`);
+                canvasCtx.fillRect(-size/4, -size/4, size/2, size/2);
+                canvasCtx.restore();
+            });
+        }
+
+        function onResults(results) {
+            canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+            canvasCtx.fillStyle = 'rgba(0, 0, 0, 0.98)';
+            canvasCtx.fillRect(0, 0, canvasElement.width, canvasElement.height);
+
+            const handCount = results.multiHandLandmarks ? results.multiHandLandmarks.length : 0;
+            
+            // Rejim dəyişikliyi
+            if (handCount >= 2) {
+                if (!isEmergency) {
+                    isEmergency = true;
+                    body.classList.add('emergency');
+                    sysStatus.innerText = "SİSTEM: TƏHLÜKƏ";
+                }
+            } else {
+                if (isEmergency) {
+                    isEmergency = false;
+                    body.classList.remove('emergency');
+                    sysStatus.innerText = "SİSTEM: ON-LINE";
+                }
+            }
+
+            const themeColor = isEmergency ? 'rgba(255, 51, 51, 1)' : 'rgba(0, 242, 255, 1)';
+
+            if (handCount > 0) {
+                handStatus.innerText = isEmergency ? "OVERLOAD AKTİVDİR" : "SENSING: ACTIVE";
+                let totalPower = 0;
+
+                results.multiHandLandmarks.forEach((landmarks) => {
+                    const power = getFistContractFactor(landmarks);
+                    totalPower += power;
+                    drawStarkUI(landmarks, power, themeColor);
+
+                    if (power > 0.01) {
+                        const x = (1 - landmarks[9].x) * canvasElement.width;
+                        const y = landmarks[9].y * canvasElement.height;
+                        drawFlashlight(x, y, power, themeColor);
+                    }
+                });
+                
+                const avgPower = Math.round((totalPower / handCount) * 100);
+                powerLevelDisplay.innerText = `GÜC: ${avgPower}%`;
+            } else {
+                handStatus.innerText = "GÖZLƏNİLİR...";
+                powerLevelDisplay.innerText = "GÜC: 0%";
+            }
+        }
+
+        function drawFlashlight(x, y, power, themeColor) {
+            // Təhlükə rejimində işıq daha böyük və qeyri-sabit (titrəyən) olur
+            const flicker = isEmergency ? (Math.random() * 20 - 10) : 0;
+            const radius = 40 + (power * 380) + flicker; 
+            
+            canvasCtx.save();
+            canvasCtx.globalCompositeOperation = 'destination-out';
+            
+            const gradient = canvasCtx.createRadialGradient(x, y, radius * 0.05, x, y, radius);
+            gradient.addColorStop(0, 'rgba(0, 0, 0, 1)');
+            gradient.addColorStop(0.2, `rgba(0, 0, 0, ${0.85 + power * 0.15})`);
+            gradient.addColorStop(0.5, `rgba(0, 0, 0, ${0.2 + power * 0.5})`);
+            gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
+            
+            canvasCtx.fillStyle = gradient;
+            canvasCtx.beginPath();
+            canvasCtx.arc(x, y, radius, 0, 2 * Math.PI);
+            canvasCtx.fill();
+            canvasCtx.restore();
+
+            // Glow effekti mövzuya uyğun rəngdə
+            canvasCtx.beginPath();
+            canvasCtx.arc(x, y, radius + 2, 0, 2 * Math.PI);
+            const edgeGlow = canvasCtx.createRadialGradient(x, y, radius * 0.85, x, y, radius + 4);
+            edgeGlow.addColorStop(0, 'transparent');
+            edgeGlow.addColorStop(1, themeColor.replace('1)', `${power * 0.15})`));
+            canvasCtx.fillStyle = edgeGlow;
+            canvasCtx.fill();
+        }
+
+        const hands = new Hands({
+            locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+        });
+
+        hands.setOptions({
+            maxNumHands: 2, // Artıq 2 əli dəstəkləyirik
+            modelComplexity: 1,
+            minDetectionConfidence: 0.8,
+            minTrackingConfidence: 0.8
+        });
+
+        hands.onResults(onResults);
+
+        const camera = new Camera(videoElement, {
+            onFrame: async () => {
+                await hands.send({ image: videoElement });
+            },
+            width: 640,
+            height: 480
+        });
+
+        camera.start();
+    </script>
+</body>
+</html>
