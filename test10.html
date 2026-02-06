@@ -11,7 +11,7 @@
             width: 100%;
             height: 100%;
             overflow: hidden;
-            background-color: #020205; 
+            background-color: #010103; 
         }
         canvas {
             display: block;
@@ -28,8 +28,8 @@
     
     const windowId = Math.random().toString(36).substr(2, 9);
     let particles = [];
-    // Zərrəcik sayını daha dolğun görünməsi üçün artırdıq
-    const particleCount = 1800; 
+    // Zərrəcik sayını vizual olaraq daha zəngin etmək üçün 3000-ə qaldırdıq
+    const particleCount = 3000; 
     
     function resize() {
         canvas.width = window.innerWidth;
@@ -42,14 +42,14 @@
     class Particle {
         constructor(index) {
             this.index = index;
-            // Zərrəciklərin 35%-i elastik (dartılan) qalır, lakin cazibə gücünü artıracağıq
-            this.isElastic = index < particleCount * 0.35;
+            // Zərrəciklərin təxminən 40%-i artıq elastikdir ki, birləşmə daha dolğun olsun
+            this.isElastic = index < particleCount * 0.4;
             this.init();
         }
 
         init() {
             const angle = Math.random() * Math.PI * 2;
-            const radius = Math.random() * 100; // Kürə bir az daha böyük
+            const radius = Math.random() * 110; // Kürə bir az daha genişləndirildi
             
             this.centerX = canvas.width / 2;
             this.centerY = canvas.height / 2;
@@ -63,10 +63,10 @@
             this.vx = 0;
             this.vy = 0;
             
-            this.radius = Math.random() * 1.4 + 0.4;
-            const colors = ['#4fc3f7', '#81d4fa', '#e1f5fe', '#ffffff', '#b3e5fc'];
+            this.radius = Math.random() * 1.2 + 0.3;
+            const colors = ['#4fc3f7', '#81d4fa', '#e1f5fe', '#ffffff', '#b3e5fc', '#00b0ff'];
             this.color = colors[Math.floor(Math.random() * colors.length)];
-            this.opacity = Math.random() * 0.6 + 0.2;
+            this.opacity = Math.random() * 0.7 + 0.2;
         }
 
         update(otherWindows) {
@@ -89,25 +89,26 @@
                     const dy = otherAbsY - myAbsY;
                     const distance = Math.sqrt(dx * dx + dy * dy);
 
-                    // Pəncərələr yaxınlaşdıqda cazibəni daha kəskin edirik
-                    if (distance < 600) {
-                        // Güclü bir birləşmə hissi üçün pullFactor artırıldı
-                        const pullFactor = Math.pow((600 - distance) / 600, 1.5);
-                        // Zərrəciklər digər pəncərəyə daha çox yaxınlaşır (0.85 nisbəti ilə)
-                        targetX += dx * 0.85 * pullFactor;
-                        targetY += dy * 0.85 * pullFactor;
+                    // Daha uzaqdan hiss etmə və daha yaxından kəskin çəkilmə
+                    if (distance < 700) {
+                        // pullFactor eksponensial olaraq artır ki, yaxınlaşanda "atılma" effekti versin
+                        const pullFactor = Math.pow((700 - distance) / 700, 1.2);
+                        // Zərrəciklər digər mərkəzə demək olar ki, tam yaxınlaşır
+                        targetX += dx * 0.92 * pullFactor;
+                        targetY += dy * 0.92 * pullFactor;
                     }
                 });
             }
 
-            const ax = (targetX - this.x) * 0.12;
-            const ay = (targetY - this.y) * 0.12;
+            // Daha sürətli reaksiya üçün ax əmsalı artırıldı
+            const ax = (targetX - this.x) * 0.15;
+            const ay = (targetY - this.y) * 0.15;
             
             this.vx += ax;
             this.vy += ay;
             
-            this.vx *= 0.82;
-            this.vy *= 0.82;
+            this.vx *= 0.8;
+            this.vy *= 0.8;
 
             this.x += this.vx;
             this.y += this.vy;
@@ -143,10 +144,10 @@
         const windows = [];
         for (let i = 0; i < localStorage.length; i++) {
             const key = localStorage.key(i);
-            if (key.startsWith('win_')) {
+            if (key && key.startsWith('win_')) {
                 try {
                     const win = JSON.parse(localStorage.getItem(key));
-                    if (Date.now() - win.timestamp < 1000) {
+                    if (win && Date.now() - win.timestamp < 1000) {
                         windows.push(win);
                     } else {
                         localStorage.removeItem(key);
@@ -160,16 +161,17 @@
     function drawAtmosphere() {
         const grad = ctx.createRadialGradient(
             canvas.width / 2, canvas.height / 2, 0,
-            canvas.width / 2, canvas.height / 2, 140
+            canvas.width / 2, canvas.height / 2, 160
         );
-        grad.addColorStop(0, 'rgba(0, 120, 255, 0.15)');
+        grad.addColorStop(0, 'rgba(0, 150, 255, 0.18)');
         grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
         ctx.fillStyle = grad;
         ctx.fillRect(0, 0, canvas.width, canvas.height);
     }
 
     function animate() {
-        ctx.fillStyle = 'rgba(2, 2, 5, 0.25)';
+        // Hərəkət izləri (trails) üçün tünd fon qatı
+        ctx.fillStyle = 'rgba(1, 1, 3, 0.3)';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
         
         drawAtmosphere();
