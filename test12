@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="az">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Saturn 3D Real-Time Control</title>
+    <!-- Kitabxanalar əvvəlcədən yüklənir -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #000; font-family: 'Segoe UI', sans-serif; }
+        canvas { display: block; }
+        
+        #video-container {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            width: 240px;
+            height: 180px;
+            border: 2px solid #00d2ff;
+            border-radius: 12px;
+            overflow: hidden;
+            transform: scaleX(-1);
+            z-index: 10;
+        }
+        
+        #input_video { width: 100%; height: 100%; object-fit: cover; }
+
+        #loading {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: #000;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: #00d2ff;
+            font-size: 20px;
+            z-index: 100;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="loading">SİSTEM HAZIRLANIR...</div>
+
+    <div id="video-container">
+        <video id="input_video"></video>
+    </div>
+
+    <script>
+        window.addEventListener('load', () => {
+            if (typeof THREE === 'undefined') {
+                console.error("Three.js yüklənmədi.");
+                return;
+            }
+
+            let scene, camera, renderer, planetParticles, ringParticles;
+            let originalPlanetPositions = [];
+            let originalRingPositions = [];
+            let heartPositions = [];
+            let randomDriftPlanet = [];
+            let randomDriftRing = [];
+            
+            let state = { explosion: 0, heartLerp: 0, color: new THREE.Color(0xe3bb76) };
+            let targetState = { explosion: 0, heartLerp: 0, color: new THREE.Color(0xe3bb76) };
+            
+            let lastHandPos = { x: 0.5, y: 0.5 };
+
+            function initThree() {
+                scene = new THREE.Scene();
+                camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+                renderer = new THREE.WebGLRenderer({ antialias: true });
+                renderer.setSize(window.innerWidth, window.innerHeight);
+                document.body.appendChild(renderer.domElement);
+
+                // PLANET YARADILMASI
+                const planetPointCount = 15000;
+                const planetGeom = new THREE.BufferGeometry();
+                const pPositions = new Float32Array(planetPointCount * 3);
+                
+                for(let i=0; i < planetPointCount; i++) {
+                    const phi = Math.acos(-1 + (2 * i) / planetPointCount);
+                    const theta = Math.sqrt(planetPointCount * Math.PI) * phi;
+                    const radius = 2.5;
+
+                    const x = radius * Math.cos(theta) * Math.sin(phi);
+                    const y = radius * Math.sin(theta) * Math.sin(phi);
+                    const z = radius * Math.cos(phi);
+
+                    pPositions[i*3] = x;
+                    pPositions[i*3+1] = y;
+                    pPositions[i*3+2] = z;
+                    originalPlanetPositions.push(x, y, z);
+
+                    const t = Math.random() * Math.PI * 2;
+                    const hx = 0.18 * (16 * Math.pow(Math.sin(t), 3));
+                    const hy = 0.18 * (13 * Math.cos(t) - 5 * Math.cos(2*t) - 2 * Math.cos(3*t) - Math.cos(4*t));
+                    heartPositions.push(hx, hy, (Math.random() - 0.5) * 1.2);
+
+                    randomDriftPlanet.push((Math.random() - 0.5) * 8, (Math.random() - 0.5) * 8, (Math.random() - 0.5) * 8);
+                }
+
+                planetGeom.setAttribute('position', new THREE.BufferAttribute(pPositions, 3));
+                const planetMat = new THREE.PointsMaterial({ 
+                    size: 0.03, color: 0xe3bb76, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending 
+                });
+                planetParticles = new THREE.Points(planetGeom, planetMat);
+                scene.add(planetParticles);
+
+                // HALQA YARADILMASI
+                const ringPointCount = 10000;
+                const ringGeom = new THREE.BufferGeometry();
+                const rPositions = new Float32Array(ringPointCount * 3);
+                for(let i=0; i < ringPointCount; i++) {
+                    const angle = Math.random() * Math.PI * 2;
+                    const dist = 3.8 + Math.random() * 2.2;
+                    const x = Math.cos(angle) * dist;
+                    const y = (Math.random() - 0.5) * 0.12;
+                    const z = Math.sin(angle) * dist;
+                    
+                    rPositions[i*3] = x;
+                    rPositions[i*3+1] = y;
+                    rPositions[i*3+2] = z;
+                    originalRingPositions.push(x, y, z);
+
+                    randomDriftRing.push((Math.random() - 0.5) * 10, (Math.random() - 0.5) * 10, (Math.random() - 0.5) * 10);
+                }
+                ringGeom.setAttribute('position', new THREE.BufferAttribute(rPositions, 3));
+                const ringMat = new THREE.PointsMaterial({ 
+                    size: 0.025, color: 0x9a8c73, transparent: true, opacity: 0.6, blending: THREE.AdditiveBlending 
+                });
+                ringParticles = new THREE.Points(ringGeom, ringMat);
+                scene.add(ringParticles);
+
+                camera.position.z = 10;
+            }
+
+            const hands = new Hands({
+                locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+            });
+
+            hands.setOptions({
+                maxNumHands: 2,
+                modelComplexity: 1,
+                minDetectionConfidence: 0.6,
+                minTrackingConfidence: 0.6
+            });
+
+            hands.onResults((results) => {
+                document.getElementById('loading').style.display = 'none';
+                
+                if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+                    results.multiHandLandmarks.forEach((lm, index) => {
+                        const label = results.multiHandedness[index].label; 
+                        
+                        const isFist = lm[8].y > lm[6].y && lm[12].y > lm[10].y && lm[16].y > lm[14].y;
+                        const isTwo = lm[8].y < lm[6].y && lm[12].y < lm[10].y && lm[16].y > lm[14].y;
+                        const isOpen = lm[8].y < lm[6].y && lm[12].y < lm[10].y && lm[16].y < lm[14].y && lm[20].y < lm[18].y;
+
+                        if (label === 'Left') {
+                            if (isFist || isTwo) {
+                                const dx = lm[9].x - lastHandPos.x;
+                                const dy = lm[9].y - lastHandPos.y;
+
+                                planetParticles.rotation.y += dx * 7.5;
+                                planetParticles.rotation.x += dy * 7.5;
+                                ringParticles.rotation.copy(planetParticles.rotation);
+
+                                if(isTwo) {
+                                    targetState.heartLerp = 1;
+                                    targetState.explosion = 0;
+                                    targetState.color.setHex(0xff2222);
+                                } else {
+                                    targetState.heartLerp = 0;
+                                    targetState.explosion = 0;
+                                    targetState.color.setHex(0xe3bb76);
+                                }
+                            } else if (isOpen) {
+                                targetState.explosion = 5.0;
+                                targetState.heartLerp = 0;
+                            }
+                            lastHandPos.x = lm[9].x;
+                            lastHandPos.y = lm[9].y;
+                        }
+
+                        if (label === 'Right') {
+                            const isPinchMode = lm[12].y > lm[10].y && lm[16].y > lm[14].y && lm[20].y > lm[18].y;
+                            if (isPinchMode) {
+                                const dist = Math.sqrt(Math.pow(lm[4].x - lm[8].x, 2) + Math.pow(lm[4].y - lm[8].y, 2));
+                                const zoom = THREE.MathUtils.mapLinear(dist, 0.05, 0.35, 15, 3.5);
+                                camera.position.z = THREE.MathUtils.lerp(camera.position.z, THREE.MathUtils.clamp(zoom, 3, 16), 0.2);
+                            }
+                        }
+                    });
+                }
+            });
+
+            function animate() {
+                requestAnimationFrame(animate);
+
+                state.explosion = THREE.MathUtils.lerp(state.explosion, targetState.explosion, 0.15);
+                state.heartLerp = THREE.MathUtils.lerp(state.heartLerp, targetState.heartLerp, 0.15);
+                planetParticles.material.color.lerp(targetState.color, 0.1);
+
+                const pAttr = planetParticles.geometry.attributes.position;
+                for (let i = 0; i < pAttr.count; i++) {
+                    let x = originalPlanetPositions[i*3];
+                    let y = originalPlanetPositions[i*3+1];
+                    let z = originalPlanetPositions[i*3+2];
+
+                    if (state.heartLerp > 0.01) {
+                        x = THREE.MathUtils.lerp(x, heartPositions[i*3], state.heartLerp);
+                        y = THREE.MathUtils.lerp(y, heartPositions[i*3+1], state.heartLerp);
+                        z = THREE.MathUtils.lerp(z, heartPositions[i*3+2], state.heartLerp);
+                    }
+
+                    if (state.explosion > 0.01) {
+                        x += randomDriftPlanet[i*3] * state.explosion;
+                        y += randomDriftPlanet[i*3+1] * state.explosion;
+                        z += randomDriftPlanet[i*3+2] * state.explosion;
+                    }
+                    pAttr.setXYZ(i, x, y, z);
+                }
+                pAttr.needsUpdate = true;
+
+                const rAttr = ringParticles.geometry.attributes.position;
+                for (let i = 0; i < rAttr.count; i++) {
+                    let x = originalRingPositions[i*3];
+                    let y = originalRingPositions[i*3+1];
+                    let z = originalRingPositions[i*3+2];
+
+                    if (state.explosion > 0.01) {
+                        x += randomDriftRing[i*3] * state.explosion;
+                        y += randomDriftRing[i*3+1] * state.explosion;
+                        z += randomDriftRing[i*3+2] * state.explosion;
+                    }
+                    rAttr.setXYZ(i, x, y, z);
+                }
+                rAttr.needsUpdate = true;
+                
+                ringParticles.visible = (state.heartLerp < 0.3);
+                ringParticles.material.opacity = THREE.MathUtils.lerp(0.6, 0.1, state.explosion / 5);
+
+                renderer.render(scene, camera);
+            }
+
+            const videoElement = document.getElementById('input_video');
+            const cameraFeed = new Camera(videoElement, {
+                onFrame: async () => { await hands.send({image: videoElement}); },
+                width: 640, height: 480
+            });
+
+            initThree();
+            cameraFeed.start();
+            animate();
+
+            window.addEventListener('resize', () => {
+                camera.aspect = window.innerWidth / window.innerHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(window.innerWidth, window.innerHeight);
+            });
+        });
+    </script>
+</body>
+</html>
