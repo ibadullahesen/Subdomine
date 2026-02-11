@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="az">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Haker Koder Avatar - İnkişaf Etmiş Emosiyalar</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        :root {
+            --skin-color: #d1d8e0;
+            --hoodie-color: #1e272e; 
+            --accent-color: #00ff41; 
+            --angry-color: #ff4757;
+            --super-angry: #ff0000;
+            --desk-color: #0f172a;
+            --bg-color: #050505;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            background-image: radial-gradient(circle at center, #0a1a0a 0%, #050505 100%);
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            perspective: 1200px;
+            margin: 0;
+            color: var(--accent-color);
+            font-family: 'Courier New', Courier, monospace;
+        }
+
+        .scene {
+            position: relative;
+            z-index: 2;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* Söhbət Balonu */
+        .bubble {
+            position: absolute;
+            right: -160px;
+            top: 10px;
+            background: white;
+            color: black;
+            padding: 10px 15px;
+            border-radius: 15px;
+            font-weight: bold;
+            font-size: 14px;
+            box-shadow: 0 5px 15px rgba(0,255,65,0.3);
+            opacity: 0;
+            transform: scale(0.8);
+            transition: all 0.3s ease;
+            pointer-events: none;
+            z-index: 100;
+            max-width: 150px;
+            text-align: center;
+        }
+
+        .bubble::after {
+            content: '';
+            position: absolute;
+            left: -10px;
+            top: 50%;
+            border-top: 10px solid transparent;
+            border-bottom: 10px solid transparent;
+            border-right: 10px solid white;
+            transform: translateY(-50%);
+        }
+
+        .bubble.show {
+            opacity: 1;
+            transform: scale(1);
+        }
+
+        /* Avatar Container */
+        .avatar-container {
+            position: relative;
+            z-index: 2;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            transform: translateY(30px);
+        }
+
+        .hood {
+            width: 170px;
+            height: 180px;
+            background: var(--hoodie-color);
+            border-radius: 80px 80px 20px 20px;
+            position: absolute;
+            top: -15px;
+            z-index: 9;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.8);
+            pointer-events: none;
+        }
+
+        .head {
+            width: 130px;
+            height: 140px;
+            background: #2f3542;
+            border-radius: 50% 50% 48% 48%;
+            position: relative;
+            z-index: 10;
+            transition: transform 0.1s ease-out, box-shadow 0.3s;
+            overflow: hidden;
+            border: 1px solid #1e272e;
+            cursor: pointer;
+        }
+
+        .visor {
+            width: 110px;
+            height: 40px;
+            background: rgba(0, 255, 65, 0.05);
+            border: 2px solid var(--accent-color);
+            position: absolute;
+            top: 60px;
+            left: 10px;
+            z-index: 12;
+            border-radius: 5px;
+            box-shadow: 0 0 15px rgba(0, 255, 65, 0.3);
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            padding: 0 10px;
+            transition: all 0.3s ease;
+        }
+
+        /* Hirslənmə səviyyələri */
+        .head.angry .visor { border-color: var(--angry-color); box-shadow: 0 0 20px var(--angry-color); background: rgba(255, 71, 87, 0.2); }
+        .head.super-angry .visor { border-color: var(--super-angry); box-shadow: 0 0 30px var(--super-angry); background: rgba(255, 0, 0, 0.4); }
+
+        .eyes {
+            display: flex;
+            justify-content: space-between;
+            width: 100%;
+            z-index: 13;
+        }
+
+        .eye {
+            width: 24px;
+            height: 2px;
+            background: var(--accent-color);
+            border-radius: 2px;
+            box-shadow: 0 0 5px var(--accent-color);
+            transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            position: relative;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .eye.open { height: 14px; border-radius: 4px; }
+
+        /* Emosional göz hərəkətləri */
+        .head.angry #eyeL.open { transform: rotate(15deg); background: var(--angry-color); }
+        .head.angry #eyeR.open { transform: rotate(-15deg); background: var(--angry-color); }
+        .head.super-angry #eyeL.open { transform: rotate(25deg) scale(1.1); background: var(--super-angry); }
+        .head.super-angry #eyeR.open { transform: rotate(-25deg) scale(1.1); background: var(--super-angry); }
+
+        .pupil {
+            width: 6px;
+            height: 6px;
+            background: #000;
+            border-radius: 50%;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+
+        .eye.open .pupil { opacity: 1; }
+
+        .body {
+            width: 150px;
+            height: 100px;
+            background: var(--hoodie-color);
+            border-radius: 30% 30% 10% 10%;
+            margin-top: -10px;
+            z-index: 8;
+            border-top: 5px solid #2f3640;
+        }
+
+        /* Əllər */
+        .hand {
+            width: 45px;
+            height: 45px;
+            background: #2f3542;
+            border-radius: 12px;
+            position: absolute;
+            z-index: 30;
+            box-shadow: 0 0 15px rgba(0, 255, 65, 0.4);
+            transition: transform 0.08s ease-out, border-color 0.3s;
+            pointer-events: auto; /* Əllərə toxunmaq olar */
+            border: 2px solid var(--accent-color);
+            cursor: cell;
+        }
+
+        .hand:hover {
+            border-color: var(--super-angry);
+        }
+
+        .desk {
+            width: 600px;
+            height: 140px;
+            background: var(--desk-color);
+            border-radius: 15px;
+            box-shadow: 0 0 30px rgba(0, 255, 65, 0.2);
+            position: relative;
+            z-index: 5;
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            padding: 0 40px;
+            transform: rotateX(20deg);
+            margin-top: -20px;
+            border: 1px solid rgba(0, 255, 65, 0.3);
+            pointer-events: none;
+        }
+
+        .keyboard {
+            width: 240px;
+            height: 85px;
+            background: #000;
+            display: grid;
+            grid-template-columns: repeat(8, 1fr);
+            gap: 3px;
+            padding: 8px;
+            border-radius: 8px;
+            border: 1px solid rgba(0, 255, 65, 0.2);
+        }
+
+        .key { background: #111; height: 15px; border-radius: 2px; }
+        .key.active { background: var(--accent-color); box-shadow: 0 0 10px var(--accent-color); }
+
+        .mouse-obj {
+            width: 35px;
+            height: 55px;
+            background: #000;
+            border-radius: 10px;
+            border: 1px solid var(--accent-color);
+            box-shadow: 0 0 10px var(--accent-color);
+        }
+    </style>
+</head>
+<body>
+
+    <div class="scene">
+        <div class="avatar-container" id="avatarContainer">
+            <div class="bubble" id="chatBubble">Olum bak git...</div>
+            
+            <div class="hood"></div>
+            <div class="head" id="head">
+                <div class="visor" id="visor">
+                    <div class="eyes">
+                        <div class="eye" id="eyeL"><div class="pupil" id="pupilL"></div></div>
+                        <div class="eye" id="eyeR"><div class="pupil" id="pupilR"></div></div>
+                    </div>
+                </div>
+            </div>
+            <div class="body"></div>
+        </div>
+
+        <div class="desk">
+            <div class="keyboard" id="keyboard">
+                <script>for(let i=0; i<32; i++) document.write('<div class="key"></div>');</script>
+            </div>
+            <div class="flex items-center justify-center w-24 h-24">
+                <div class="mouse-obj" id="targetMouse"></div>
+            </div>
+        </div>
+
+        <div class="hand" id="leftHand"></div>
+        <div class="hand" id="rightHand"></div>
+    </div>
+
+    <script>
+        const head = document.getElementById('head');
+        const eyeL = document.getElementById('eyeL');
+        const eyeR = document.getElementById('eyeR');
+        const pupilL = document.getElementById('pupilL');
+        const pupilR = document.getElementById('pupilR');
+        const bubble = document.getElementById('chatBubble');
+        const rightHand = document.getElementById('rightHand');
+        const leftHand = document.getElementById('leftHand');
+        const targetMouse = document.getElementById('targetMouse');
+        const keyboard = document.getElementById('keyboard');
+
+        let isHoverHead = false;
+        let isHoverHand = false;
+        let hoverStartTime = 0;
+        let handHoverStartTime = 0;
+        let hoverInterval;
+
+        // BAŞ ÜÇÜN MƏNTİQ
+        head.addEventListener('mouseenter', () => {
+            isHoverHead = true;
+            eyeL.classList.add('open');
+            eyeR.classList.add('open');
+            hoverStartTime = Date.now();
+            
+            hoverInterval = setInterval(() => {
+                const elapsed = (Date.now() - hoverStartTime) / 1000;
+                
+                if (elapsed >= 12) {
+                    bubble.innerText = "Özün bil...";
+                    eyeL.classList.remove('open');
+                    eyeR.classList.remove('open');
+                } else if (elapsed >= 9) {
+                    head.classList.add('super-angry');
+                    bubble.innerText = "Əl çək daaaa!";
+                    bubble.classList.add('show');
+                } else if (elapsed >= 6) {
+                    head.classList.add('angry');
+                    bubble.innerText = "Çek mausu!";
+                    bubble.classList.add('show');
+                } else if (elapsed >= 3) {
+                    bubble.innerText = "Olum bak git...";
+                    bubble.classList.add('show');
+                }
+            }, 100);
+        });
+
+        head.addEventListener('mouseleave', () => {
+            isHoverHead = false;
+            resetAvatarState();
+        });
+
+        // ƏLLƏR ÜÇÜN MƏNTİQ
+        [leftHand, rightHand].forEach(hand => {
+            hand.addEventListener('mouseenter', () => {
+                isHoverHand = true;
+                eyeL.classList.add('open');
+                eyeR.classList.add('open');
+                bubble.innerText = "Əlimə toxunma!";
+                bubble.classList.add('show');
+                handHoverStartTime = Date.now();
+
+                // Əllər üçün xüsusi timer
+                handInterval = setInterval(() => {
+                    const elapsed = (Date.now() - handHoverStartTime) / 1000;
+                    if (elapsed >= 3) {
+                        head.classList.add('super-angry');
+                        bubble.innerText = "İlişmə də!";
+                    }
+                }, 100);
+            });
+
+            hand.addEventListener('mouseleave', () => {
+                isHoverHand = false;
+                clearInterval(handInterval);
+                resetAvatarState();
+            });
+        });
+
+        function resetAvatarState() {
+            if (!isHoverHead && !isHoverHand) {
+                clearInterval(hoverInterval);
+                eyeL.classList.remove('open');
+                eyeR.classList.remove('open');
+                head.classList.remove('angry', 'super-angry');
+                bubble.classList.remove('show');
+                pupilL.style.transform = `translate(0px, 0px)`;
+                pupilR.style.transform = `translate(0px, 0px)`;
+            }
+        }
+
+        function updateHandPositions() {
+            const mRect = targetMouse.getBoundingClientRect();
+            const kRect = keyboard.getBoundingClientRect();
+            // Statik pozisiyalar (mousemove hərəkət etdirəcək)
+            rightHand.style.left = (mRect.left + mRect.width / 2 - 22) + 'px';
+            rightHand.style.top = (mRect.top + mRect.height / 2 - 25) + 'px';
+            leftHand.style.left = (kRect.left + kRect.width / 2 - 22) + 'px';
+            leftHand.style.top = (kRect.top + kRect.height / 2 - 25) + 'px';
+        }
+
+        window.addEventListener('resize', updateHandPositions);
+        window.onload = () => setTimeout(updateHandPositions, 100);
+
+        document.addEventListener('mousemove', (e) => {
+            const x = e.clientX;
+            const y = e.clientY;
+            const centerX = window.innerWidth / 2;
+            const centerY = window.innerHeight / 2;
+
+            const rotX = (y - centerY) / 60;
+            const rotY = (x - centerX) / 60;
+            head.style.transform = `rotateX(${-rotX}deg) rotateY(${rotY}deg)`;
+
+            // Göz bəbəyi hərəkəti (əgər açıqdırsa)
+            if (eyeL.classList.contains('open')) {
+                const moveX = (x - centerX) / 40;
+                const moveY = (y - centerY) / 80;
+                const limit = 6;
+                const clampedX = Math.max(-limit, Math.min(limit, moveX));
+                const clampedY = Math.max(-limit, Math.min(limit, moveY));
+                pupilL.style.transform = `translate(${clampedX}px, ${clampedY}px)`;
+                pupilR.style.transform = `translate(${clampedX}px, ${clampedY}px)`;
+            }
+
+            // Sağ əlin kursoru yüngül izləməsi
+            const mouseMoveX = (x - centerX) / 30;
+            const mouseMoveY = (y - centerY) / 60;
+            rightHand.style.transform = `translate(${mouseMoveX}px, ${mouseMoveY}px)`;
+        });
+
+        document.addEventListener('keydown', () => {
+            const keys = document.querySelectorAll('.key');
+            const idx = Math.floor(Math.random() * keys.length);
+            keys[idx].classList.add('active');
+            const jumpX = (Math.random() - 0.5) * 60;
+            const jumpY = (Math.random() - 0.5) * 25;
+            leftHand.style.transform = `translate(${jumpX}px, ${jumpY}px)`;
+            setTimeout(() => {
+                keys[idx].classList.remove('active');
+                leftHand.style.transform = `translate(0, 0)`;
+            }, 60);
+        });
+    </script>
+</body>
+</html>
