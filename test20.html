@@ -3,241 +3,342 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>3D Parlaq Nöqtəli Rəsm - Tək Əl Kontrolu</title>
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+    <title>AxtarGet.xyz - Gələcəyə Baxış</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        body { margin: 0; overflow: hidden; background-color: #000; }
-        canvas { display: block; }
-        #video-container, #ui-overlay {
-            display: none !important;
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;900&family=JetBrains+Mono:wght@400;700&display=swap');
+
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #000;
+            font-family: 'Orbitron', sans-serif;
+            color: #0f0;
+        }
+
+        #canvas-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+        }
+
+        /* Başlıq Dizaynı - Sətr keçməməsi üçün tənzimləndi */
+        .overlay-center {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 10;
+            text-align: center;
+            width: 100%;
+            max-width: 100vw;
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding: 0 10px; /* Qıraqlardan minimal məsafə */
+        }
+
+        .main-title {
+            /* white-space: nowrap yazının qətiyyən alt sətirə keçməməsini təmin edir */
+            white-space: nowrap;
+            /* font-size ekran eninə görə daha stabil (vw) tənzimlənir */
+            font-size: clamp(1.8rem, 11vw, 7rem);
+            font-weight: 900;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            display: inline-block;
+            width: fit-content;
+            
+            /* Gradient Effekt */
+            background: linear-gradient(to bottom, #fff 0%, #0f0 50%, #050 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            
+            /* Neon Parıltısı */
+            filter: drop-shadow(0 0 10px rgba(0, 255, 0, 0.5)) 
+                    drop-shadow(0 0 20px rgba(0, 255, 0, 0.3));
+            opacity: 0;
+            margin: 0;
+            transform: scale(1.1);
+        }
+
+        .hacker-status {
+            font-family: 'JetBrains+Mono', monospace;
+            font-size: clamp(0.75rem, 2vw, 1rem);
+            color: #0f0;
+            opacity: 0;
+            margin-top: 25px;
+            letter-spacing: 2px;
+            text-shadow: 0 0 10px #0f0;
+            height: 1.5em;
+        }
+
+        /* Xidmət Yazıları */
+        .video-sequence {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: radial-gradient(circle at center, rgba(0,30,0,0.5) 0%, rgba(0,0,0,1) 100%);
+            z-index: 20;
+            opacity: 0;
+            visibility: hidden;
+        }
+
+        .content-box {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            width: 90%;
+        }
+
+        .typing-container {
+            font-size: clamp(1.5rem, 6vw, 4.2rem);
+            color: #fff;
+            text-shadow: 0 0 25px #0f0;
+            font-weight: 700;
+            line-height: 1.1;
+            min-height: 1.2em;
+        }
+
+        .cursor {
+            display: inline-block;
+            width: clamp(8px, 1vw, 12px);
+            height: 1em;
+            background: #0f0;
+            margin-left: 8px;
+            vertical-align: middle;
+            box-shadow: 0 0 15px #0f0;
+            animation: blink 0.8s infinite;
+        }
+
+        @keyframes blink {
+            50% { opacity: 0; }
+        }
+
+        .mega-btn {
+            padding: 1.5rem 4rem;
+            border: 4px solid #0f0;
+            background: rgba(0, 255, 0, 0.05);
+            color: #0f0;
+            font-size: clamp(1.2rem, 4vw, 2.2rem);
+            font-weight: 900;
+            letter-spacing: 5px;
+            text-transform: uppercase;
+            border-radius: 100px;
+            cursor: pointer;
+            box-shadow: 0 0 40px rgba(0, 255, 0, 0.2);
+            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            pointer-events: auto;
+            margin-top: 40px;
+            backdrop-filter: blur(5px);
+        }
+
+        .mega-btn:hover {
+            background: #0f0;
+            color: #000;
+            box-shadow: 0 0 80px #0f0;
+            transform: scale(1.1) translateY(-5px);
         }
     </style>
 </head>
 <body>
 
-    <video id="input-video" style="display:none;"></video>
+    <div id="canvas-container"></div>
+
+    <!-- Başlanğıc Ekranı -->
+    <div class="overlay-center">
+        <h1 id="main-title" class="main-title">AxtarGet.xyz</h1>
+        <div id="hacker-log" class="hacker-status">> SİSTEM HAZIRLANIR...</div>
+    </div>
+
+    <!-- Xidmətlər Ekranı -->
+    <div id="video-section" class="video-sequence">
+        <div class="content-box">
+            <div>
+                <span id="dynamic-text" class="typing-container"></span>
+                <span id="cursor-box" class="cursor"></span>
+            </div>
+            <div id="final-cta" class="opacity-0 scale-50">
+                <button class="mega-btn" onclick="window.open('https://axtarget.xyz', '_blank')">DAXİL OL</button>
+            </div>
+        </div>
+    </div>
 
     <script>
-        // --- THREE.JS QURULUMU ---
+        // --- THREE.JS SAHƏ QURULUŞU ---
         const scene = new THREE.Scene();
         const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
-        document.body.appendChild(renderer.domElement);
+        document.getElementById('canvas-container').appendChild(renderer.domElement);
 
-        camera.position.z = 8;
+        const group = new THREE.Group();
+        scene.add(group);
 
-        const gridSize = 0.4; 
-        const handGroup = new THREE.Group();
-        scene.add(handGroup); 
+        const material = new THREE.MeshBasicMaterial({ 
+            color: 0x00ff00, 
+            wireframe: true, 
+            transparent: true, 
+            opacity: 0.12 
+        });
 
-        const drawingGroup = new THREE.Group();
-        scene.add(drawingGroup);
+        // Arxa fonda fırlanan həndəsi fiqur
+        const torus = new THREE.Mesh(new THREE.TorusKnotGeometry(15, 3, 100, 16), material);
+        group.add(torus);
 
-        const particlesGroup = new THREE.Group();
-        scene.add(particlesGroup);
-
-        const filledGrids = new Set();
-        const videoElement = document.getElementById('input-video');
-
-        let isClearing = false;
-
-        // Skelet üçün materiallar (Neon firuzəyi)
-        const jointMaterial = new THREE.MeshBasicMaterial({ color: 0x00ffcc, transparent: true, opacity: 0.6 });
-        const lineMaterial = new THREE.LineBasicMaterial({ color: 0x00ffcc, transparent: true, opacity: 0.2 });
-
-        const joints = [];
-        for (let i = 0; i < 21; i++) {
-            const sphere = new THREE.Mesh(new THREE.SphereGeometry(0.04, 8, 8), jointMaterial);
-            handGroup.add(sphere);
-            joints.push(sphere);
+        // Zərrəciklər
+        for(let i=0; i<100; i++) {
+            const cube = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.3, 0.3), material);
+            cube.position.set(Math.random()*60-30, Math.random()*60-30, Math.random()*60-30);
+            group.add(cube);
         }
 
-        const connections = [
-            [0, 1, 2, 3, 4], [0, 5, 6, 7, 8], [9, 10, 11, 12], 
-            [13, 14, 15, 16], [0, 17, 18, 19, 20], [5, 9, 13, 17]
-        ];
-        
-        const lines = [];
-        connections.forEach(path => {
-            const geometry = new THREE.BufferGeometry();
-            const line = new THREE.Line(geometry, lineMaterial);
-            handGroup.add(line);
-            lines.push({ line, path });
-        });
+        camera.position.z = 45;
 
-        const cursorGeom = new THREE.SphereGeometry(0.06, 16, 16);
-        const cursorMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.5 });
-        const cursor = new THREE.Mesh(cursorGeom, cursorMat);
-        scene.add(cursor);
+        // --- ANIMASIYA XRONOLOGIYASI ---
+        const tl = gsap.timeline();
 
-        // --- MEDIAPIPE ---
-        const hands = new Hands({
-            locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
-        });
-
-        // Burada maxNumHands: 1 qoyaraq yalnız bir əli (adətən ilk tapılanı) izləyirik
-        hands.setOptions({
-            maxNumHands: 1,
-            modelComplexity: 1,
-            minDetectionConfidence: 0.7,
-            minTrackingConfidence: 0.7
-        });
-
-        hands.onResults((results) => {
-            // Əgər əl tapılıbsa və bu yalnız bir əldirsə (və ya siyahıda birincidirsə)
-            if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
-                // Yalnız birinci əli emal edirik, digərləri tamamilə yox sayılır
-                const landmarks = results.multiHandLandmarks[0];
-
-                const visibleWidth = Math.tan(camera.fov * Math.PI / 360) * camera.position.z * 2 * camera.aspect;
-                const visibleHeight = Math.tan(camera.fov * Math.PI / 360) * camera.position.z * 2;
-
-                landmarks.forEach((lm, i) => {
-                    joints[i].position.x = (0.5 - lm.x) * visibleWidth;
-                    joints[i].position.y = (0.5 - lm.y) * visibleHeight;
-                    joints[i].position.z = 0;
-                });
-
-                lines.forEach(lObj => {
-                    const points = lObj.path.map(idx => joints[idx].position);
-                    lObj.line.geometry.setFromPoints(points);
-                });
-
-                const thumbTip = joints[4].position;
-                const indexTip = joints[8].position;
-
-                // 3 barmaq jesti ilə silmə
-                const isIndexOpen = joints[8].position.y > joints[6].position.y;
-                const isMiddleOpen = joints[12].position.y > joints[10].position.y;
-                const isRingOpen = joints[16].position.y > joints[14].position.y;
-                const isPinkyClosed = joints[20].position.y < joints[18].position.y;
-
-                if (isIndexOpen && isMiddleOpen && isRingOpen && isPinkyClosed && !isClearing) {
-                    explodeDrawing();
+        window.onload = () => {
+            // 1. Kamera Silindrik Hərəkəti
+            gsap.to({ a: 0 }, {
+                a: Math.PI / 1.1,
+                duration: 9,
+                ease: "sine.inOut",
+                onUpdate: function() {
+                    const angle = this.targets()[0].a - (Math.PI / 4);
+                    camera.position.x = Math.sin(angle) * 52;
+                    camera.position.z = Math.cos(angle) * 52;
+                    camera.lookAt(0, 0, 0);
                 }
+            });
 
-                const distPinch = thumbTip.distanceTo(indexTip);
-                const midPoint = new THREE.Vector3().lerpVectors(thumbTip, indexTip, 0.5);
-                cursor.position.set(midPoint.x, midPoint.y, 0.1);
+            // 2. AxtarGet.xyz Yazısının Görünməsi
+            tl.to("#main-title", { 
+                opacity: 1, 
+                scale: 1,
+                duration: 2, 
+                ease: "power3.out",
+            }, 0.8);
 
-                if (distPinch < 0.6 && !isClearing) {
-                    cursorMat.opacity = 0.8;
-                    cursorMat.color.setHex(0x00ff00);
-                    snapToGridAndCreate(midPoint);
-                } else {
-                    cursorMat.opacity = 0.3;
-                    cursorMat.color.setHex(0xffffff);
-                }
+            tl.to("#hacker-log", { opacity: 1, duration: 0.8 }, 2);
+
+            // 3. Status Yazıları
+            tl.add(() => {
+                const logs = [
+                    "> DOMAİN TƏSDİQLƏNDİ",
+                    "> XİDMƏTLƏRİMİZ PULSUZDUR",
+                    "> MULTİ-FONKSİONAL PANEL"
+                ];
+                let i = 0;
+                const interval = setInterval(() => {
+                    document.getElementById('hacker-log').innerText = logs[i];
+                    i++;
+                    if(i >= logs.length) clearInterval(interval);
+                }, 1000);
+            }, 2.5);
+
+            // 4. Dağılma Keçidi (Yazı qırağa çıxmadan böyüyüb blurlaşır)
+            tl.to(".overlay-center", { 
+                scale: 1.3,
+                filter: "blur(40px)", 
+                opacity: 0, 
+                duration: 1.6, 
+                ease: "power4.in" 
+            }, 7.2);
+
+            // 5. Video Sequence (Tam mərkəzdə xidmətlər)
+            tl.to("#video-section", { 
+                visibility: "visible", 
+                opacity: 1, 
+                duration: 1.2 
+            });
+
+            tl.add(() => {
+                const phrases = [
+                    "Takipçi xidməti",
+                    "Anonim söhbət",
+                    "İş elanları",
+                    "QR Kod hazırlayıcı",
+                    "Və daha çoxu üçün"
+                ];
                 
-                handGroup.visible = true;
-            } else {
-                // Əgər heç bir əl kadrda deyilsə, skeleti gizlə
-                cursor.position.set(100, 100, 0);
-                handGroup.visible = false;
-            }
-        });
+                let phraseIndex = 0;
+                const dynamicElem = document.getElementById('dynamic-text');
 
-        function explodeDrawing() {
-            if (drawingGroup.children.length === 0) return;
-            isClearing = true;
+                function typePhrase() {
+                    let currentText = phrases[phraseIndex];
+                    let charIndex = 0;
+                    dynamicElem.innerHTML = "";
 
-            const children = [...drawingGroup.children];
-            children.forEach((point) => {
-                const particleCount = 6;
-                for (let i = 0; i < particleCount; i++) {
-                    const pGeom = new THREE.SphereGeometry(0.05, 4, 4);
-                    const pMat = new THREE.MeshBasicMaterial({ 
-                        color: point.material.color,
-                        transparent: true,
-                        opacity: 1
-                    });
-                    const particle = new THREE.Mesh(pGeom, pMat);
-                    particle.position.copy(point.position);
-                    
-                    particle.userData = {
-                        velocity: new THREE.Vector3(
-                            (Math.random() - 0.5) * 0.25,
-                            (Math.random() - 0.5) * 0.25,
-                            (Math.random() - 0.5) * 0.25
-                        ),
-                        life: 1.0
-                    };
-                    particlesGroup.add(particle);
+                    const typeInterval = setInterval(() => {
+                        dynamicElem.innerHTML += currentText[charIndex];
+                        charIndex++;
+                        if (charIndex >= currentText.length) {
+                            clearInterval(typeInterval);
+                            setTimeout(() => {
+                                deletePhrase();
+                            }, 1800);
+                        }
+                    }, 60);
                 }
-                drawingGroup.remove(point);
-            });
 
-            filledGrids.clear();
-            setTimeout(() => { isClearing = false; }, 500);
-        }
+                function deletePhrase() {
+                    let text = dynamicElem.innerHTML;
+                    const deleteInterval = setInterval(() => {
+                        text = text.slice(0, -1);
+                        dynamicElem.innerHTML = text;
+                        if (text.length === 0) {
+                            clearInterval(deleteInterval);
+                            phraseIndex++;
+                            if (phraseIndex < phrases.length) {
+                                typePhrase();
+                            } else {
+                                document.getElementById('cursor-box').style.display = "none";
+                                gsap.to("#final-cta", { 
+                                    opacity: 1, 
+                                    scale: 1, 
+                                    duration: 1.2, 
+                                    ease: "elastic.out(1, 0.6)" 
+                                });
+                            }
+                        }
+                    }, 30);
+                }
 
-        function snapToGridAndCreate(pos) {
-            const gx = Math.round(pos.x / gridSize) * gridSize;
-            const gy = Math.round(pos.y / gridSize) * gridSize;
-            const key = `${gx.toFixed(1)}_${gy.toFixed(1)}`;
-
-            if (!filledGrids.has(key)) {
-                createBrightPoint(gx, gy);
-                filledGrids.add(key);
-            }
-        }
-
-        function createBrightPoint(x, y) {
-            const colors = [0xbf00ff, 0x00ffff, 0xff0000, 0xffffff, 0xaaaaaa, 0x333333];
-            const randomColor = colors[Math.floor(Math.random() * colors.length)];
-            
-            const pointGeom = new THREE.SphereGeometry(gridSize * 0.45, 12, 12);
-            const pointMat = new THREE.MeshStandardMaterial({ 
-                color: randomColor,
-                emissive: randomColor,
-                emissiveIntensity: 3.0
-            });
-            const point = new THREE.Mesh(pointGeom, pointMat);
-            
-            point.position.set(x, y, 0);
-            drawingGroup.add(point);
-        }
-
-        const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
-        scene.add(ambientLight);
-        const pointLight = new THREE.PointLight(0xffffff, 1.5);
-        pointLight.position.set(0, 0, 10);
-        scene.add(pointLight);
-
-        const cameraFeed = new Camera(videoElement, {
-            onFrame: async () => { await hands.send({image: videoElement}); },
-            width: 1280, height: 720
-        });
-        cameraFeed.start();
+                typePhrase();
+            }, 8.5);
+        };
 
         function animate() {
             requestAnimationFrame(animate);
-
-            particlesGroup.children.forEach((p) => {
-                p.position.add(p.userData.velocity);
-                p.userData.life -= 0.02;
-                p.material.opacity = p.userData.life;
-                p.scale.multiplyScalar(0.95);
-
-                if (p.userData.life <= 0) {
-                    particlesGroup.remove(p);
-                }
-            });
-
+            group.rotation.y += 0.002;
+            group.rotation.z += 0.001;
             renderer.render(scene, camera);
         }
+        animate();
 
         window.addEventListener('resize', () => {
             camera.aspect = window.innerWidth / window.innerHeight;
             camera.updateProjectionMatrix();
             renderer.setSize(window.innerWidth, window.innerHeight);
         });
-
-        window.onload = animate;
     </script>
 </body>
 </html>
