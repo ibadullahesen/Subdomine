@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="az">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Parlaq Nöqtəli Rəsm - Tək Əl Kontrolu</title>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #000; }
+        canvas { display: block; }
+        #video-container, #ui-overlay {
+            display: none !important;
+        }
+    </style>
+</head>
+<body>
+
+    <video id="input-video" style="display:none;"></video>
+
+    <script>
+        // --- THREE.JS QURULUMU ---
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
+
+        camera.position.z = 8;
+
+        const gridSize = 0.4; 
+        const handGroup = new THREE.Group();
+        scene.add(handGroup); 
+
+        const drawingGroup = new THREE.Group();
+        scene.add(drawingGroup);
+
+        const particlesGroup = new THREE.Group();
+        scene.add(particlesGroup);
+
+        const filledGrids = new Set();
+        const videoElement = document.getElementById('input-video');
+
+        let isClearing = false;
+
+        // Skelet üçün materiallar (Neon firuzəyi)
+        const jointMaterial = new THREE.MeshBasicMaterial({ color: 0x00ffcc, transparent: true, opacity: 0.6 });
+        const lineMaterial = new THREE.LineBasicMaterial({ color: 0x00ffcc, transparent: true, opacity: 0.2 });
+
+        const joints = [];
+        for (let i = 0; i < 21; i++) {
+            const sphere = new THREE.Mesh(new THREE.SphereGeometry(0.04, 8, 8), jointMaterial);
+            handGroup.add(sphere);
+            joints.push(sphere);
+        }
+
+        const connections = [
+            [0, 1, 2, 3, 4], [0, 5, 6, 7, 8], [9, 10, 11, 12], 
+            [13, 14, 15, 16], [0, 17, 18, 19, 20], [5, 9, 13, 17]
+        ];
+        
+        const lines = [];
+        connections.forEach(path => {
+            const geometry = new THREE.BufferGeometry();
+            const line = new THREE.Line(geometry, lineMaterial);
+            handGroup.add(line);
+            lines.push({ line, path });
+        });
+
+        const cursorGeom = new THREE.SphereGeometry(0.06, 16, 16);
+        const cursorMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.5 });
+        const cursor = new THREE.Mesh(cursorGeom, cursorMat);
+        scene.add(cursor);
+
+        // --- MEDIAPIPE ---
+        const hands = new Hands({
+            locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+        });
+
+        // Burada maxNumHands: 1 qoyaraq yalnız bir əli (adətən ilk tapılanı) izləyirik
+        hands.setOptions({
+            maxNumHands: 1,
+            modelComplexity: 1,
+            minDetectionConfidence: 0.7,
+            minTrackingConfidence: 0.7
+        });
+
+        hands.onResults((results) => {
+            // Əgər əl tapılıbsa və bu yalnız bir əldirsə (və ya siyahıda birincidirsə)
+            if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+                // Yalnız birinci əli emal edirik, digərləri tamamilə yox sayılır
+                const landmarks = results.multiHandLandmarks[0];
+
+                const visibleWidth = Math.tan(camera.fov * Math.PI / 360) * camera.position.z * 2 * camera.aspect;
+                const visibleHeight = Math.tan(camera.fov * Math.PI / 360) * camera.position.z * 2;
+
+                landmarks.forEach((lm, i) => {
+                    joints[i].position.x = (0.5 - lm.x) * visibleWidth;
+                    joints[i].position.y = (0.5 - lm.y) * visibleHeight;
+                    joints[i].position.z = 0;
+                });
+
+                lines.forEach(lObj => {
+                    const points = lObj.path.map(idx => joints[idx].position);
+                    lObj.line.geometry.setFromPoints(points);
+                });
+
+                const thumbTip = joints[4].position;
+                const indexTip = joints[8].position;
+
+                // 3 barmaq jesti ilə silmə
+                const isIndexOpen = joints[8].position.y > joints[6].position.y;
+                const isMiddleOpen = joints[12].position.y > joints[10].position.y;
+                const isRingOpen = joints[16].position.y > joints[14].position.y;
+                const isPinkyClosed = joints[20].position.y < joints[18].position.y;
+
+                if (isIndexOpen && isMiddleOpen && isRingOpen && isPinkyClosed && !isClearing) {
+                    explodeDrawing();
+                }
+
+                const distPinch = thumbTip.distanceTo(indexTip);
+                const midPoint = new THREE.Vector3().lerpVectors(thumbTip, indexTip, 0.5);
+                cursor.position.set(midPoint.x, midPoint.y, 0.1);
+
+                if (distPinch < 0.6 && !isClearing) {
+                    cursorMat.opacity = 0.8;
+                    cursorMat.color.setHex(0x00ff00);
+                    snapToGridAndCreate(midPoint);
+                } else {
+                    cursorMat.opacity = 0.3;
+                    cursorMat.color.setHex(0xffffff);
+                }
+                
+                handGroup.visible = true;
+            } else {
+                // Əgər heç bir əl kadrda deyilsə, skeleti gizlə
+                cursor.position.set(100, 100, 0);
+                handGroup.visible = false;
+            }
+        });
+
+        function explodeDrawing() {
+            if (drawingGroup.children.length === 0) return;
+            isClearing = true;
+
+            const children = [...drawingGroup.children];
+            children.forEach((point) => {
+                const particleCount = 6;
+                for (let i = 0; i < particleCount; i++) {
+                    const pGeom = new THREE.SphereGeometry(0.05, 4, 4);
+                    const pMat = new THREE.MeshBasicMaterial({ 
+                        color: point.material.color,
+                        transparent: true,
+                        opacity: 1
+                    });
+                    const particle = new THREE.Mesh(pGeom, pMat);
+                    particle.position.copy(point.position);
+                    
+                    particle.userData = {
+                        velocity: new THREE.Vector3(
+                            (Math.random() - 0.5) * 0.25,
+                            (Math.random() - 0.5) * 0.25,
+                            (Math.random() - 0.5) * 0.25
+                        ),
+                        life: 1.0
+                    };
+                    particlesGroup.add(particle);
+                }
+                drawingGroup.remove(point);
+            });
+
+            filledGrids.clear();
+            setTimeout(() => { isClearing = false; }, 500);
+        }
+
+        function snapToGridAndCreate(pos) {
+            const gx = Math.round(pos.x / gridSize) * gridSize;
+            const gy = Math.round(pos.y / gridSize) * gridSize;
+            const key = `${gx.toFixed(1)}_${gy.toFixed(1)}`;
+
+            if (!filledGrids.has(key)) {
+                createBrightPoint(gx, gy);
+                filledGrids.add(key);
+            }
+        }
+
+        function createBrightPoint(x, y) {
+            const colors = [0xbf00ff, 0x00ffff, 0xff0000, 0xffffff, 0xaaaaaa, 0x333333];
+            const randomColor = colors[Math.floor(Math.random() * colors.length)];
+            
+            const pointGeom = new THREE.SphereGeometry(gridSize * 0.45, 12, 12);
+            const pointMat = new THREE.MeshStandardMaterial({ 
+                color: randomColor,
+                emissive: randomColor,
+                emissiveIntensity: 3.0
+            });
+            const point = new THREE.Mesh(pointGeom, pointMat);
+            
+            point.position.set(x, y, 0);
+            drawingGroup.add(point);
+        }
+
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+        scene.add(ambientLight);
+        const pointLight = new THREE.PointLight(0xffffff, 1.5);
+        pointLight.position.set(0, 0, 10);
+        scene.add(pointLight);
+
+        const cameraFeed = new Camera(videoElement, {
+            onFrame: async () => { await hands.send({image: videoElement}); },
+            width: 1280, height: 720
+        });
+        cameraFeed.start();
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            particlesGroup.children.forEach((p) => {
+                p.position.add(p.userData.velocity);
+                p.userData.life -= 0.02;
+                p.material.opacity = p.userData.life;
+                p.scale.multiplyScalar(0.95);
+
+                if (p.userData.life <= 0) {
+                    particlesGroup.remove(p);
+                }
+            });
+
+            renderer.render(scene, camera);
+        }
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        window.onload = animate;
+    </script>
+</body>
+</html>
