@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="az">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Neon Skelet Klaviatura</title>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #000;
+            color: #fff;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        #output-text {
+            width: 80%;
+            height: 60px;
+            margin-top: 20px;
+            background: rgba(0, 0, 0, 0.8);
+            border: 2px solid #00f3ff;
+            box-shadow: 0 0 15px #00f3ff;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2rem;
+            text-transform: uppercase;
+            letter-spacing: 5px;
+            color: #00f3ff;
+            text-shadow: 0 0 10px #00f3ff;
+            z-index: 10;
+        }
+
+        .container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin-top: -60px;
+        }
+
+        canvas {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+        }
+
+        video {
+            display: none;
+        }
+
+        #loading {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 1.5rem;
+            color: #00f3ff;
+            z-index: 20;
+        }
+
+        #gesture-hint {
+            position: fixed;
+            bottom: 20px;
+            color: #00f3ff;
+            font-size: 1rem;
+            text-shadow: 0 0 5px #00f3ff;
+            z-index: 20;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="output-text">YAZI BURADA GÖRÜNƏCƏK</div>
+    <div id="loading">Sistem yüklənir... Kameraya icazə verin.</div>
+    <div id="gesture-hint">Basmaq üçün: İşarə və baş barmağı birləşdirin<br>Hərfləri bir-bir silmək üçün: Əlinizi tam açın</div>
+
+    <div class="container">
+        <video id="input_video"></video>
+        <canvas id="output_canvas"></canvas>
+    </div>
+
+    <script>
+        const videoElement = document.getElementById('input_video');
+        const canvasElement = document.getElementById('output_canvas');
+        const canvasCtx = canvasElement.getContext('2d');
+        const outputDiv = document.getElementById('output-text');
+        const loadingDiv = document.getElementById('loading');
+
+        let typedString = "";
+        const keys = "QWERTYUIOPASDFGHJKLZXCVBNM".split("");
+        const keyObjects = [];
+        let lastDeleteTime = 0;
+
+        function initKeyboard() {
+            const screenWidth = window.innerWidth;
+            const screenHeight = window.innerHeight;
+            
+            const keyWidth = Math.min(screenWidth / 13, 70);
+            const keyHeight = keyWidth;
+            const padding = keyWidth * 0.2;
+            
+            const startY = 180; 
+
+            let currentIdx = 0;
+            const rowLayout = [10, 9, 7];
+            
+            rowLayout.forEach((rowSize, rowIndex) => {
+                const rowWidth = rowSize * (keyWidth + padding) - padding;
+                const startX = (screenWidth - rowWidth) / 2;
+                
+                for (let i = 0; i < rowSize; i++) {
+                    keyObjects.push({
+                        char: keys[currentIdx],
+                        x: startX + i * (keyWidth + padding),
+                        y: startY + rowIndex * (keyHeight + padding),
+                        w: keyWidth,
+                        h: keyHeight,
+                        pressed: false,
+                        lastPressTime: 0
+                    });
+                    currentIdx++;
+                }
+            });
+        }
+
+        function getDistance(p1, p2) {
+            return Math.sqrt(Math.pow(p1.x - p2.x, 2) + Math.pow(p1.y - p2.y, 2) + Math.pow(p1.z - p2.z, 2));
+        }
+
+        function onResults(results) {
+            loadingDiv.style.display = 'none';
+            
+            if (canvasElement.width !== window.innerWidth) {
+                canvasElement.width = window.innerWidth;
+                canvasElement.height = window.innerHeight;
+            }
+
+            canvasCtx.save();
+            canvasCtx.scale(-1, 1);
+            canvasCtx.translate(-canvasElement.width, 0);
+
+            canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+            canvasCtx.fillStyle = 'black';
+            canvasCtx.fillRect(0, 0, canvasElement.width, canvasElement.height);
+            canvasCtx.restore();
+            
+            drawKeyboard();
+
+            if (results.multiHandLandmarks) {
+                for (const landmarks of results.multiHandLandmarks) {
+                    canvasCtx.save();
+                    canvasCtx.scale(-1, 1);
+                    canvasCtx.translate(-canvasElement.width, 0);
+
+                    drawConnectors(canvasCtx, landmarks, HAND_CONNECTIONS, {color: '#00FF00', lineWidth: 4});
+                    drawLandmarks(canvasCtx, landmarks, {color: '#00FF00', lineWidth: 1, radius: 3});
+                    
+                    canvasCtx.restore();
+
+                    // Basma məntiqi
+                    const thumbTip = landmarks[4];
+                    const indexTip = landmarks[8];
+                    const distance = getDistance(thumbTip, indexTip);
+                    const isPinching = distance < 0.05; 
+
+                    // Silmə məntiqi (Əli tam açmaqla tək-tək silmə)
+                    const wrist = landmarks[0];
+                    const tips = [8, 12, 16, 20]; 
+                    const isHandOpen = tips.every(tipIdx => getDistance(landmarks[tipIdx], wrist) > 0.35);
+
+                    if (isHandOpen && typedString.length > 0) {
+                        const now = Date.now();
+                        // Hər 500ms-dən bir bir hərf silirik
+                        if (now - lastDeleteTime > 500) { 
+                            typedString = typedString.slice(0, -1);
+                            outputDiv.innerText = typedString.length > 0 ? typedString : "YAZI BURADA GÖRÜNƏCƏK";
+                            lastDeleteTime = now;
+                        }
+                    }
+
+                    const x = (1 - indexTip.x) * canvasElement.width; 
+                    const y = indexTip.y * canvasElement.height;
+
+                    checkInteraction(x, y, isPinching);
+                }
+            }
+        }
+
+        function drawKeyboard() {
+            keyObjects.forEach(key => {
+                canvasCtx.beginPath();
+                canvasCtx.roundRect(key.x, key.y, key.w, key.h, 10);
+                
+                canvasCtx.strokeStyle = '#00f3ff';
+                canvasCtx.lineWidth = key.pressed ? 5 : 2;
+                canvasCtx.shadowBlur = key.pressed ? 30 : 10;
+                canvasCtx.shadowColor = '#00f3ff';
+                
+                if (key.pressed) {
+                    canvasCtx.fillStyle = 'rgba(0, 243, 255, 0.5)';
+                    canvasCtx.fill();
+                } else {
+                    canvasCtx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+                    canvasCtx.fill();
+                }
+
+                canvasCtx.stroke();
+
+                canvasCtx.fillStyle = '#00f3ff';
+                canvasCtx.font = `bold ${Math.floor(key.w * 0.4)}px Arial`;
+                canvasCtx.textAlign = 'center';
+                canvasCtx.textBaseline = 'middle';
+                canvasCtx.shadowBlur = 0;
+                canvasCtx.fillText(key.char, key.x + key.w/2, key.y + key.h/2);
+            });
+        }
+
+        function checkInteraction(x, y, isPinching) {
+            keyObjects.forEach(key => {
+                const isOver = x > key.x && x < key.x + key.w && y > key.y && y < key.y + key.h;
+                
+                if (isOver && isPinching) {
+                    const now = Date.now();
+                    if (!key.pressed && (now - key.lastPressTime > 800)) {
+                        key.pressed = true;
+                        key.lastPressTime = now;
+                        
+                        if (outputDiv.innerText === "YAZI BURADA GÖRÜNƏCƏK") {
+                            typedString = "";
+                        }
+                        
+                        typedString += key.char;
+                        outputDiv.innerText = typedString;
+                        
+                        setTimeout(() => { key.pressed = false; }, 300);
+                    }
+                }
+            });
+        }
+
+        const hands = new Hands({
+            locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+        });
+
+        hands.setOptions({
+            maxNumHands: 1,
+            modelComplexity: 1,
+            minDetectionConfidence: 0.7,
+            minTrackingConfidence: 0.7
+        });
+
+        hands.onResults(onResults);
+
+        const camera = new Camera(videoElement, {
+            onFrame: async () => {
+                await hands.send({image: videoElement});
+            },
+            width: 1280,
+            height: 720
+        });
+
+        initKeyboard();
+        camera.start();
+
+        window.addEventListener('resize', () => {
+            keyObjects.length = 0;
+            initKeyboard();
+        });
+
+    </script>
+</body>
+</html>
