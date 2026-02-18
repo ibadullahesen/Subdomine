@@ -1,212 +1,275 @@
 <!DOCTYPE html>
 <html lang="az">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Architect OS v4.1 - Hand Voxel Builder</title>
-  <style>
-    body { margin:0; overflow:hidden; background:#000; font-family: 'Courier New', monospace; color:#0ff; }
-    #ui {
-      position: absolute; top: 10px; left: 10px; pointer-events: none; z-index: 10;
-      text-shadow: 0 0 6px #0ff, 0 0 12px #0ff;
-    }
-    #overlay {
-      position: absolute; inset: 0; pointer-events: none; z-index: 5;
-      background: radial-gradient(circle at 50% 50%, rgba(0,255,255,0.08) 0%, transparent 70%);
-    }
-    canvas { display: block; }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Əl İdarəetməli 3D Dünya: Daşıma və Çəkmə</title>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { margin: 0; overflow: hidden; background: #000; font-family: 'Courier New', Courier, monospace; }
+        #video-container { position: absolute; inset: 0; z-index: 1; transform: scaleX(-1); }
+        #video-element { width: 100%; height: 100%; object-fit: cover; }
+        canvas#output-canvas { position: absolute; inset: 0; z-index: 5; pointer-events: none; }
+        #three-container { position: absolute; inset: 0; z-index: 10; }
+        #ui-layer { position: absolute; inset: 0; pointer-events: none; z-index: 20; }
+        .progress-ring { position: absolute; width: 80px; height: 80px; transform: translate(-50%, -50%); display: none; }
+        .progress-ring svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+        .progress-ring circle { fill: none; stroke-width: 6; stroke-linecap: round; }
+        .ring-bg { stroke: rgba(255, 255, 255, 0.2); }
+        .ring-bar { stroke: #00f2ff; stroke-dasharray: 226; stroke-dashoffset: 226; transition: stroke-dashoffset 0.1s linear; }
+        .delete-mode .ring-bar { stroke: #ff0000; }
+        .move-mode .ring-bar { stroke: #ffd700; }
+        .hud-text { position: absolute; top: 20px; left: 20px; color: #00f2ff; text-transform: uppercase; letter-spacing: 2px; font-size: 14px; background: rgba(0,0,0,0.6); padding: 10px 15px; border-left: 4px solid #00f2ff; backdrop-filter: blur(5px); }
+        #loading-screen { position: fixed; inset: 0; background: #000; display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 100; color: #00f2ff; }
+    </style>
 </head>
 <body>
 
-<div id="ui">
-  <div>BIO SYNC: ARCHITECT OS v4.1</div>
-  <div>STATE: INTENT: BUILD_SYNCING...</div>
-  <div id="voxels">VOXELS: 0</div>
-  <div style="margin-top:20px;">2 FISTS: HOLD TO RESET | 2 PALMS: HOLD TO ROTATE</div>
+<div id="loading-screen">
+    <div class="text-4xl font-bold mb-4">SİSTEM HAZIRLANIR...</div>
+    <div id="loading-msg">YÜKLƏNİR...</div>
 </div>
 
-<div id="overlay"></div>
+<div id="video-container">
+    <video id="video-element" playsinline></video>
+</div>
+<canvas id="output-canvas"></canvas>
+<div id="three-container"></div>
 
-<video id="video" autoplay playsinline style="display:none"></video>
-<canvas id="output_canvas" style="position:absolute; top:0; left:0; z-index:1;"></canvas>
-
-<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils@0.3/camera_utils.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils@0.6/control_utils.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils@0.3/drawing_utils.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4/hands.js"></script>
-
-<script src="https://cdn.jsdelivr.net/npm/three@0.168.0/build/three.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/three@0.168.0/examples/js/controls/OrbitControls.min.js"></script>
+<div id="ui-layer">
+    <div class="hud-text" id="status">SİSTEM: HAZIR | REJİM: İZLƏMƏ</div>
+    <div id="cursor-ring" class="progress-ring">
+        <svg>
+            <circle class="ring-bg" cx="40" cy="40" r="36"></circle>
+            <circle id="progress-bar" class="ring-bar" cx="40" cy="40" r="36"></circle>
+        </svg>
+    </div>
+</div>
 
 <script>
-const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x000000);
+    const videoElement = document.getElementById('video-element');
+    const canvasElement = document.getElementById('output-canvas');
+    const canvasCtx = canvasElement.getContext('2d');
+    const progressBar = document.getElementById('progress-bar');
+    const cursorRing = document.getElementById('cursor-ring');
+    const statusText = document.getElementById('status');
 
-const camera = new THREE.PerspectiveCamera(60, innerWidth/innerHeight, 0.1, 100);
-camera.position.set(0, 1.6, 4);
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    document.getElementById('three-container').appendChild(renderer.domElement);
 
-const renderer = new THREE.WebGLRenderer({antialias:true, alpha:true});
-renderer.setSize(innerWidth, innerHeight);
-renderer.domElement.style.position = 'absolute';
-renderer.domElement.style.top = '0';
-document.body.appendChild(renderer.domElement);
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.9);
+    scene.add(ambientLight);
+    const directionalLight = new THREE.DirectionalLight(0xffffff, 0.5);
+    directionalLight.position.set(0, 10, 10);
+    scene.add(directionalLight);
 
-const controls = new THREE.OrbitControls(camera, renderer.domElement);
-controls.enableDamping = true;
-controls.dampingFactor = 0.05;
-controls.enablePan = false;
+    camera.position.z = 5;
 
-scene.add(new THREE.AmbientLight(0xffffff, 0.6));
-const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
-dirLight.position.set(5, 10, 7);
-scene.add(dirLight);
+    const GRID_SIZE = 0.5;
+    const cubes = [];
+    const worldGroup = new THREE.Group();
+    scene.add(worldGroup);
 
-const grid = new THREE.GridHelper(20, 20, 0x0ff, 0x003333);
-scene.add(grid);
+    let ghostCube = null; 
+    let isDeletingMode = false;
+    let isMovingMode = false;
+    let creationTimer = 0;
+    let isDrawingReady = false;
+    let isMovingReady = false;
+    let lastMovePos = new THREE.Vector3();
 
-const voxelMat = new THREE.MeshStandardMaterial({
-  color: 0x00ffff,
-  emissive: 0x004444,
-  transparent: true,
-  opacity: 0.75,
-  metalness: 0.2,
-  roughness: 0.6
-});
-
-const ghostMat = new THREE.MeshBasicMaterial({
-  color: 0x00ffff,
-  transparent: true,
-  opacity: 0.25,
-  wireframe: true
-});
-
-let voxels = [];
-let ghostVoxel = null;
-let selectedVoxel = null;
-let isPinching = false;
-let holdStart = 0;
-const HOLD_DURATION = 1200; // ms
-
-const videoElement = document.getElementById('video');
-const canvasElement = document.getElementById('output_canvas');
-const canvasCtx = canvasElement.getContext('2d');
-
-function onResults(results) {
-  canvasCtx.save();
-  canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
-
-  if (results.multiHandLandmarks && results.multiHandedness) {
-    for (let index = 0; index < results.multiHandLandmarks.length; index++) {
-      const classification = results.multiHandedness[index];
-      const isRightHand = classification.label === 'Right';
-      const landmarks = results.multiHandLandmarks[index];
-
-      drawConnectors(canvasCtx, landmarks, HAND_CONNECTIONS,
-                     {color: '#00ffff', lineWidth: 2});
-      drawLandmarks(canvasCtx, landmarks, {color: '#00ffff', lineWidth: 1, radius: 3});
-
-      const thumb = landmarks[4];
-      const index = landmarks[8];
-      const pinchDist = Math.hypot(
-        (thumb.x - index.x)*canvasElement.width,
-        (thumb.y - index.y)*canvasElement.height
-      );
-
-      const pinchThreshold = 35;
-
-      if (pinchDist < pinchThreshold) {
-        if (!isPinching) {
-          isPinching = true;
-          holdStart = performance.now();
-          createGhostVoxel();
-        }
-
-        const elapsed = performance.now() - holdStart;
-        const progress = Math.min(elapsed / HOLD_DURATION, 1);
-
-        if (ghostVoxel) {
-          const handX = (index.x - 0.5) * 12;
-          const handY = (0.5 - index.y) * 8;
-          const handZ = thumb.z * -8;
-
-          ghostVoxel.position.set(handX, handY, handZ);
-        }
-
-        if (progress >= 1 && ghostVoxel) {
-          // Place et
-          const realVoxel = new THREE.Mesh(
-            new THREE.BoxGeometry(1,1,1),
-            voxelMat.clone()
-          );
-          realVoxel.position.copy(ghostVoxel.position);
-          scene.add(realVoxel);
-          voxels.push(realVoxel);
-
-          document.getElementById('voxels').textContent = `VOXELS: ${voxels.length}`;
-
-          scene.remove(ghostVoxel);
-          ghostVoxel = null;
-          isPinching = false;
-        }
-      } else {
-        if (isPinching) {
-          // Cancel
-          if (ghostVoxel) {
-            scene.remove(ghostVoxel);
-            ghostVoxel = null;
-          }
-          isPinching = false;
-        }
-      }
+    function createGhostCube() {
+        const geo = new THREE.BoxGeometry(GRID_SIZE, GRID_SIZE, GRID_SIZE);
+        const mat = new THREE.MeshPhongMaterial({ color: 0x00f2ff, transparent: true, opacity: 0.2, wireframe: true });
+        ghostCube = new THREE.Mesh(geo, mat);
+        ghostCube.visible = false;
+        scene.add(ghostCube);
     }
-  }
-  canvasCtx.restore();
-}
+    createGhostCube();
 
-const hands = new Hands({locateFile (file) {
-  return `https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4/${file}`;
-}});
-hands.setOptions({
-  maxNumHands: 2,
-  modelComplexity: 1,
-  minDetectionConfidence: 0.7,
-  minTrackingConfidence: 0.5
-});
-hands.onResults(onResults);
+    function snapToGrid(position) {
+        return new THREE.Vector3(
+            Math.round(position.x / GRID_SIZE) * GRID_SIZE,
+            Math.round(position.y / GRID_SIZE) * GRID_SIZE,
+            0
+        );
+    }
 
-const cameraFeed = new Camera(videoElement, {
-  onFrame: async () => {
-    await hands.send({image: videoElement});
-  },
-  width: 1280,
-  height: 720
-});
-cameraFeed.start();
+    function isFist(landmarks) {
+        const fingerTips = [8, 12, 16, 20];
+        const wrist = landmarks[0];
+        return fingerTips.every(tipIdx => {
+            const tip = landmarks[tipIdx];
+            const dist = Math.sqrt(Math.pow(tip.x - wrist.x, 2) + Math.pow(tip.y - wrist.y, 2));
+            return dist < 0.15;
+        });
+    }
 
-window.addEventListener('resize', () => {
-  camera.aspect = innerWidth / innerHeight;
-  camera.updateProjectionMatrix();
-  renderer.setSize(innerWidth, innerHeight);
-});
+    function onResults(results) {
+        document.getElementById('loading-screen').style.display = 'none';
+        canvasElement.width = window.innerWidth;
+        canvasElement.height = window.innerHeight;
+        
+        canvasCtx.save();
+        canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+        canvasCtx.translate(canvasElement.width, 0);
+        canvasCtx.scale(-1, 1);
 
-function createGhostVoxel() {
-  if (ghostVoxel) scene.remove(ghostVoxel);
+        if (results.multiHandLandmarks) {
+            let leftHand = null;
+            let rightHand = null;
 
-  ghostVoxel = new THREE.Mesh(
-    new THREE.BoxGeometry(1,1,1),
-    ghostMat
-  );
-  scene.add(ghostVoxel);
-}
+            results.multiHandedness.forEach((hand, index) => {
+                if (hand.label === 'Left') leftHand = results.multiHandLandmarks[index];
+                if (hand.label === 'Right') rightHand = results.multiHandLandmarks[index];
+                drawConnectors(canvasCtx, results.multiHandLandmarks[index], HAND_CONNECTIONS, {color: '#ffffffaa', lineWidth: 2});
+                drawLandmarks(canvasCtx, results.multiHandLandmarks[index], {color: hand.label === 'Left' ? '#00f2ff' : '#ff0000', lineWidth: 1, radius: 3});
+            });
 
-function animate() {
-  requestAnimationFrame(animate);
-  controls.update();
-  renderer.render(scene, camera);
-}
-animate();
+            if (rightHand) {
+                isDeletingMode = rightHand[8].y < rightHand[0].y - 0.25;
+            }
 
+            if (leftHand) {
+                const thumb = leftHand[4];
+                const indexF = leftHand[8];
+                const dist = Math.sqrt(Math.pow(thumb.x - indexF.x, 2) + Math.pow(thumb.y - indexF.y, 2));
+                const fistDetected = isFist(leftHand);
+                const x = (1 - thumb.x) * 2 - 1;
+                const y = -(thumb.y * 2 - 1);
+                const rawPos = new THREE.Vector3(x * 5, y * 3.5, 0);
+                const gridPos = snapToGrid(rawPos);
+                const uiX = (1 - thumb.x) * window.innerWidth;
+                const uiY = thumb.y * window.innerHeight;
+                cursorRing.style.left = `${uiX}px`;
+                cursorRing.style.top = `${uiY}px`;
+
+                if (fistDetected) {
+                    isMovingMode = true;
+                    statusText.innerText = "SİSTEM: AKTİV | REJİM: DAŞIMA";
+                    statusText.style.color = "#ffd700";
+                    statusText.style.borderColor = "#ffd700";
+                    cursorRing.className = "progress-ring move-mode";
+                    ghostCube.visible = false;
+                } else {
+                    isMovingMode = false;
+                    isMovingReady = false;
+                    statusText.innerText = isDeletingMode ? "SİSTEM: AKTİV | REJİM: SİLMƏ" : "SİSTEM: AKTİV | REJİM: ÇƏKMƏ";
+                    statusText.style.color = isDeletingMode ? "#ff0000" : "#00f2ff";
+                    statusText.style.borderColor = isDeletingMode ? "#ff0000" : "#00f2ff";
+                    cursorRing.className = isDeletingMode ? "progress-ring delete-mode" : "progress-ring";
+                    ghostCube.visible = true;
+                    ghostCube.position.copy(gridPos);
+                    ghostCube.material.color.setHex(isDeletingMode ? 0xff0000 : 0x00f2ff);
+                }
+
+                if ((dist < 0.05 && !isMovingMode) || (isMovingMode)) {
+                    cursorRing.style.display = 'block';
+                    if (!isDrawingReady && !isMovingReady) {
+                        creationTimer += 3.5;
+                        const offset = 226 - (Math.min(creationTimer, 100) / 100) * 226;
+                        progressBar.style.strokeDashoffset = offset;
+                        if (creationTimer >= 100) {
+                            if (isMovingMode) {
+                                isMovingReady = true;
+                                lastMovePos.copy(rawPos);
+                            } else {
+                                isDrawingReady = true;
+                            }
+                            cursorRing.style.display = 'none';
+                        }
+                    }
+                    if (isDrawingReady && !isMovingMode) {
+                        if (isDeletingMode) {
+                            handleDeleteLogic(gridPos);
+                        } else {
+                            placePermanentCube(gridPos);
+                        }
+                    }
+                    if (isMovingReady && isMovingMode) {
+                        const delta = new THREE.Vector3().subVectors(rawPos, lastMovePos);
+                        worldGroup.position.add(delta);
+                        lastMovePos.copy(rawPos);
+                    }
+                } else {
+                    resetInteraction();
+                }
+            } else {
+                resetInteraction();
+            }
+        }
+        canvasCtx.restore();
+    }
+
+    function placePermanentCube(pos) {
+        const localPos = worldGroup.worldToLocal(pos.clone());
+        const gridLocal = snapToGrid(localPos);
+        const exists = cubes.some(c => c.position.distanceTo(gridLocal) < 0.1);
+        if (exists) return;
+        const geo = new THREE.BoxGeometry(GRID_SIZE, GRID_SIZE, GRID_SIZE);
+        const mat = new THREE.MeshPhongMaterial({ 
+            color: 0x00f2ff, 
+            transparent: true, 
+            opacity: 0.5, 
+            shininess: 90 
+        });
+        const cube = new THREE.Mesh(geo, mat);
+        cube.position.copy(gridLocal);
+        const edges = new THREE.EdgesGeometry(geo);
+        const line = new THREE.LineSegments(edges, new THREE.LineBasicMaterial({ color: 0x00f2ff, transparent: true, opacity: 0.8 }));
+        cube.add(line);
+        worldGroup.add(cube);
+        cubes.push(cube);
+    }
+
+    function handleDeleteLogic(pos) {
+        const localPos = worldGroup.worldToLocal(pos.clone());
+        const gridLocal = snapToGrid(localPos);
+        let target = null;
+        cubes.forEach(c => {
+            if (c.position.distanceTo(gridLocal) < 0.1) target = c;
+        });
+        if (target) {
+            worldGroup.remove(target);
+            const idx = cubes.indexOf(target);
+            if (idx > -1) cubes.splice(idx, 1);
+        }
+    }
+
+    function resetInteraction() {
+        cursorRing.style.display = 'none';
+        creationTimer = 0;
+        progressBar.style.strokeDashoffset = 226;
+        isDrawingReady = false;
+        isMovingReady = false;
+    }
+
+    const hands = new Hands({
+        locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+    });
+    hands.setOptions({ maxNumHands: 2, modelComplexity: 1, minDetectionConfidence: 0.8, minTrackingConfidence: 0.8 });
+    hands.onResults(onResults);
+    const cameraHelper = new Camera(videoElement, {
+        onFrame: async () => { await hands.send({image: videoElement}); }
+    });
+    cameraHelper.start();
+    function animate() {
+        requestAnimationFrame(animate);
+        renderer.render(scene, camera);
+    }
+    animate();
+    window.addEventListener('resize', () => {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+    });
 </script>
 </body>
 </html>
