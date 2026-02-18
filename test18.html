@@ -1,1 +1,212 @@
+<!DOCTYPE html>
+<html lang="az">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Architect OS v4.1 - Hand Voxel Builder</title>
+  <style>
+    body { margin:0; overflow:hidden; background:#000; font-family: 'Courier New', monospace; color:#0ff; }
+    #ui {
+      position: absolute; top: 10px; left: 10px; pointer-events: none; z-index: 10;
+      text-shadow: 0 0 6px #0ff, 0 0 12px #0ff;
+    }
+    #overlay {
+      position: absolute; inset: 0; pointer-events: none; z-index: 5;
+      background: radial-gradient(circle at 50% 50%, rgba(0,255,255,0.08) 0%, transparent 70%);
+    }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
 
+<div id="ui">
+  <div>BIO SYNC: ARCHITECT OS v4.1</div>
+  <div>STATE: INTENT: BUILD_SYNCING...</div>
+  <div id="voxels">VOXELS: 0</div>
+  <div style="margin-top:20px;">2 FISTS: HOLD TO RESET | 2 PALMS: HOLD TO ROTATE</div>
+</div>
+
+<div id="overlay"></div>
+
+<video id="video" autoplay playsinline style="display:none"></video>
+<canvas id="output_canvas" style="position:absolute; top:0; left:0; z-index:1;"></canvas>
+
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils@0.3/camera_utils.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils@0.6/control_utils.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils@0.3/drawing_utils.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4/hands.js"></script>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.168.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.168.0/examples/js/controls/OrbitControls.min.js"></script>
+
+<script>
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x000000);
+
+const camera = new THREE.PerspectiveCamera(60, innerWidth/innerHeight, 0.1, 100);
+camera.position.set(0, 1.6, 4);
+
+const renderer = new THREE.WebGLRenderer({antialias:true, alpha:true});
+renderer.setSize(innerWidth, innerHeight);
+renderer.domElement.style.position = 'absolute';
+renderer.domElement.style.top = '0';
+document.body.appendChild(renderer.domElement);
+
+const controls = new THREE.OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.05;
+controls.enablePan = false;
+
+scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+dirLight.position.set(5, 10, 7);
+scene.add(dirLight);
+
+const grid = new THREE.GridHelper(20, 20, 0x0ff, 0x003333);
+scene.add(grid);
+
+const voxelMat = new THREE.MeshStandardMaterial({
+  color: 0x00ffff,
+  emissive: 0x004444,
+  transparent: true,
+  opacity: 0.75,
+  metalness: 0.2,
+  roughness: 0.6
+});
+
+const ghostMat = new THREE.MeshBasicMaterial({
+  color: 0x00ffff,
+  transparent: true,
+  opacity: 0.25,
+  wireframe: true
+});
+
+let voxels = [];
+let ghostVoxel = null;
+let selectedVoxel = null;
+let isPinching = false;
+let holdStart = 0;
+const HOLD_DURATION = 1200; // ms
+
+const videoElement = document.getElementById('video');
+const canvasElement = document.getElementById('output_canvas');
+const canvasCtx = canvasElement.getContext('2d');
+
+function onResults(results) {
+  canvasCtx.save();
+  canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+
+  if (results.multiHandLandmarks && results.multiHandedness) {
+    for (let index = 0; index < results.multiHandLandmarks.length; index++) {
+      const classification = results.multiHandedness[index];
+      const isRightHand = classification.label === 'Right';
+      const landmarks = results.multiHandLandmarks[index];
+
+      drawConnectors(canvasCtx, landmarks, HAND_CONNECTIONS,
+                     {color: '#00ffff', lineWidth: 2});
+      drawLandmarks(canvasCtx, landmarks, {color: '#00ffff', lineWidth: 1, radius: 3});
+
+      const thumb = landmarks[4];
+      const index = landmarks[8];
+      const pinchDist = Math.hypot(
+        (thumb.x - index.x)*canvasElement.width,
+        (thumb.y - index.y)*canvasElement.height
+      );
+
+      const pinchThreshold = 35;
+
+      if (pinchDist < pinchThreshold) {
+        if (!isPinching) {
+          isPinching = true;
+          holdStart = performance.now();
+          createGhostVoxel();
+        }
+
+        const elapsed = performance.now() - holdStart;
+        const progress = Math.min(elapsed / HOLD_DURATION, 1);
+
+        if (ghostVoxel) {
+          const handX = (index.x - 0.5) * 12;
+          const handY = (0.5 - index.y) * 8;
+          const handZ = thumb.z * -8;
+
+          ghostVoxel.position.set(handX, handY, handZ);
+        }
+
+        if (progress >= 1 && ghostVoxel) {
+          // Place et
+          const realVoxel = new THREE.Mesh(
+            new THREE.BoxGeometry(1,1,1),
+            voxelMat.clone()
+          );
+          realVoxel.position.copy(ghostVoxel.position);
+          scene.add(realVoxel);
+          voxels.push(realVoxel);
+
+          document.getElementById('voxels').textContent = `VOXELS: ${voxels.length}`;
+
+          scene.remove(ghostVoxel);
+          ghostVoxel = null;
+          isPinching = false;
+        }
+      } else {
+        if (isPinching) {
+          // Cancel
+          if (ghostVoxel) {
+            scene.remove(ghostVoxel);
+            ghostVoxel = null;
+          }
+          isPinching = false;
+        }
+      }
+    }
+  }
+  canvasCtx.restore();
+}
+
+const hands = new Hands({locateFile (file) {
+  return `https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4/${file}`;
+}});
+hands.setOptions({
+  maxNumHands: 2,
+  modelComplexity: 1,
+  minDetectionConfidence: 0.7,
+  minTrackingConfidence: 0.5
+});
+hands.onResults(onResults);
+
+const cameraFeed = new Camera(videoElement, {
+  onFrame: async () => {
+    await hands.send({image: videoElement});
+  },
+  width: 1280,
+  height: 720
+});
+cameraFeed.start();
+
+window.addEventListener('resize', () => {
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
+
+function createGhostVoxel() {
+  if (ghostVoxel) scene.remove(ghostVoxel);
+
+  ghostVoxel = new THREE.Mesh(
+    new THREE.BoxGeometry(1,1,1),
+    ghostMat
+  );
+  scene.add(ghostVoxel);
+}
+
+function animate() {
+  requestAnimationFrame(animate);
+  controls.update();
+  renderer.render(scene, camera);
+}
+animate();
+
+</script>
+</body>
+</html>
