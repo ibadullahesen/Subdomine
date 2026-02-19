@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="az">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Əl İzləmə Enerji Effekti</title>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            margin: 0;
+            background: #000;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            color: white;
+            font-family: sans-serif;
+        }
+        canvas {
+            transform: scaleX(-1);
+            position: absolute;
+        }
+        video {
+            display: none;
+        }
+        .ui-overlay {
+            position: absolute;
+            top: 20px;
+            z-index: 10;
+            text-align: center;
+            pointer-events: none;
+        }
+        .status {
+            background: rgba(0, 0, 0, 0.6);
+            padding: 8px 16px;
+            border-radius: 20px;
+            border: 1px solid #00f2ff;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="ui-overlay">
+        <div id="status" class="status">Kamera yüklənir...</div>
+    </div>
+
+    <video id="input_video"></video>
+    <canvas id="output_canvas"></canvas>
+
+    <script>
+        const videoElement = document.getElementById('input_video');
+        const canvasElement = document.getElementById('output_canvas');
+        const canvasCtx = canvasElement.getContext('2d');
+        const statusDiv = document.getElementById('status');
+
+        let ropeMidPoints = Array(5).fill(null).map(() => ({ x: 0, y: 0, vx: 0, vy: 0 }));
+
+        function resizeCanvas() {
+            canvasElement.width = window.innerWidth;
+            canvasElement.height = window.innerHeight;
+        }
+        window.onresize = resizeCanvas;
+        resizeCanvas();
+
+        function drawElasticRope(ctx, x1, y1, x2, y2, cx, cy, color) {
+            ctx.save();
+            ctx.beginPath();
+            ctx.moveTo(x1, y1);
+            ctx.quadraticCurveTo(cx, cy, x2, y2);
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 8;
+            ctx.shadowBlur = 25;
+            ctx.shadowColor = color;
+            ctx.lineCap = 'round';
+            ctx.stroke();
+            ctx.lineWidth = 2.5;
+            ctx.strokeStyle = '#fff';
+            ctx.stroke();
+            ctx.restore();
+        }
+
+        function updateRopePhysics(p1, p2, midIdx) {
+            const spring = 0.1;
+            const friction = 0.85;
+            const gravity = 0.5;
+
+            let p = ropeMidPoints[midIdx];
+            
+            let targetX = (p1.x + p2.x) / 2;
+            let targetY = (p1.y + p2.y) / 2 + 30;
+
+            if (p.x === 0 && p.y === 0) {
+                p.x = targetX;
+                p.y = targetY;
+            }
+
+            let ax = (targetX - p.x) * spring;
+            let ay = (targetY - p.y) * spring + gravity;
+            
+            p.vx += ax;
+            p.vy += ay;
+            p.vx *= friction;
+            p.vy *= friction;
+            
+            p.x += p.vx;
+            p.y += p.vy;
+        }
+
+        function onResults(results) {
+            statusDiv.innerText = results.multiHandLandmarks.length > 0 ? 
+                (results.multiHandLandmarks.length === 1 ? "Bir əl aşkar edildi" : "Elastik ip effekti aktivdir!") : 
+                "Əllərinizi kameraya göstərin";
+            
+            canvasCtx.save();
+            canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+            canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
+
+            const handsData = [];
+
+            if (results.multiHandLandmarks) {
+                results.multiHandLandmarks.forEach((landmarks) => {
+                    drawConnectors(canvasCtx, landmarks, HAND_CONNECTIONS, {
+                        color: '#00f2ff',
+                        lineWidth: 4
+                    });
+                    
+                    drawLandmarks(canvasCtx, landmarks, {
+                        color: '#ffffff',
+                        fillColor: '#00f2ff',
+                        lineWidth: 1,
+                        radius: 4
+                    });
+
+                    const tips = [4, 8, 12, 16, 20].map(id => ({
+                        x: landmarks[id].x * canvasElement.width,
+                        y: landmarks[id].y * canvasElement.height
+                    }));
+                    handsData.push(tips);
+                });
+
+                if (handsData.length === 2) {
+                    for (let i = 0; i < 5; i++) {
+                        let fingerA = handsData[0][i];
+                        let fingerB = handsData[1][i];
+                        
+                        updateRopePhysics(fingerA, fingerB, i);
+                        
+                        drawElasticRope(
+                            canvasCtx, 
+                            fingerA.x, fingerA.y, 
+                            fingerB.x, fingerB.y, 
+                            ropeMidPoints[i].x, ropeMidPoints[i].y, 
+                            '#00f2ff'
+                        );
+                    }
+                }
+            }
+            canvasCtx.restore();
+        }
+
+        const hands = new Hands({
+            locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+        });
+
+        hands.setOptions({
+            maxNumHands: 2,
+            modelComplexity: 1,
+            minDetectionConfidence: 0.7,
+            minTrackingConfidence: 0.7
+        });
+
+        hands.onResults(onResults);
+
+        const camera = new Camera(videoElement, {
+            onFrame: async () => {
+                await hands.send({image: videoElement});
+            },
+            width: 1280,
+            height: 720
+        });
+        camera.start();
+    </script>
+</body>
+</html>
