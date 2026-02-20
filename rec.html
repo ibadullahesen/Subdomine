@@ -8,87 +8,87 @@
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700&display=swap');
-        body { font-family: 'Plus Jakarta Sans', sans-serif; background: #020617; color: white; min-height: 100vh; overflow: hidden; }
+        body { font-family: 'Plus Jakarta Sans', sans-serif; background: #020617; color: white; height: 100vh; overflow: hidden; margin: 0; display: flex; align-items: center; justify-content: center; }
         .glass { background: rgba(15, 23, 42, 0.8); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.1); }
-        .webcam-preview { width: 180px; height: 135px; border-radius: 12px; border: 2px solid #3b82f6; position: absolute; z-index: 50; object-fit: cover; transition: 0.3s; }
-        .pos-bottom-left { bottom: 20px; left: 20px; }
-        .pos-bottom-right { bottom: 20px; right: 20px; }
+        .webcam-preview { width: 120px; height: 90px; border-radius: 8px; border: 2px solid #3b82f6; position: absolute; z-index: 50; object-fit: cover; transition: 0.3s; }
+        .pos-bottom-left { bottom: 10px; left: 10px; }
+        .pos-bottom-right { bottom: 10px; right: 10px; }
         .quality-btn.active { background: #3b82f6; border-color: #60a5fa; }
     </style>
 </head>
-<body class="flex items-center justify-center">
+<body>
 
-    <div class="relative w-full max-w-4xl p-6">
-        <div class="glass rounded-[32px] p-8 shadow-2xl relative overflow-hidden">
-            <div class="flex items-center justify-between mb-8">
+    <div class="relative w-full max-w-xl px-4">
+        <div class="glass rounded-[20px] p-5 shadow-2xl relative">
+            <div class="flex items-center justify-between mb-4">
                 <div>
-                    <h1 class="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-emerald-400">Axtarget Studio</h1>
-                    <p class="text-slate-500 text-xs tracking-widest uppercase">Professional Recorder</p>
+                    <h1 class="text-lg font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-emerald-400">Axtarget Studio</h1>
+                    <p class="text-slate-500 text-[9px] tracking-widest uppercase">Compact v2.0</p>
                 </div>
-                <div id="status" class="hidden flex items-center gap-2 bg-red-500/20 text-red-400 px-3 py-1 rounded-full text-xs font-bold">
-                    <span class="w-2 h-2 bg-red-500 rounded-full animate-pulse"></span> REC <span id="timer">00:00</span>
+                <div id="status" class="hidden flex items-center gap-2 bg-red-500/20 text-red-400 px-2 py-0.5 rounded-full text-[9px] font-bold">
+                    <span class="w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse"></span> REC <span id="timer">00:00</span>
                 </div>
             </div>
 
-            <div class="relative aspect-video bg-slate-900 rounded-2xl mb-8 border border-white/5 flex items-center justify-center overflow-hidden">
+            <div class="relative w-full aspect-video bg-slate-900 rounded-lg mb-4 border border-white/5 flex items-center justify-center overflow-hidden mx-auto">
                 <video id="preview" class="w-full h-full object-contain hidden" controls></video>
                 <div id="blank" class="text-slate-700 flex flex-col items-center">
-                    <i class="fas fa-desktop text-5xl mb-4 opacity-20"></i>
-                    <p class="text-sm italic opacity-40">Görüntü gözlənilir...</p>
+                    <i class="fas fa-desktop text-2xl mb-2 opacity-20"></i>
+                    <p class="text-[10px] italic opacity-40 font-medium">Video gözlənilir...</p>
                 </div>
                 <video id="webcam" class="webcam-preview hidden pos-bottom-right" autoplay muted></video>
             </div>
 
-            <div class="flex items-center justify-center gap-4">
-                <button id="record-btn" class="flex-1 bg-blue-600 hover:bg-blue-500 py-4 rounded-2xl font-bold flex items-center justify-center gap-3 transition-all shadow-lg shadow-blue-900/20">
-                    <i class="fas fa-circle text-xs"></i> Ekranı Kaydet
+            <div class="flex items-center gap-2">
+                <button id="record-btn" class="flex-[3] bg-blue-600 hover:bg-blue-500 py-2.5 rounded-lg font-bold text-xs flex items-center justify-center gap-2 transition-all shadow-lg shadow-blue-900/20">
+                    <i class="fas fa-circle text-[6px]"></i> Ekranı Kaydet
                 </button>
-                <button id="stop-btn" class="hidden flex-1 bg-red-600 hover:bg-red-500 py-4 rounded-2xl font-bold flex items-center justify-center gap-3 transition-all">
-                    <i class="fas fa-stop"></i> Durdur
+                <button id="stop-btn" class="hidden flex-[3] bg-red-600 hover:bg-red-500 py-2.5 rounded-lg font-bold text-xs flex items-center justify-center gap-2 transition-all">
+                    <i class="fas fa-stop text-[6px]"></i> Durdur
                 </button>
-                <button id="settings-toggle" class="w-16 h-14 bg-white/5 hover:bg-white/10 border border-white/10 rounded-2xl flex items-center justify-center transition-all">
-                    <i class="fas fa-cog"></i>
+                <button id="settings-toggle" class="flex-1 h-9 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg flex items-center justify-center transition-all">
+                    <i class="fas fa-cog text-xs"></i>
                 </button>
             </div>
 
-            <div id="result-btns" class="hidden mt-6 flex gap-3">
-                <button id="download-btn" class="flex-1 bg-emerald-600 hover:bg-emerald-500 py-3 rounded-xl font-bold">Yüklə</button>
-                <button id="delete-btn" class="w-16 bg-white/5 hover:bg-red-500/20 border border-white/10 rounded-xl"><i class="fas fa-trash"></i></button>
+            <div id="result-btns" class="hidden mt-3 flex gap-2">
+                <button id="download-btn" class="flex-1 bg-emerald-600 hover:bg-emerald-500 py-2 rounded-lg font-bold text-[10px]">Videonun Yüklə</button>
+                <button id="delete-btn" class="w-10 h-8 bg-white/5 hover:bg-red-500/20 border border-white/10 rounded-lg text-xs flex items-center justify-center"><i class="fas fa-trash"></i></button>
             </div>
         </div>
     </div>
 
     <div id="settings-panel" class="fixed inset-0 z-[100] hidden flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-        <div class="glass w-full max-w-md rounded-[24px] p-6 animate-fade-in">
-            <div class="flex justify-between items-center mb-6">
-                <h2 class="text-xl font-bold">Ayarlar</h2>
-                <button id="close-settings" class="text-slate-400 hover:text-white"><i class="fas fa-times"></i></button>
+        <div class="glass w-full max-w-xs rounded-[16px] p-4">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-sm font-bold">Ayarlar</h2>
+                <button id="close-settings" class="text-slate-400 hover:text-white"><i class="fas fa-times text-xs"></i></button>
             </div>
 
-            <div class="space-y-6">
+            <div class="space-y-4">
                 <div>
-                    <label class="text-xs text-slate-500 font-bold uppercase mb-3 block">Video Keyfiyyəti</label>
-                    <div class="grid grid-cols-2 gap-2">
-                        <button class="quality-btn p-2 border border-white/10 rounded-lg text-sm" data-val="2160">4K</button>
-                        <button class="quality-btn p-2 border border-white/10 rounded-lg text-sm" data-val="1440">2K</button>
-                        <button class="quality-btn active p-2 border border-white/10 rounded-lg text-sm" data-val="1080">1080p</button>
-                        <button class="quality-btn p-2 border border-white/10 rounded-lg text-sm" data-val="720">720p</button>
+                    <label class="text-[9px] text-slate-500 font-bold uppercase mb-2 block tracking-wider">Keyfiyyət</label>
+                    <div class="grid grid-cols-2 gap-1.5">
+                        <button class="quality-btn p-1.5 border border-white/10 rounded-md text-[10px]" data-val="2160">4K</button>
+                        <button class="quality-btn p-1.5 border border-white/10 rounded-md text-[10px]" data-val="1440">2K</button>
+                        <button class="quality-btn active p-1.5 border border-white/10 rounded-md text-[10px]" data-val="1080">1080p</button>
+                        <button class="quality-btn p-1.5 border border-white/10 rounded-md text-[10px]" data-val="720">720p</button>
                     </div>
                 </div>
 
-                <div class="flex items-center justify-between p-3 bg-white/5 rounded-xl border border-white/10">
-                    <span class="text-sm">Veb-kamera</span>
-                    <input type="checkbox" id="cam-check" class="w-5 h-5 accent-blue-500">
+                <div class="flex items-center justify-between p-2 bg-white/5 rounded-md border border-white/10">
+                    <span class="text-[11px]">Veb-kamera</span>
+                    <input type="checkbox" id="cam-check" class="w-3.5 h-3.5 accent-blue-500 cursor-pointer">
                 </div>
 
-                <div id="cam-pos-box" class="hidden grid grid-cols-2 gap-2">
-                    <button id="pos-left" class="p-2 bg-white/5 border border-white/10 rounded-lg text-xs">Sol Aşağı</button>
-                    <button id="pos-right" class="p-2 bg-blue-600 border border-blue-500 rounded-lg text-xs">Sağ Aşağı</button>
+                <div id="cam-pos-box" class="hidden grid grid-cols-2 gap-1.5">
+                    <button id="pos-left" class="p-1.5 bg-white/5 border border-white/10 rounded-md text-[9px]">Sol Aşağı</button>
+                    <button id="pos-right" class="p-1.5 bg-blue-600 border border-blue-500 rounded-md text-[9px]">Sağ Aşağı</button>
                 </div>
 
-                <div class="flex items-center justify-between p-3 bg-white/5 rounded-xl border border-white/10">
-                    <span class="text-sm">Mikrofon</span>
-                    <input type="checkbox" id="mic-check" checked class="w-5 h-5 accent-blue-500">
+                <div class="flex items-center justify-between p-2 bg-white/5 rounded-md border border-white/10">
+                    <span class="text-[11px]">Mikrofon Səsi</span>
+                    <input type="checkbox" id="mic-check" checked class="w-3.5 h-3.5 accent-blue-500 cursor-pointer">
                 </div>
             </div>
         </div>
@@ -127,16 +127,14 @@
             }
         };
 
-        document.getElementById('pos-left').onclick = () => {
-            vWebcam.className = 'webcam-preview pos-bottom-left';
-            document.getElementById('pos-left').classList.add('bg-blue-600');
-            document.getElementById('pos-right').classList.remove('bg-blue-600');
+        const updateCamPos = (side) => {
+            vWebcam.className = `webcam-preview pos-bottom-${side}`;
+            document.getElementById('pos-left').classList.toggle('bg-blue-600', side === 'left');
+            document.getElementById('pos-right').classList.toggle('bg-blue-600', side === 'right');
         };
-        document.getElementById('pos-right').onclick = () => {
-            vWebcam.className = 'webcam-preview pos-bottom-right';
-            document.getElementById('pos-right').classList.add('bg-blue-600');
-            document.getElementById('pos-left').classList.remove('bg-blue-600');
-        };
+
+        document.getElementById('pos-left').onclick = () => updateCamPos('left');
+        document.getElementById('pos-right').onclick = () => updateCamPos('right');
 
         btnRec.onclick = async () => {
             try {
@@ -146,8 +144,10 @@
                 });
                 let tracks = [...sStream.getTracks()];
                 if (document.getElementById('mic-check').checked) {
-                    const m = await navigator.mediaDevices.getUserMedia({ audio: true });
-                    tracks = [...tracks, ...m.getAudioTracks()];
+                    try {
+                        const m = await navigator.mediaDevices.getUserMedia({ audio: true });
+                        tracks = [...tracks, ...m.getAudioTracks()];
+                    } catch {}
                 }
                 mStream = new MediaStream(tracks);
                 mediaRecorder = new MediaRecorder(mStream, { mimeType: 'video/webm;codecs=vp9' });
