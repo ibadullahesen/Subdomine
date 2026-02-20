@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Cybernetic Symbiote - Hacker Edition</title>
+    <title>Cybernetic Symbiote</title>
     
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
@@ -67,14 +67,14 @@
             animation: textGlitch 0.15s infinite;
             color: var(--danger-red) !important;
             border-color: var(--danger-red) !important;
-            box-shadow: 0 0 20px rgba(255, 0, 51, 0.4);
+            box-shadow: 0 0 30px rgba(255, 0, 51, 0.6);
         }
 
         @keyframes textGlitch {
-            0% { transform: translate(2px, 2px); }
-            25% { transform: translate(-2px, -2px); }
-            50% { transform: translate(-2px, 2px); }
-            75% { transform: translate(2px, -2px); }
+            0% { transform: translate(3px, 3px); }
+            25% { transform: translate(-3px, -3px); }
+            50% { transform: translate(-3px, 3px); }
+            75% { transform: translate(3px, -3px); }
             100% { transform: translate(0); }
         }
 
@@ -82,7 +82,7 @@
             position: fixed;
             top: 0; left: 0;
             width: 100%; height: 100%;
-            background: radial-gradient(circle, rgba(255, 0, 51, 0.15) 0%, rgba(0, 0, 0, 0) 70%);
+            background: radial-gradient(circle, rgba(255, 0, 51, 0.25) 0%, rgba(0, 0, 0, 0) 75%);
             pointer-events: none;
             z-index: 5;
             display: none;
@@ -101,32 +101,31 @@
             color: var(--neon-blue);
         }
 
-        /* Scanline effect for more hacker feel */
         body::after {
             content: " ";
             position: fixed;
             top: 0; left: 0; width: 100%; height: 100%;
-            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.2) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.03), rgba(0, 255, 0, 0.01), rgba(0, 0, 255, 0.03));
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.2) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.04), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.04));
             background-size: 100% 3px, 3px 100%;
             z-index: 1000;
             pointer-events: none;
-            opacity: 0.3;
+            opacity: 0.4;
         }
     </style>
 </head>
 <body>
 
     <div id="loading">
-        <div style="font-size: 1.5rem; font-weight: bold; letter-spacing: 5px; margin-bottom: 10px;">INITIALIZING SYMBIOTE...</div>
-        <div id="load-status" style="font-size: 0.8rem; opacity: 0.6; text-transform: uppercase;">Bağlantı qurulur...</div>
+        <div style="font-size: 1.5rem; font-weight: bold; letter-spacing: 5px; margin-bottom: 10px;">INITIALIZING...</div>
+        <div id="load-status" style="font-size: 0.8rem; opacity: 0.6; text-transform: uppercase;">CONNECTING</div>
     </div>
 
     <div id="glitch-screen"></div>
 
     <div class="hud">
         <div id="status-box" class="status-box">
-            <div id="connection-status" style="font-size: 0.6rem; margin-bottom: 5px;">Link Statusu: Stabil</div>
-            <div id="mode-label" style="font-size: 1.1rem; font-weight: bold;">NÜVƏ AKTİVDİR</div>
+            <div id="connection-status" style="font-size: 0.6rem; margin-bottom: 5px;">STATUS: STABLE</div>
+            <div id="mode-label" style="font-size: 1.1rem; font-weight: bold;">CORE ACTIVE</div>
         </div>
     </div>
 
@@ -145,10 +144,9 @@
         const container = document.getElementById('canvas-container');
 
         let scene, camera, renderer, points, geometry, material;
-        const particleCount = 25000; // Zərrəcik sayını bir az artırdıq
+        const particleCount = 30000; 
         const positions = new Float32Array(particleCount * 3);
         const originalTargets = new Float32Array(particleCount * 3);
-        const sizes = new Float32Array(particleCount);
 
         let isCorrupted = false; 
         let isExploded = false;  
@@ -167,29 +165,25 @@
                 const i3 = i * 3;
                 const phi = Math.acos(-1 + (2 * i) / particleCount);
                 const theta = Math.sqrt(particleCount * Math.PI) * phi;
-                const r = 13; // Bir az daha böyük kürə
+                const r = 14; 
 
                 originalTargets[i3] = r * Math.cos(theta) * Math.sin(phi);
                 originalTargets[i3+1] = r * Math.sin(theta) * Math.sin(phi);
                 originalTargets[i3+2] = r * Math.cos(phi);
 
-                // İlkin dağınıq vəziyyət
-                positions[i3] = (Math.random() - 0.5) * 150;
-                positions[i3+1] = (Math.random() - 0.5) * 150;
-                positions[i3+2] = (Math.random() - 0.5) * 150;
-                
-                sizes[i] = Math.random() * 2;
+                positions[i3] = (Math.random() - 0.5) * 160;
+                positions[i3+1] = (Math.random() - 0.5) * 160;
+                positions[i3+2] = (Math.random() - 0.5) * 160;
             }
 
             geometry = new THREE.BufferGeometry();
             geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
             
-            // Daha bəlirli "toz" effekti üçün zərrəcik nizamlamaları
             material = new THREE.PointsMaterial({
-                size: 0.25, // Zərrəcikləri daha böyük etdik
+                size: 0.3, 
                 color: 0x00d4ff,
                 transparent: true,
-                opacity: 0.9,
+                opacity: 0.95,
                 blending: THREE.AdditiveBlending,
                 depthWrite: false
             });
@@ -205,21 +199,20 @@
             const posAttr = geometry.attributes.position.array;
 
             if (isExploded) {
-                material.color.lerp(new THREE.Color(0xff2200), 0.2);
-                material.size = THREE.MathUtils.lerp(material.size, 0.8, 0.1); // Partlayışda böyüyürlər
-                currentNoise = THREE.MathUtils.lerp(currentNoise, 80, 0.15);
-                // Kamera titrəməsi (Shake)
-                camera.position.x = (Math.random() - 0.5) * 1.5;
-                camera.position.y = (Math.random() - 0.5) * 1.5;
+                material.color.lerp(new THREE.Color(0xff1100), 0.25);
+                material.size = THREE.MathUtils.lerp(material.size, 1.2, 0.15); 
+                currentNoise = THREE.MathUtils.lerp(currentNoise, 100, 0.2);
+                camera.position.x = (Math.random() - 0.5) * 2.5;
+                camera.position.y = (Math.random() - 0.5) * 2.5;
             } else if (isCorrupted) {
-                material.color.lerp(new THREE.Color(0x9d00ff), 0.1);
-                material.size = THREE.MathUtils.lerp(material.size, 0.4, 0.1);
-                currentNoise = THREE.MathUtils.lerp(currentNoise, 15, 0.05);
+                material.color.lerp(new THREE.Color(0x9d00ff), 0.15);
+                material.size = THREE.MathUtils.lerp(material.size, 0.5, 0.1);
+                currentNoise = THREE.MathUtils.lerp(currentNoise, 20, 0.08);
                 camera.position.set(0, 0, 55);
             } else {
                 material.color.lerp(new THREE.Color(0x00d4ff), 0.1);
-                material.size = THREE.MathUtils.lerp(material.size, 0.25, 0.1);
-                currentNoise = THREE.MathUtils.lerp(currentNoise, 0.8, 0.05);
+                material.size = THREE.MathUtils.lerp(material.size, 0.3, 0.1);
+                currentNoise = THREE.MathUtils.lerp(currentNoise, 1.0, 0.05);
                 camera.position.set(0, 0, 55);
             }
 
@@ -227,41 +220,35 @@
                 const i3 = i * 3;
                 
                 if (isExploded) {
-                    // Partlayışda zərrəciklər mərkəzdən kənara sürətlə qaçır
-                    posAttr[i3] += (posAttr[i3] * 0.05) + (Math.random() - 0.5) * 10;
-                    posAttr[i3+1] += (posAttr[i3+1] * 0.05) + (Math.random() - 0.5) * 10;
-                    posAttr[i3+2] += (posAttr[i3+2] * 0.05) + (Math.random() - 0.5) * 10;
-                    
-                    // Əgər çox uzağa getsələr, geri qaytar (sonsuz partlayış hissi üçün)
-                    if (Math.abs(posAttr[i3]) > 200) posAttr[i3] *= 0.1;
+                    posAttr[i3] += (posAttr[i3] * 0.06) + (Math.random() - 0.5) * 15;
+                    posAttr[i3+1] += (posAttr[i3+1] * 0.06) + (Math.random() - 0.5) * 15;
+                    posAttr[i3+2] += (posAttr[i3+2] * 0.06) + (Math.random() - 0.5) * 15;
+                    if (Math.abs(posAttr[i3]) > 250) posAttr[i3] *= 0.05;
                 } else {
                     let tx = originalTargets[i3];
                     let ty = originalTargets[i3+1];
                     let tz = originalTargets[i3+2];
 
                     if (isCorrupted) {
-                        // Bozulma zamanı toz zərrəcikləri xaotik hərəkət edir
                         tx += (Math.sin(time + i * 0.1) * currentNoise);
                         ty += (Math.cos(time + i * 0.1) * currentNoise);
                         tz += (Math.sin(time * 0.5 + i) * currentNoise);
                     } else {
-                        // Stabil vəziyyətdə zərif titrəyiş
-                        tx += Math.sin(time + i * 0.5) * 0.4;
-                        ty += Math.cos(time + i * 0.5) * 0.4;
+                        tx += Math.sin(time + i * 0.5) * 0.5;
+                        ty += Math.cos(time + i * 0.5) * 0.5;
                     }
 
-                    posAttr[i3] += (tx - posAttr[i3]) * 0.08;
-                    posAttr[i3+1] += (ty - posAttr[i3+1]) * 0.08;
-                    posAttr[i3+2] += (tz - posAttr[i3+2]) * 0.08;
+                    posAttr[i3] += (tx - posAttr[i3]) * 0.1;
+                    posAttr[i3+1] += (ty - posAttr[i3+1]) * 0.1;
+                    posAttr[i3+2] += (tz - posAttr[i3+2]) * 0.1;
                 }
             }
 
             geometry.attributes.position.needsUpdate = true;
-            
             points.rotation.y += rotationVelocity.y;
             points.rotation.x += rotationVelocity.x;
 
-            rotationVelocity.x *= 0.96;
+            rotationVelocity.x *= 0.95;
             rotationVelocity.y = THREE.MathUtils.lerp(rotationVelocity.y, 0.005, 0.05);
 
             renderer.render(scene, camera);
@@ -280,7 +267,6 @@
             if (results.multiHandLandmarks && results.multiHandedness) {
                 results.multiHandLandmarks.forEach((landmarks, index) => {
                     const label = results.multiHandedness[index].label; 
-                    // Mirror düzəlişi (MediaPipe Left əslində sağdır)
                     const isRightHand = (label === 'Left'); 
                     const handColor = isRightHand ? '#00d4ff' : '#ff0033';
                     
@@ -292,7 +278,7 @@
                     const wrist = landmarks[0];
                     
                     if (isRightHand) {
-                        const sensitivity = 0.25;
+                        const sensitivity = 0.3;
                         rotationVelocity.y = (0.5 - wrist.x) * sensitivity;
                         rotationVelocity.x = (0.5 - wrist.y) * sensitivity;
                     }
@@ -308,19 +294,19 @@
             isCorrupted = leftHandDetected;
             
             if (isExploded) {
-                modeLabel.innerText = "SYSTEM CRITICAL: CORE DETONATION";
-                document.getElementById('connection-status').innerText = "Link Statusu: İTMİŞDİR";
+                modeLabel.innerText = "CRITICAL: DETONATION";
+                document.getElementById('connection-status').innerText = "LINK: LOST";
                 statusBox.classList.add('glitch-text');
                 glitchScreen.style.display = 'block';
             } else if (isCorrupted) {
-                modeLabel.innerText = "WARNING: VIRAL CORRUPTION";
-                document.getElementById('connection-status').innerText = "Link Statusu: TƏHLÜKƏ";
+                modeLabel.innerText = "WARNING: CORRUPTION";
+                document.getElementById('connection-status').innerText = "LINK: DANGER";
                 statusBox.classList.add('glitch-text');
                 glitchScreen.style.display = 'block';
-                glitchScreen.style.background = 'radial-gradient(circle, rgba(157, 0, 255, 0.1) 0%, rgba(0, 0, 0, 0) 70%)';
+                glitchScreen.style.background = 'radial-gradient(circle, rgba(157, 0, 255, 0.2) 0%, rgba(0, 0, 0, 0) 75%)';
             } else {
-                modeLabel.innerText = "CORE ACTIVE: STABLE";
-                document.getElementById('connection-status').innerText = "Link Statusu: Stabil";
+                modeLabel.innerText = "CORE ACTIVE";
+                document.getElementById('connection-status').innerText = "LINK: STABLE";
                 statusBox.classList.remove('glitch-text');
                 glitchScreen.style.display = 'none';
             }
@@ -348,9 +334,7 @@
         window.onload = () => {
             initThree();
             animate();
-            cameraInstance.start().catch(() => {
-                document.getElementById('load-status').innerText = "Kamera tapılmadı";
-            });
+            cameraInstance.start().catch(() => {});
         };
 
         window.addEventListener('resize', () => {
