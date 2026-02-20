@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="az">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Axtarget.xyz | Peşəkar Screen Recorder</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap');
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            background: radial-gradient(circle at top right, #1e293b, #0f172a);
+            min-height: 100vh;
+            color: white;
+        }
+
+        .glass-morphism {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 24px;
+        }
+
+        .record-btn {
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .record-btn:active {
+            transform: scale(0.95);
+        }
+
+        .pulse-red {
+            animation: pulse 1.5s infinite;
+        }
+
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
+            70% { box-shadow: 0 0 0 15px rgba(239, 68, 68, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+        }
+
+        #preview-video {
+            border-radius: 12px;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5);
+        }
+    </style>
+</head>
+<body class="flex flex-col items-center justify-center p-4">
+
+    <!-- Header / Logo -->
+    <div class="mb-12 text-center">
+        <h1 class="text-4xl font-bold tracking-tight mb-2 bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-emerald-400">
+            Axtarget Recorder
+        </h1>
+        <p class="text-slate-400">Yüksək keyfiyyətli ekran və tab yazılışı</p>
+    </div>
+
+    <div class="glass-morphism w-full max-w-4xl p-8 shadow-2xl">
+        
+        <!-- Controls Area -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
+            
+            <div class="space-y-6">
+                <div>
+                    <h2 class="text-2xl font-semibold mb-4 text-white">Yazılış Paneli</h2>
+                    <p class="text-sm text-slate-400 mb-6">
+                        "Yazılışı Başlat" düyməsinə klikləyərək istədiyiniz tabı və ya ekranı seçin.
+                    </p>
+                </div>
+
+                <div class="flex flex-col gap-4">
+                    <!-- Mic Toggle -->
+                    <div class="flex items-center justify-between p-4 bg-white/5 rounded-xl border border-white/10">
+                        <div class="flex items-center gap-3">
+                            <i class="fas fa-microphone text-blue-400"></i>
+                            <span class="text-slate-200">Mikrofon Səsi</span>
+                        </div>
+                        <label class="relative inline-flex items-center cursor-pointer">
+                            <input type="checkbox" id="mic-toggle" class="sr-only peer" checked>
+                            <div class="w-11 h-6 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                        </label>
+                    </div>
+
+                    <!-- Main Buttons -->
+                    <div class="flex gap-4">
+                        <button id="start-btn" class="record-btn flex-1 bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 text-white font-bold py-4 px-6 rounded-xl flex items-center justify-center gap-3 shadow-lg">
+                            <i class="fas fa-record-vinyl text-xl"></i>
+                            <span>Yazılışı Başlat</span>
+                        </button>
+
+                        <button id="stop-btn" class="hidden record-btn flex-1 bg-red-600 hover:bg-red-500 text-white font-bold py-4 px-6 rounded-xl flex items-center justify-center gap-3 shadow-lg">
+                            <i class="fas fa-stop-circle text-xl"></i>
+                            <span>Durdur</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div id="status-indicator" class="hidden flex items-center gap-2 text-red-400 font-medium">
+                    <span class="w-3 h-3 bg-red-500 rounded-full pulse-red"></span>
+                    Yazılış gedir: <span id="timer">00:00</span>
+                </div>
+            </div>
+
+            <!-- Preview Area -->
+            <div class="relative bg-black/40 rounded-2xl aspect-video flex items-center justify-center overflow-hidden border border-white/5">
+                <video id="preview-video" class="w-full h-full object-contain hidden" controls></video>
+                <div id="placeholder" class="text-center p-6">
+                    <i class="fas fa-clapperboard text-5xl text-slate-600 mb-4"></i>
+                    <p class="text-slate-500 text-sm">Video hazır olanda burada görünəcək</p>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Action After Record -->
+        <div id="after-record-actions" class="mt-8 pt-8 border-t border-white/10 hidden flex justify-center">
+            <button id="download-btn" class="bg-emerald-600 hover:bg-emerald-500 text-white px-8 py-3 rounded-lg flex items-center gap-2 transition-colors font-semibold">
+                <i class="fas fa-download"></i>
+                Videonun Yüklə (.webm)
+            </button>
+        </div>
+    </div>
+
+    <!-- Error Message Container -->
+    <div id="error-container" class="fixed bottom-6 right-6 z-50 flex flex-col gap-2"></div>
+
+    <footer class="mt-12 text-slate-500 text-sm">
+        &copy; 2024 Axtarget.xyz - Bütün hüquqlar qorunur.
+    </footer>
+
+    <script>
+        let mediaRecorder;
+        let recordedChunks = [];
+        let timerInterval;
+        let startTime;
+        let mainStream;
+
+        const startBtn = document.getElementById('start-btn');
+        const stopBtn = document.getElementById('stop-btn');
+        const downloadBtn = document.getElementById('download-btn');
+        const previewVideo = document.getElementById('preview-video');
+        const placeholder = document.getElementById('placeholder');
+        const statusIndicator = document.getElementById('status-indicator');
+        const timerDisplay = document.getElementById('timer');
+        const micToggle = document.getElementById('mic-toggle');
+        const actionsArea = document.getElementById('after-record-actions');
+
+        function updateTimer() {
+            const now = Date.now();
+            const diff = new Date(now - startTime);
+            const mins = String(diff.getUTCMinutes()).padStart(2, '0');
+            const secs = String(diff.getUTCSeconds()).padStart(2, '0');
+            timerDisplay.textContent = `${mins}:${secs}`;
+        }
+
+        function showMessage(msg, isError = true) {
+            const container = document.getElementById('error-container');
+            const div = document.createElement('div');
+            div.className = `${isError ? 'bg-red-500' : 'bg-blue-600'} text-white px-6 py-4 rounded-xl shadow-2xl flex items-center gap-3 animate-bounce`;
+            div.innerHTML = `<i class="fas ${isError ? 'fa-exclamation-triangle' : 'fa-info-circle'}"></i> <span>${msg}</span>`;
+            container.appendChild(div);
+            setTimeout(() => div.remove(), 5000);
+        }
+
+        async function startRecording() {
+            // Check if API exists
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) {
+                showMessage("Brauzeriniz ekran yazma funksiyasını dəstəkləmir.");
+                return;
+            }
+
+            try {
+                // Request Screen Display
+                const screenStream = await navigator.mediaDevices.getDisplayMedia({
+                    video: {
+                        displaySurface: "monitor", // default to full screen if possible
+                        cursor: "always"
+                    },
+                    audio: {
+                        echoCancellation: true,
+                        noiseSuppression: true
+                    }
+                });
+
+                let streamToRecord = screenStream;
+
+                // Combine with Microphone if needed
+                if (micToggle.checked) {
+                    try {
+                        const micStream = await navigator.mediaDevices.getUserMedia({ 
+                            audio: {
+                                echoCancellation: true,
+                                noiseSuppression: true,
+                                autoGainControl: true
+                            } 
+                        });
+                        
+                        const tracks = [...screenStream.getTracks(), ...micStream.getAudioTracks()];
+                        streamToRecord = new MediaStream(tracks);
+                    } catch (micErr) {
+                        console.warn("Mikrofon qoşula bilmədi, yalnız ekran səsi yazılacaq.", micErr);
+                        showMessage("Mikrofon tapılmadı, yalnız ekran səsi yazılacaq.", false);
+                    }
+                }
+
+                mainStream = streamToRecord;
+                
+                // Set up recorder
+                const options = { mimeType: 'video/webm; codecs=vp9,opus' };
+                if (!MediaRecorder.isTypeSupported(options.mimeType)) {
+                    options.mimeType = 'video/webm';
+                }
+
+                mediaRecorder = new MediaRecorder(streamToRecord, options);
+                recordedChunks = [];
+
+                mediaRecorder.ondataavailable = (e) => {
+                    if (e.data.size > 0) recordedChunks.push(e.data);
+                };
+
+                mediaRecorder.onstop = () => {
+                    const blob = new Blob(recordedChunks, { type: 'video/webm' });
+                    const url = URL.createObjectURL(blob);
+                    
+                    previewVideo.src = url;
+                    previewVideo.classList.remove('hidden');
+                    placeholder.classList.add('hidden');
+                    actionsArea.classList.remove('hidden');
+
+                    // Stop all tracks
+                    mainStream.getTracks().forEach(track => track.stop());
+                    
+                    // Reset UI
+                    stopBtn.classList.add('hidden');
+                    startBtn.classList.remove('hidden');
+                    statusIndicator.classList.add('hidden');
+                    clearInterval(timerInterval);
+                };
+
+                // Handle external stop (user clicks "Stop Sharing" browser button)
+                screenStream.getVideoTracks()[0].onended = () => {
+                    if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+                        stopRecording();
+                    }
+                };
+
+                mediaRecorder.start();
+                
+                // UI Updates
+                startBtn.classList.add('hidden');
+                stopBtn.classList.remove('hidden');
+                statusIndicator.classList.remove('hidden');
+                actionsArea.classList.add('hidden');
+                previewVideo.classList.add('hidden');
+                placeholder.classList.remove('hidden');
+                
+                startTime = Date.now();
+                timerInterval = setInterval(updateTimer, 1000);
+
+            } catch (err) {
+                console.error("Xəta:", err);
+                if (err.name === 'NotAllowedError') {
+                    if (err.message.includes('permissions policy')) {
+                        showMessage("İcazə xətası: Brauzeriniz bu saytda ekran çəkilişinə icazə vermir. Saytı birbaşa açdığınızdan əmin olun.");
+                    } else {
+                        showMessage("Yazılış ləğv edildi.");
+                    }
+                } else {
+                    showMessage("Xəta: " + err.message);
+                }
+            }
+        }
+
+        function stopRecording() {
+            if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+                mediaRecorder.stop();
+            }
+        }
+
+        function downloadVideo() {
+            if (recordedChunks.length === 0) return;
+            const blob = new Blob(recordedChunks, { type: 'video/webm' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `axtarget-video-${new Date().toISOString().slice(0,10)}.webm`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            window.URL.revokeObjectURL(url);
+        }
+
+        startBtn.addEventListener('click', startRecording);
+        stopBtn.addEventListener('click', stopRecording);
+        downloadBtn.addEventListener('click', downloadVideo);
+
+    </script>
+</body>
+</html>
