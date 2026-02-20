@@ -14,6 +14,7 @@
         :root {
             --neon-blue: #00d4ff;
             --hacker-purple: #9d00ff;
+            --danger-red: #ff0033;
             --bg-black: #020202;
         }
 
@@ -41,6 +42,7 @@
             z-index: 2;
             pointer-events: none;
             transform: scaleX(-1);
+            opacity: 0.6;
         }
 
         .hud {
@@ -58,16 +60,21 @@
             backdrop-filter: blur(10px);
             text-transform: uppercase;
             letter-spacing: 3px;
+            transition: all 0.3s ease;
         }
 
         .glitch-text {
-            animation: textGlitch 0.2s infinite;
-            color: var(--hacker-purple) !important;
+            animation: textGlitch 0.15s infinite;
+            color: var(--danger-red) !important;
+            border-color: var(--danger-red) !important;
+            box-shadow: 0 0 20px rgba(255, 0, 51, 0.4);
         }
 
         @keyframes textGlitch {
-            0% { transform: translate(1px, 1px); }
-            50% { transform: translate(-1px, -1px); }
+            0% { transform: translate(2px, 2px); }
+            25% { transform: translate(-2px, -2px); }
+            50% { transform: translate(-2px, 2px); }
+            75% { transform: translate(2px, -2px); }
             100% { transform: translate(0); }
         }
 
@@ -75,11 +82,10 @@
             position: fixed;
             top: 0; left: 0;
             width: 100%; height: 100%;
-            background: rgba(157, 0, 255, 0.05);
+            background: radial-gradient(circle, rgba(255, 0, 51, 0.15) 0%, rgba(0, 0, 0, 0) 70%);
             pointer-events: none;
             z-index: 5;
             display: none;
-            box-shadow: inset 0 0 100px rgba(157, 0, 255, 0.2);
         }
 
         #loading {
@@ -94,20 +100,32 @@
             z-index: 100;
             color: var(--neon-blue);
         }
+
+        /* Scanline effect for more hacker feel */
+        body::after {
+            content: " ";
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.2) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.03), rgba(0, 255, 0, 0.01), rgba(0, 0, 255, 0.03));
+            background-size: 100% 3px, 3px 100%;
+            z-index: 1000;
+            pointer-events: none;
+            opacity: 0.3;
+        }
     </style>
 </head>
 <body>
 
     <div id="loading">
-        <div style="font-size: 1.5rem; margin-bottom: 10px;">SYSTEM BOOTING...</div>
-        <div id="load-status" style="font-size: 0.8rem; opacity: 0.6;">Sistem yüklənir...</div>
+        <div style="font-size: 1.5rem; font-weight: bold; letter-spacing: 5px; margin-bottom: 10px;">INITIALIZING SYMBIOTE...</div>
+        <div id="load-status" style="font-size: 0.8rem; opacity: 0.6; text-transform: uppercase;">Bağlantı qurulur...</div>
     </div>
 
     <div id="glitch-screen"></div>
 
     <div class="hud">
         <div id="status-box" class="status-box">
-            <div style="font-size: 0.6rem; margin-bottom: 5px;">Link Statusu: Stabil</div>
+            <div id="connection-status" style="font-size: 0.6rem; margin-bottom: 5px;">Link Statusu: Stabil</div>
             <div id="mode-label" style="font-size: 1.1rem; font-weight: bold;">NÜVƏ AKTİVDİR</div>
         </div>
     </div>
@@ -127,13 +145,14 @@
         const container = document.getElementById('canvas-container');
 
         let scene, camera, renderer, points, geometry, material;
-        const particleCount = 20000;
+        const particleCount = 25000; // Zərrəcik sayını bir az artırdıq
         const positions = new Float32Array(particleCount * 3);
         const originalTargets = new Float32Array(particleCount * 3);
+        const sizes = new Float32Array(particleCount);
 
         let isCorrupted = false; 
         let isExploded = false;  
-        let rotationVelocity = { x: 0, y: 0.005 }; // Kürənin fırlanma sürəti
+        let rotationVelocity = { x: 0, y: 0.005 };
         let currentNoise = 0;
 
         function initThree() {
@@ -148,31 +167,36 @@
                 const i3 = i * 3;
                 const phi = Math.acos(-1 + (2 * i) / particleCount);
                 const theta = Math.sqrt(particleCount * Math.PI) * phi;
-                const r = 12;
+                const r = 13; // Bir az daha böyük kürə
 
                 originalTargets[i3] = r * Math.cos(theta) * Math.sin(phi);
                 originalTargets[i3+1] = r * Math.sin(theta) * Math.sin(phi);
                 originalTargets[i3+2] = r * Math.cos(phi);
 
-                positions[i3] = (Math.random() - 0.5) * 100;
-                positions[i3+1] = (Math.random() - 0.5) * 100;
-                positions[i3+2] = (Math.random() - 0.5) * 100;
+                // İlkin dağınıq vəziyyət
+                positions[i3] = (Math.random() - 0.5) * 150;
+                positions[i3+1] = (Math.random() - 0.5) * 150;
+                positions[i3+2] = (Math.random() - 0.5) * 150;
+                
+                sizes[i] = Math.random() * 2;
             }
 
             geometry = new THREE.BufferGeometry();
             geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
             
+            // Daha bəlirli "toz" effekti üçün zərrəcik nizamlamaları
             material = new THREE.PointsMaterial({
-                size: 0.12,
+                size: 0.25, // Zərrəcikləri daha böyük etdik
                 color: 0x00d4ff,
                 transparent: true,
-                opacity: 0.8,
-                blending: THREE.AdditiveBlending
+                opacity: 0.9,
+                blending: THREE.AdditiveBlending,
+                depthWrite: false
             });
 
             points = new THREE.Points(geometry, material);
             scene.add(points);
-            camera.position.z = 50;
+            camera.position.z = 55;
         }
 
         function animate() {
@@ -181,50 +205,63 @@
             const posAttr = geometry.attributes.position.array;
 
             if (isExploded) {
-                material.color.lerp(new THREE.Color(0xff0000), 0.2);
-                currentNoise = THREE.MathUtils.lerp(currentNoise, 60, 0.1);
+                material.color.lerp(new THREE.Color(0xff2200), 0.2);
+                material.size = THREE.MathUtils.lerp(material.size, 0.8, 0.1); // Partlayışda böyüyürlər
+                currentNoise = THREE.MathUtils.lerp(currentNoise, 80, 0.15);
+                // Kamera titrəməsi (Shake)
+                camera.position.x = (Math.random() - 0.5) * 1.5;
+                camera.position.y = (Math.random() - 0.5) * 1.5;
             } else if (isCorrupted) {
                 material.color.lerp(new THREE.Color(0x9d00ff), 0.1);
-                currentNoise = THREE.MathUtils.lerp(currentNoise, 12, 0.05);
+                material.size = THREE.MathUtils.lerp(material.size, 0.4, 0.1);
+                currentNoise = THREE.MathUtils.lerp(currentNoise, 15, 0.05);
+                camera.position.set(0, 0, 55);
             } else {
                 material.color.lerp(new THREE.Color(0x00d4ff), 0.1);
-                currentNoise = THREE.MathUtils.lerp(currentNoise, 0.5, 0.05);
+                material.size = THREE.MathUtils.lerp(material.size, 0.25, 0.1);
+                currentNoise = THREE.MathUtils.lerp(currentNoise, 0.8, 0.05);
+                camera.position.set(0, 0, 55);
             }
 
             for (let i = 0; i < particleCount; i++) {
                 const i3 = i * 3;
                 
                 if (isExploded) {
-                    posAttr[i3] += (Math.random() - 0.5) * 8;
-                    posAttr[i3+1] += (Math.random() - 0.5) * 8;
-                    posAttr[i3+2] += (Math.random() - 0.5) * 8;
+                    // Partlayışda zərrəciklər mərkəzdən kənara sürətlə qaçır
+                    posAttr[i3] += (posAttr[i3] * 0.05) + (Math.random() - 0.5) * 10;
+                    posAttr[i3+1] += (posAttr[i3+1] * 0.05) + (Math.random() - 0.5) * 10;
+                    posAttr[i3+2] += (posAttr[i3+2] * 0.05) + (Math.random() - 0.5) * 10;
+                    
+                    // Əgər çox uzağa getsələr, geri qaytar (sonsuz partlayış hissi üçün)
+                    if (Math.abs(posAttr[i3]) > 200) posAttr[i3] *= 0.1;
                 } else {
                     let tx = originalTargets[i3];
                     let ty = originalTargets[i3+1];
                     let tz = originalTargets[i3+2];
 
                     if (isCorrupted) {
+                        // Bozulma zamanı toz zərrəcikləri xaotik hərəkət edir
                         tx += (Math.sin(time + i * 0.1) * currentNoise);
                         ty += (Math.cos(time + i * 0.1) * currentNoise);
                         tz += (Math.sin(time * 0.5 + i) * currentNoise);
                     } else {
-                        tx += Math.sin(time + i * 0.5) * 0.2;
+                        // Stabil vəziyyətdə zərif titrəyiş
+                        tx += Math.sin(time + i * 0.5) * 0.4;
+                        ty += Math.cos(time + i * 0.5) * 0.4;
                     }
 
-                    posAttr[i3] += (tx - posAttr[i3]) * 0.1;
-                    posAttr[i3+1] += (ty - posAttr[i3+1]) * 0.1;
-                    posAttr[i3+2] += (tz - posAttr[i3+2]) * 0.1;
+                    posAttr[i3] += (tx - posAttr[i3]) * 0.08;
+                    posAttr[i3+1] += (ty - posAttr[i3+1]) * 0.08;
+                    posAttr[i3+2] += (tz - posAttr[i3+2]) * 0.08;
                 }
             }
 
             geometry.attributes.position.needsUpdate = true;
             
-            // Əlin istiqamətinə görə fırlanma tətbiqi
             points.rotation.y += rotationVelocity.y;
             points.rotation.x += rotationVelocity.x;
 
-            // Sürətin zamanla azalması (inertia effekti)
-            rotationVelocity.x *= 0.95;
+            rotationVelocity.x *= 0.96;
             rotationVelocity.y = THREE.MathUtils.lerp(rotationVelocity.y, 0.005, 0.05);
 
             renderer.render(scene, camera);
@@ -243,26 +280,23 @@
             if (results.multiHandLandmarks && results.multiHandedness) {
                 results.multiHandLandmarks.forEach((landmarks, index) => {
                     const label = results.multiHandedness[index].label; 
+                    // Mirror düzəlişi (MediaPipe Left əslində sağdır)
                     const isRightHand = (label === 'Left'); 
-                    const handColor = isRightHand ? '#00d4ff' : '#9d00ff';
+                    const handColor = isRightHand ? '#00d4ff' : '#ff0033';
                     
                     if (isRightHand) rightHandDetected = true; else leftHandDetected = true;
 
-                    drawConnectors(handCtx, landmarks, HAND_CONNECTIONS, {color: handColor, lineWidth: 3});
-                    drawLandmarks(handCtx, landmarks, {color: handColor, lineWidth: 1, radius: 3});
+                    drawConnectors(handCtx, landmarks, HAND_CONNECTIONS, {color: handColor, lineWidth: 2});
+                    drawLandmarks(handCtx, landmarks, {color: handColor, lineWidth: 1, radius: 2});
 
                     const wrist = landmarks[0];
                     
-                    // Sağ əl fırlanmanı idarə edir
                     if (isRightHand) {
-                        // Əlin mərkəzdən olan uzaqlığına görə fırlanma sürətini təyin edirik
-                        // Wrist.x və wrist.y 0-1 arasıdır. 0.5 mərkəzdir.
-                        const sensitivity = 0.15;
+                        const sensitivity = 0.25;
                         rotationVelocity.y = (0.5 - wrist.x) * sensitivity;
                         rotationVelocity.x = (0.5 - wrist.y) * sensitivity;
                     }
 
-                    // Sol əl (Yumruq sıxanda partlayış)
                     if (!isRightHand) {
                         const indexTip = landmarks[8];
                         const dist = Math.sqrt(Math.pow(indexTip.x - wrist.x, 2) + Math.pow(indexTip.y - wrist.y, 2));
@@ -274,15 +308,19 @@
             isCorrupted = leftHandDetected;
             
             if (isExploded) {
-                modeLabel.innerText = "KRİTİK XƏTA: NÜVƏ PARTLAYIŞI";
+                modeLabel.innerText = "SYSTEM CRITICAL: CORE DETONATION";
+                document.getElementById('connection-status').innerText = "Link Statusu: İTMİŞDİR";
                 statusBox.classList.add('glitch-text');
                 glitchScreen.style.display = 'block';
             } else if (isCorrupted) {
-                modeLabel.innerText = "XƏBƏRDARLIQ: BOZULMA AŞKARLANDI";
+                modeLabel.innerText = "WARNING: VIRAL CORRUPTION";
+                document.getElementById('connection-status').innerText = "Link Statusu: TƏHLÜKƏ";
                 statusBox.classList.add('glitch-text');
                 glitchScreen.style.display = 'block';
+                glitchScreen.style.background = 'radial-gradient(circle, rgba(157, 0, 255, 0.1) 0%, rgba(0, 0, 0, 0) 70%)';
             } else {
-                modeLabel.innerText = "NÜVƏ AKTİVDİR: STABİL";
+                modeLabel.innerText = "CORE ACTIVE: STABLE";
+                document.getElementById('connection-status').innerText = "Link Statusu: Stabil";
                 statusBox.classList.remove('glitch-text');
                 glitchScreen.style.display = 'none';
             }
@@ -295,8 +333,8 @@
         hands.setOptions({
             maxNumHands: 2,
             modelComplexity: 1,
-            minDetectionConfidence: 0.6,
-            minTrackingConfidence: 0.6
+            minDetectionConfidence: 0.7,
+            minTrackingConfidence: 0.7
         });
         hands.onResults(onResults);
 
@@ -311,7 +349,7 @@
             initThree();
             animate();
             cameraInstance.start().catch(() => {
-                document.getElementById('load-status').innerText = "Kamera icazəsi rədd edildi";
+                document.getElementById('load-status').innerText = "Kamera tapılmadı";
             });
         };
 
