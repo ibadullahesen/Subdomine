@@ -40,6 +40,8 @@
             width: 100%; height: 100%;
             z-index: 2;
             pointer-events: none;
+            /* Güzgü effektini vizual olaraq düzəltmək üçün transform saxlanılır, 
+               lakin MediaPipe koordinatları JS tərəfində düzəldilib */
             transform: scaleX(-1);
         }
 
@@ -100,15 +102,15 @@
 
     <div id="loading">
         <div style="font-size: 1.5rem; margin-bottom: 10px;">SYSTEM BOOTING...</div>
-        <div id="load-status" style="font-size: 0.8rem; opacity: 0.6;">Initializing Core Particles</div>
+        <div id="load-status" style="font-size: 0.8rem; opacity: 0.6;">Sistem yüklənir...</div>
     </div>
 
     <div id="glitch-screen"></div>
 
     <div class="hud">
         <div id="status-box" class="status-box">
-            <div style="font-size: 0.6rem; margin-bottom: 5px;">Link Status: Stable</div>
-            <div id="mode-label" style="font-size: 1.1rem; font-weight: bold;">CORE ACTIVE</div>
+            <div style="font-size: 0.6rem; margin-bottom: 5px;">Link Statusu: Stabil</div>
+            <div id="mode-label" style="font-size: 1.1rem; font-weight: bold;">NÜVƏ AKTİVDİR</div>
         </div>
     </div>
 
@@ -129,7 +131,6 @@
         let scene, camera, renderer, points, geometry, material;
         const particleCount = 20000;
         const positions = new Float32Array(particleCount * 3);
-        const velocities = new Float32Array(particleCount * 3);
         const originalTargets = new Float32Array(particleCount * 3);
 
         let isCorrupted = false; // Sol əl ekrandadırsa
@@ -150,13 +151,12 @@
                 const i3 = i * 3;
                 const phi = Math.acos(-1 + (2 * i) / particleCount);
                 const theta = Math.sqrt(particleCount * Math.PI) * phi;
-                const r = 15;
+                const r = 12;
 
                 originalTargets[i3] = r * Math.cos(theta) * Math.sin(phi);
                 originalTargets[i3+1] = r * Math.sin(theta) * Math.sin(phi);
                 originalTargets[i3+2] = r * Math.cos(phi);
 
-                // Başlanğıcda zərrəcikləri təsadüfi yerləşdir
                 positions[i3] = (Math.random() - 0.5) * 100;
                 positions[i3+1] = (Math.random() - 0.5) * 100;
                 positions[i3+2] = (Math.random() - 0.5) * 100;
@@ -175,7 +175,7 @@
 
             points = new THREE.Points(geometry, material);
             scene.add(points);
-            camera.position.z = 40;
+            camera.position.z = 50;
         }
 
         function animate() {
@@ -183,13 +183,13 @@
             const time = Date.now() * 0.002;
             const posAttr = geometry.attributes.position.array;
 
-            // Əgər sol əl varsa (Corrupted), rəngi dəyiş və səs-küyü artır
+            // Vizuallıq nizamlamaları
             if (isExploded) {
                 material.color.lerp(new THREE.Color(0xff0000), 0.2);
-                currentNoise = THREE.MathUtils.lerp(currentNoise, 50, 0.1);
+                currentNoise = THREE.MathUtils.lerp(currentNoise, 60, 0.1);
             } else if (isCorrupted) {
                 material.color.lerp(new THREE.Color(0x9d00ff), 0.1);
-                currentNoise = THREE.MathUtils.lerp(currentNoise, 8, 0.05);
+                currentNoise = THREE.MathUtils.lerp(currentNoise, 12, 0.05);
             } else {
                 material.color.lerp(new THREE.Color(0x00d4ff), 0.1);
                 currentNoise = THREE.MathUtils.lerp(currentNoise, 0.5, 0.05);
@@ -199,38 +199,33 @@
                 const i3 = i * 3;
                 
                 if (isExploded) {
-                    // Partlayış hərəkəti
-                    posAttr[i3] += (Math.random() - 0.5) * 5;
-                    posAttr[i3+1] += (Math.random() - 0.5) * 5;
-                    posAttr[i3+2] += (Math.random() - 0.5) * 5;
+                    posAttr[i3] += (Math.random() - 0.5) * 8;
+                    posAttr[i3+1] += (Math.random() - 0.5) * 8;
+                    posAttr[i3+2] += (Math.random() - 0.5) * 8;
                 } else {
-                    // Hədəf nöqtəsi (Kürə forması + Glitch)
                     let tx = originalTargets[i3];
                     let ty = originalTargets[i3+1];
                     let tz = originalTargets[i3+2];
 
                     if (isCorrupted) {
-                        // Hacker/Glitch effekti üçün hədəfləri deformasiya et
                         tx += (Math.sin(time + i * 0.1) * currentNoise);
                         ty += (Math.cos(time + i * 0.1) * currentNoise);
                         tz += (Math.sin(time * 0.5 + i) * currentNoise);
                     } else {
-                        // Stabil hərəkət
                         tx += Math.sin(time + i * 0.5) * 0.2;
                     }
 
-                    // Fizika simulyasiyası (Yumşaq keçid)
-                    posAttr[i3] += (tx - posAttr[i3]) * 0.08;
-                    posAttr[i3+1] += (ty - posAttr[i3+1]) * 0.08;
-                    posAttr[i3+2] += (tz - posAttr[i3+2]) * 0.08;
+                    posAttr[i3] += (tx - posAttr[i3]) * 0.1;
+                    posAttr[i3+1] += (ty - posAttr[i3+1]) * 0.1;
+                    posAttr[i3+2] += (tz - posAttr[i3+2]) * 0.1;
                 }
             }
 
             geometry.attributes.position.needsUpdate = true;
             points.rotation.y += 0.005;
             
-            // Kürəni sağ-sol ələ görə yüngülcə meyilləndir (Kürə mərkəzdə qalır, amma "baxır")
-            points.position.lerp(coreTargetPos, 0.05);
+            // Kürə sağ əlin mərkəzini tam izləyir
+            points.position.lerp(coreTargetPos, 0.1);
 
             renderer.render(scene, camera);
         }
@@ -247,7 +242,13 @@
 
             if (results.multiHandLandmarks && results.multiHandedness) {
                 results.multiHandLandmarks.forEach((landmarks, index) => {
-                    const isRightHand = results.multiHandedness[index].label === 'Right'; // MediaPipe-da kamera tərsinədir
+                    // MediaPipe default olaraq güzgü effekti ilə verir, 
+                    // buna görə 'Left' (Sol) əslində kameradakı sağdır və əksinə.
+                    const label = results.multiHandedness[index].label; 
+                    
+                    // Mirror effekti silmək üçün:
+                    // 'Left' gələndə biz bunu sağ kimi qəbul edirik ki, solumuz sol, sağımız sağ olsun
+                    const isRightHand = (label === 'Left'); 
                     const handColor = isRightHand ? '#00d4ff' : '#9d00ff';
                     
                     if (isRightHand) rightHandDetected = true; else leftHandDetected = true;
@@ -256,37 +257,41 @@
                     drawConnectors(handCtx, landmarks, HAND_CONNECTIONS, {color: handColor, lineWidth: 3});
                     drawLandmarks(handCtx, landmarks, {color: handColor, lineWidth: 1, radius: 3});
 
-                    // Əlin mərkəzinə görə kürəni azca tərpət (istədiyiniz effekt)
                     const wrist = landmarks[0];
+                    
+                    // Sağ əl kürəni idarə edir
                     if (isRightHand) {
-                        coreTargetPos.x = (0.5 - wrist.x) * 15; // Sağ əl sağa gedəndə kürə sağa (kamera inversiyasına görə)
+                        // Koordinatları ekran ölçülərinə görə nizamla
+                        // Mirror silindiyi üçün wrist.x birbaşa tətbiq olunur
+                        coreTargetPos.x = (0.5 - wrist.x) * 60; 
+                        coreTargetPos.y = (0.5 - wrist.y) * 40;
                     }
 
                     // Sol əl üçün məntiq (Yumruq sıxma yoxlanışı)
                     if (!isRightHand) {
                         const indexTip = landmarks[8];
                         const dist = Math.sqrt(Math.pow(indexTip.x - wrist.x, 2) + Math.pow(indexTip.y - wrist.y, 2));
-                        isExploded = dist < 0.15; // Yumruq sıxılıbsa partla
+                        isExploded = dist < 0.18; // Yumruq sıxılıbsa partla
                     }
                 });
             }
 
-            // Status Yeniləmə
+            // Sol əl yoxdursa "Corruption" bitsin
             isCorrupted = leftHandDetected;
             
             if (isExploded) {
-                modeLabel.innerText = "CRITICAL ERROR: CORE BURST";
+                modeLabel.innerText = "KRİTİK XƏTA: NÜVƏ PARTLAYIŞI";
                 statusBox.classList.add('glitch-text');
                 glitchScreen.style.display = 'block';
             } else if (isCorrupted) {
-                modeLabel.innerText = "WARNING: CORRUPTION DETECTED";
+                modeLabel.innerText = "XƏBƏRDARLIQ: BOZULMA AŞKARLANDI";
                 statusBox.classList.add('glitch-text');
                 glitchScreen.style.display = 'block';
             } else {
-                modeLabel.innerText = "CORE ACTIVE: STABLE";
+                modeLabel.innerText = "NÜVƏ AKTİVDİR: STABİL";
                 statusBox.classList.remove('glitch-text');
                 glitchScreen.style.display = 'none';
-                coreTargetPos.set(0,0,0); // Əl yoxdursa mərkəzə qayıt
+                if (!rightHandDetected) coreTargetPos.set(0,0,0); 
             }
         }
 
@@ -313,7 +318,7 @@
             initThree();
             animate();
             cameraInstance.start().catch(() => {
-                document.getElementById('load-status').innerText = "Camera Access Denied";
+                document.getElementById('load-status').innerText = "Kamera icazəsi rədd edildi";
             });
         };
 
