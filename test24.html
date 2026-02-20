@@ -23,7 +23,6 @@
             width: 100%; height: 100%;
             overflow: hidden;
             background-color: var(--bg-black);
-            font-family: 'Consolas', 'Courier New', monospace;
         }
 
         #input_video { display: none; }
@@ -45,39 +44,6 @@
             opacity: 0.6;
         }
 
-        .hud {
-            position: absolute;
-            top: 30px; left: 30px;
-            z-index: 10;
-            color: var(--neon-blue);
-            pointer-events: none;
-        }
-
-        .status-box {
-            border: 1px solid rgba(0, 212, 255, 0.3);
-            padding: 15px;
-            background: rgba(0, 0, 0, 0.8);
-            backdrop-filter: blur(10px);
-            text-transform: uppercase;
-            letter-spacing: 3px;
-            transition: all 0.3s ease;
-        }
-
-        .glitch-text {
-            animation: textGlitch 0.15s infinite;
-            color: var(--danger-red) !important;
-            border-color: var(--danger-red) !important;
-            box-shadow: 0 0 30px rgba(255, 0, 51, 0.6);
-        }
-
-        @keyframes textGlitch {
-            0% { transform: translate(3px, 3px); }
-            25% { transform: translate(-3px, -3px); }
-            50% { transform: translate(-3px, 3px); }
-            75% { transform: translate(3px, -3px); }
-            100% { transform: translate(0); }
-        }
-
         #glitch-screen {
             position: fixed;
             top: 0; left: 0;
@@ -94,11 +60,9 @@
             width: 100%; height: 100%;
             background: black;
             display: flex;
-            flex-direction: column;
             justify-content: center;
             align-items: center;
             z-index: 100;
-            color: var(--neon-blue);
         }
 
         body::after {
@@ -115,19 +79,8 @@
 </head>
 <body>
 
-    <div id="loading">
-        <div style="font-size: 1.5rem; font-weight: bold; letter-spacing: 5px; margin-bottom: 10px;">INITIALIZING...</div>
-        <div id="load-status" style="font-size: 0.8rem; opacity: 0.6; text-transform: uppercase;">CONNECTING</div>
-    </div>
-
+    <div id="loading"></div>
     <div id="glitch-screen"></div>
-
-    <div class="hud">
-        <div id="status-box" class="status-box">
-            <div id="connection-status" style="font-size: 0.6rem; margin-bottom: 5px;">STATUS: STABLE</div>
-            <div id="mode-label" style="font-size: 1.1rem; font-weight: bold;">CORE ACTIVE</div>
-        </div>
-    </div>
 
     <video id="input_video" playsinline></video>
     <canvas id="hand-overlay"></canvas>
@@ -135,8 +88,6 @@
 
     <script>
         const videoElement = document.getElementById('input_video');
-        const modeLabel = document.getElementById('mode-label');
-        const statusBox = document.getElementById('status-box');
         const loadingScreen = document.getElementById('loading');
         const glitchScreen = document.getElementById('glitch-screen');
         const handCanvas = document.getElementById('hand-overlay');
@@ -294,20 +245,11 @@
             isCorrupted = leftHandDetected;
             
             if (isExploded) {
-                modeLabel.innerText = "CRITICAL: DETONATION";
-                document.getElementById('connection-status').innerText = "LINK: LOST";
-                statusBox.classList.add('glitch-text');
                 glitchScreen.style.display = 'block';
             } else if (isCorrupted) {
-                modeLabel.innerText = "WARNING: CORRUPTION";
-                document.getElementById('connection-status').innerText = "LINK: DANGER";
-                statusBox.classList.add('glitch-text');
                 glitchScreen.style.display = 'block';
                 glitchScreen.style.background = 'radial-gradient(circle, rgba(157, 0, 255, 0.2) 0%, rgba(0, 0, 0, 0) 75%)';
             } else {
-                modeLabel.innerText = "CORE ACTIVE";
-                document.getElementById('connection-status').innerText = "LINK: STABLE";
-                statusBox.classList.remove('glitch-text');
                 glitchScreen.style.display = 'none';
             }
         }
