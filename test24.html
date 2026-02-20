@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="az">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cybernetic Symbiote</title>
+    
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+    <style>
+        :root {
+            --neon-cyan: #00ffff;
+            --venom-purple: #bc00ff;
+            --bg-black: #050505;
+        }
+
+        body, html {
+            margin: 0; padding: 0;
+            width: 100%; height: 100%;
+            overflow: hidden;
+            background-color: var(--bg-black);
+            font-family: 'Courier New', Courier, monospace;
+        }
+
+        #input_video { display: none; }
+        
+        #canvas-container {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            z-index: 1;
+        }
+
+        #hand-overlay {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            z-index: 2;
+            pointer-events: none;
+            opacity: 0.3;
+            transform: scaleX(-1);
+        }
+
+        .hud {
+            position: absolute;
+            top: 30px; left: 30px;
+            z-index: 10;
+            color: var(--neon-cyan);
+            pointer-events: none;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+
+        .status-box {
+            border-left: 2px solid var(--neon-cyan);
+            padding: 10px 20px;
+            background: rgba(0, 255, 255, 0.05);
+            backdrop-filter: blur(5px);
+        }
+
+        .warning-mode {
+            color: var(--venom-purple);
+            border-left-color: var(--venom-purple);
+            background: rgba(188, 0, 255, 0.05);
+            animation: blink 0.5s infinite alternate;
+        }
+
+        @keyframes blink {
+            from { opacity: 1; }
+            to { opacity: 0.5; }
+        }
+
+        #glitch-overlay {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: repeating-linear-gradient(0deg, rgba(0,0,0,0.1) 0px, rgba(0,0,0,0.1) 1px, transparent 1px, transparent 2px);
+            pointer-events: none;
+            z-index: 5;
+            display: none;
+        }
+
+        #loading-screen {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: black;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+            color: var(--neon-cyan);
+            text-align: center;
+            padding: 20px;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="loading-screen">SİSTEM İNİSİALİZASİYA OLUNUR...</div>
+    <div id="glitch-overlay"></div>
+
+    <div class="hud">
+        <div id="status-box" class="status-box">
+            <div style="font-size: 0.7rem; opacity: 0.6;">Simbiont Core v2.0</div>
+            <div id="mode-label" style="font-size: 1.2rem; font-weight: bold;">Skaner Gözlənilir</div>
+        </div>
+    </div>
+
+    <video id="input_video"></video>
+    <canvas id="hand-overlay"></canvas>
+    <div id="canvas-container"></div>
+
+    <script>
+        const videoElement = document.getElementById('input_video');
+        const modeLabel = document.getElementById('mode-label');
+        const statusBox = document.getElementById('status-box');
+        const loadingScreen = document.getElementById('loading-screen');
+        const glitchOverlay = document.getElementById('glitch-overlay');
+        const handCanvas = document.getElementById('hand-overlay');
+        const handCtx = handCanvas.getContext('2d');
+        const container = document.getElementById('canvas-container');
+
+        let scene, camera, renderer, points, geometry, material;
+        const particleCount = 60000;
+        const positions = new Float32Array(particleCount * 3);
+        const velocities = new Float32Array(particleCount * 3);
+        const originalTarget = new Float32Array(particleCount * 3);
+
+        // State variables
+        let formationScale = 0;
+        let isSymbioteMode = false;
+        let isExploded = false;
+        let handPos = new THREE.Vector3(0, 0, 0);
+        let handRot = new THREE.Euler(0, 0, 0);
+
+        function initThree() {
+            try {
+                scene = new THREE.Scene();
+                camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+                
+                // Optimized renderer initialization
+                renderer = new THREE.WebGLRenderer({ 
+                    antialias: false, 
+                    alpha: true,
+                    powerPreference: "high-performance"
+                });
+                
+                renderer.setSize(window.innerWidth, window.innerHeight);
+                renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+                container.appendChild(renderer.domElement);
+
+                // Initialize Particles
+                for (let i = 0; i < particleCount; i++) {
+                    const i3 = i * 3;
+                    positions[i3] = (Math.random() - 0.5) * 200;
+                    positions[i3+1] = (Math.random() - 0.5) * 200;
+                    positions[i3+2] = (Math.random() - 0.5) * 200;
+                    
+                    const phi = Math.acos(-1 + (2 * i) / particleCount);
+                    const theta = Math.sqrt(particleCount * Math.PI) * phi;
+                    const r = 20;
+                    originalTarget[i3] = r * Math.cos(theta) * Math.sin(phi);
+                    originalTarget[i3+1] = r * Math.sin(theta) * Math.sin(phi);
+                    originalTarget[i3+2] = r * Math.cos(phi);
+                }
+
+                geometry = new THREE.BufferGeometry();
+                geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+                
+                material = new THREE.PointsMaterial({
+                    size: 0.15,
+                    color: 0x00ffff,
+                    transparent: true,
+                    opacity: 0.8,
+                    blending: THREE.AdditiveBlending,
+                    depthWrite: false
+                });
+
+                points = new THREE.Points(geometry, material);
+                scene.add(points);
+
+                camera.position.z = 60;
+                return true;
+            } catch (e) {
+                loadingScreen.innerHTML = "WebGL Xətası: Brauzeriniz bu tətbiqi dəstəkləmir.";
+                console.error("WebGL Init Error:", e);
+                return false;
+            }
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            if (!renderer) return;
+
+            const time = Date.now() * 0.001;
+            const currentPos = geometry.attributes.position.array;
+
+            if (isSymbioteMode) {
+                material.color.lerp(new THREE.Color(0xbc00ff), 0.1);
+                glitchOverlay.style.display = 'block';
+            } else {
+                material.color.lerp(new THREE.Color(0x00ffff), 0.1);
+                glitchOverlay.style.display = 'none';
+            }
+
+            for (let i = 0; i < particleCount; i++) {
+                const i3 = i * 3;
+                
+                if (isExploded) {
+                    currentPos[i3] += velocities[i3];
+                    currentPos[i3+1] += velocities[i3+1];
+                    currentPos[i3+2] += velocities[i3+2];
+                    velocities[i3] *= 0.96;
+                    velocities[i3+1] *= 0.96;
+                    velocities[i3+2] *= 0.96;
+                    material.opacity = Math.max(0, material.opacity - 0.0001);
+                } else {
+                    let tx = originalTarget[i3] * formationScale;
+                    let ty = originalTarget[i3+1] * formationScale;
+                    let tz = originalTarget[i3+2] * formationScale;
+
+                    if (isSymbioteMode) {
+                        const noise = Math.sin(time * 5 + i * 0.1) * 5;
+                        tx += Math.cos(time * 2 + i) * noise;
+                        ty += Math.sin(time * 2 + i) * noise;
+                        tz += Math.tan(time * 0.5 + i) * 2;
+                    }
+
+                    const lerpFactor = isSymbioteMode ? 0.05 : 0.08;
+                    currentPos[i3] += (tx - currentPos[i3]) * lerpFactor;
+                    currentPos[i3+1] += (ty - currentPos[i3+1]) * lerpFactor;
+                    currentPos[i3+2] += (tz - currentPos[i3+2]) * lerpFactor;
+                }
+            }
+
+            geometry.attributes.position.needsUpdate = true;
+
+            if (formationScale > 0.1) {
+                points.position.lerp(handPos, 0.1);
+                points.rotation.y += 0.01;
+                points.rotation.x += (handRot.x - points.rotation.x) * 0.1;
+                points.rotation.z += (handRot.y - points.rotation.z) * 0.1;
+            }
+
+            renderer.render(scene, camera);
+        }
+
+        function triggerExplosion() {
+            isExploded = true;
+            for (let i = 0; i < particleCount; i++) {
+                const i3 = i * 3;
+                const force = 3.0;
+                velocities[i3] = (Math.random() - 0.5) * force;
+                velocities[i3+1] = (Math.random() - 0.5) * force;
+                velocities[i3+2] = (Math.random() - 0.5) * force;
+            }
+        }
+
+        function onResults(results) {
+            if (loadingScreen.style.display !== 'none') loadingScreen.style.display = 'none';
+
+            handCanvas.width = window.innerWidth;
+            handCanvas.height = window.innerHeight;
+            handCtx.clearRect(0, 0, handCanvas.width, handCanvas.height);
+
+            if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+                const handsFound = results.multiHandLandmarks.length;
+                const hand1 = results.multiHandLandmarks[0];
+                drawConnectors(handCtx, hand1, HAND_CONNECTIONS, {color: isSymbioteMode ? '#bc00ff' : '#00ffff', lineWidth: 2});
+                
+                const wrist = hand1[0];
+                const indexTip = hand1[8];
+                const distance = Math.sqrt(Math.pow(indexTip.x - wrist.x, 2) + Math.pow(indexTip.y - wrist.y, 2));
+                
+                const isOpen = distance > 0.18;
+                formationScale = THREE.MathUtils.lerp(formationScale, isOpen ? 1.5 : 0.1, 0.1);
+                
+                handPos.x = (0.5 - wrist.x) * 100;
+                handPos.y = (0.5 - wrist.y) * 60;
+                handPos.z = isOpen ? 20 : -10;
+                
+                handRot.x = (wrist.y - 0.5) * 4;
+                handRot.y = (wrist.x - 0.5) * 4;
+
+                if (handsFound > 1) {
+                    const hand2 = results.multiHandLandmarks[1];
+                    drawConnectors(handCtx, hand2, HAND_CONNECTIONS, {color: '#ff0000', lineWidth: 3});
+                    
+                    isSymbioteMode = true;
+                    modeLabel.innerText = "SİMBİONT TƏHLÜKƏSİ!";
+                    statusBox.classList.add('warning-mode');
+
+                    const hand2Wrist = hand2[0];
+                    const hand2Index = hand2[8];
+                    const hand2Dist = Math.sqrt(Math.pow(hand2Index.x - hand2Wrist.x, 2) + Math.pow(hand2Index.y - hand2Wrist.y, 2));
+                    
+                    if (hand2Dist < 0.1 && !isExploded) {
+                        triggerExplosion();
+                        modeLabel.innerText = "SİSTEM ÇÖKDÜ: BOZULMA";
+                    }
+                } else {
+                    isSymbioteMode = false;
+                    isExploded = false;
+                    if (material) material.opacity = 0.8;
+                    modeLabel.innerText = "STABİL NÜVƏ: AKTİV";
+                    statusBox.classList.remove('warning-mode');
+                }
+            } else {
+                formationScale = THREE.MathUtils.lerp(formationScale, 0, 0.05);
+                modeLabel.innerText = "SKANER GÖZLƏNİLİR";
+                isSymbioteMode = false;
+            }
+        }
+
+        const hands = new Hands({
+            locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+        });
+
+        hands.setOptions({
+            maxNumHands: 2,
+            modelComplexity: 1,
+            minDetectionConfidence: 0.6,
+            minTrackingConfidence: 0.6
+        });
+        hands.onResults(onResults);
+
+        const cameraInstance = new Camera(videoElement, {
+            onFrame: async () => {
+                await hands.send({ image: videoElement });
+            },
+            width: 1280, height: 720
+        });
+
+        window.onload = () => {
+            if (initThree()) {
+                cameraInstance.start().catch(err => {
+                    loadingScreen.innerHTML = "Kamera Xətası: Kameraya icazə verildiyindən əmin olun.";
+                    console.error(err);
+                });
+                animate();
+            }
+        };
+
+        window.addEventListener('resize', () => {
+            if (camera && renderer) {
+                camera.aspect = window.innerWidth / window.innerHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(window.innerWidth, window.innerHeight);
+            }
+        });
+    </script>
+</body>
+</html>
