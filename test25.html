@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="az">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Neon Zərrəciklər</title>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #000; }
+        canvas { display: block; position: absolute; top: 0; left: 0; }
+        video { display: none; }
+        #hand-canvas {
+            z-index: 5;
+            pointer-events: none;
+        }
+        .loading {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: #00f2ff;
+            font-size: 1.2rem;
+            text-align: center;
+            text-shadow: 0 0 10px #00f2ff;
+            font-family: sans-serif;
+            z-index: 20;
+        }
+    </style>
+</head>
+<body>
+
+<div id="loading-screen" class="loading">Kamera aktivləşdirilir...</div>
+<video id="input-video" playsinline></video>
+<canvas id="hand-canvas"></canvas>
+
+<script>
+    // --- THREE.JS QURULUMU (Zərrəciklər) ---
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    document.body.appendChild(renderer.domElement);
+
+    camera.position.z = 5;
+
+    const particleCount = 15000;
+    const particles = new THREE.BufferGeometry();
+    const positions = new Float32Array(particleCount * 3);
+    const targetPositions = new Float32Array(particleCount * 3);
+    const colors = new Float32Array(particleCount * 3);
+
+    for (let i = 0; i < particleCount; i++) {
+        const mix = Math.random();
+        if (mix > 0.5) {
+            colors[i * 3] = 1.0; colors[i * 3 + 1] = 0.85; colors[i * 3 + 2] = 0.0; // Qızılı
+        } else {
+            colors[i * 3] = 0.0; colors[i * 3 + 1] = 0.9; colors[i * 3 + 2] = 1.0; // Mavi
+        }
+    }
+
+    particles.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    particles.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+
+    const pMaterial = new THREE.PointsMaterial({
+        size: 0.035,
+        vertexColors: true,
+        transparent: true,
+        opacity: 0.85,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false
+    });
+
+    const particleSystem = new THREE.Points(particles, pMaterial);
+    scene.add(particleSystem);
+
+    function setHeartShape() {
+        for (let i = 0; i < particleCount; i++) {
+            const r = Math.pow(Math.random(), 0.5); 
+            const t = Math.random() * Math.PI * 2;
+            let x = 16 * Math.pow(Math.sin(t), 3);
+            let y = 13 * Math.cos(t) - 5 * Math.cos(2 * t) - 2 * Math.cos(3 * t) - Math.cos(4 * t);
+            const z = (Math.random() - 0.5) * 10;
+            const scale = 0.12 * r; 
+            targetPositions[i * 3] = x * scale;
+            targetPositions[i * 3 + 1] = y * scale;
+            targetPositions[i * 3 + 2] = z * scale;
+        }
+    }
+
+    function setStarShape() {
+        for (let i = 0; i < particleCount; i++) {
+            const r = Math.pow(Math.random(), 0.5) * 2.5;
+            const l = i % 5;
+            const angle = (l * 0.8 + (Math.random() * 0.1)) * Math.PI * 2;
+            targetPositions[i * 3] = Math.cos(angle) * r;
+            targetPositions[i * 3 + 1] = Math.sin(angle) * r;
+            targetPositions[i * 3 + 2] = (Math.random() - 0.5) * r;
+        }
+    }
+
+    function setCircleShape() {
+        for (let i = 0; i < particleCount; i++) {
+            const r = Math.pow(Math.random(), 0.3) * 2.2;
+            const angle = Math.random() * Math.PI * 2;
+            const phi = Math.acos(2 * Math.random() - 1);
+            targetPositions[i * 3] = r * Math.sin(phi) * Math.cos(angle);
+            targetPositions[i * 3 + 1] = r * Math.sin(phi) * Math.sin(angle);
+            targetPositions[i * 3 + 2] = r * Math.cos(phi);
+        }
+    }
+
+    setHeartShape();
+
+    // --- MEDIAPIPE (Əl İzləmə) ---
+    const videoElement = document.getElementById('input-video');
+    const handCanvas = document.getElementById('hand-canvas');
+    const handCtx = handCanvas.getContext('2d');
+    const loadingScreen = document.getElementById('loading-screen');
+
+    handCanvas.width = window.innerWidth;
+    handCanvas.height = window.innerHeight;
+
+    let handInteractionPoint = new THREE.Vector3();
+    let isInteracting = false;
+    let currentShape = 'heart';
+    
+    let targetRotationX = 0;
+    let targetRotationY = 0;
+    let targetScale = 1;
+
+    function onResults(results) {
+        loadingScreen.style.display = 'none';
+        handCtx.save();
+        handCtx.clearRect(0, 0, handCanvas.width, handCanvas.height);
+        
+        // Bu dəfə vizual çevirməni ləğv edirik, selfieMode hər şeyi həll edəcək
+        if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+            results.multiHandLandmarks.forEach((landmarks, index) => {
+                const label = results.multiHandedness[index].label;
+                
+                // Skeleti birbaşa çəkirik
+                drawConnectors(handCtx, landmarks, HAND_CONNECTIONS, {
+                    color: '#00ffff', 
+                    lineWidth: 5
+                });
+                drawLandmarks(handCtx, landmarks, {
+                    color: '#ffffff',
+                    lineWidth: 2,
+                    radius: 4
+                });
+
+                const thumbTip = landmarks[4];
+                const indexTip = landmarks[8];
+
+                // SelfieMode true olduqda: x = 0 sol, x = 1 sağdır. 
+                // Sinxron hərəkət üçün (indexTip.x - 0.5) istifadə olunur
+                targetRotationY = (indexTip.x - 0.5) * Math.PI * 4;
+                targetRotationX = (indexTip.y - 0.5) * Math.PI * 4;
+
+                // Tozları itələmə nöqtəsi (x koordinatını olduğu kimi istifadə edirik)
+                const x = (indexTip.x - 0.5) * -10; // Obyektin daxili koordinat sisteminə uyğun
+                const y = (0.5 - indexTip.y) * 10;
+                handInteractionPoint.set(x, y, 0);
+
+                let extendedFingers = 0;
+                if (landmarks[8].y < landmarks[6].y) extendedFingers++;
+                if (landmarks[12].y < landmarks[10].y) extendedFingers++;
+                if (landmarks[16].y < landmarks[14].y) extendedFingers++;
+
+                // Sol əl ilə tərs zoom
+                // SelfieMode aktiv olduqda MediaPipe etiketləri (Left/Right) dəyişə bilər
+                // Biz istifadəçinin sol tərəfindəki (vizual olaraq) ələ fokuslanırıq
+                if (label === "Left") {
+                    const dist = Math.sqrt(
+                        Math.pow(thumbTip.x - indexTip.x, 2) + 
+                        Math.pow(thumbTip.y - indexTip.y, 2)
+                    );
+                    targetScale = THREE.MathUtils.clamp(dist * 6, 0.3, 3);
+                }
+
+                if (extendedFingers === 1) {
+                    isInteracting = true;
+                } else if (extendedFingers === 2 && currentShape !== 'star') {
+                    setStarShape();
+                    currentShape = 'star';
+                    isInteracting = false;
+                } else if (extendedFingers === 3 && currentShape !== 'circle') {
+                    setCircleShape();
+                    currentShape = 'circle';
+                    isInteracting = false;
+                } else if (extendedFingers === 0 || extendedFingers > 3) {
+                    if (currentShape !== 'heart') {
+                        setHeartShape();
+                        currentShape = 'heart';
+                    }
+                    isInteracting = false;
+                }
+            });
+        }
+        handCtx.restore();
+    }
+
+    const hands = new Hands({
+        locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+    });
+
+    hands.setOptions({
+        maxNumHands: 2,
+        modelComplexity: 1,
+        minDetectionConfidence: 0.5,
+        minTrackingConfidence: 0.5,
+        selfieMode: true // Kameranı daxildə güzgü kimi çevirir
+    });
+    hands.onResults(onResults);
+
+    const cameraInput = new Camera(videoElement, {
+        onFrame: async () => { await hands.send({image: videoElement}); },
+        width: 1280,
+        height: 720
+    });
+    cameraInput.start();
+
+    // --- ANİMASİYA ---
+    function animate() {
+        requestAnimationFrame(animate);
+
+        const posAttr = particles.getAttribute('position');
+        for (let i = 0; i < particleCount; i++) {
+            let px = posAttr.array[i * 3];
+            let py = posAttr.array[i * 3 + 1];
+            let pz = posAttr.array[i * 3 + 2];
+
+            let tx = targetPositions[i * 3];
+            let ty = targetPositions[i * 3 + 1];
+            let tz = targetPositions[i * 3 + 2];
+
+            px += (tx - px) * 0.08;
+            py += (ty - py) * 0.08;
+            pz += (tz - pz) * 0.08;
+
+            if (isInteracting) {
+                const dx = px - handInteractionPoint.x;
+                const dy = py - handInteractionPoint.y;
+                const distSq = dx*dx + dy*dy;
+                if (distSq < 1.2) {
+                    const force = (1.2 - distSq) * 0.3;
+                    px += dx * force;
+                    py += dy * force;
+                }
+            }
+
+            posAttr.array[i * 3] = px;
+            posAttr.array[i * 3 + 1] = py;
+            posAttr.array[i * 3 + 2] = pz;
+        }
+
+        posAttr.needsUpdate = true;
+        
+        particleSystem.rotation.x = THREE.MathUtils.lerp(particleSystem.rotation.x, targetRotationX, 0.1);
+        particleSystem.rotation.y = THREE.MathUtils.lerp(particleSystem.rotation.y, targetRotationY, 0.1);
+        particleSystem.scale.lerp(new THREE.Vector3().setScalar(targetScale), 0.1);
+
+        renderer.render(scene, camera);
+    }
+
+    window.addEventListener('resize', () => {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        handCanvas.width = window.innerWidth;
+        handCanvas.height = window.innerHeight;
+    });
+
+    window.onload = animate;
+</script>
+</body>
+</html>
