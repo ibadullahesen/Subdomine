@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mavi Tüstü Enerjisi - Yuxarı Süzülən</title>
+    <title>Realistik Mavi Tüstü - Tək Əl</title>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
 
@@ -14,7 +14,8 @@
             width: 100%;
             height: 100%;
             overflow: hidden;
-            background-color: black;
+            background-color: #050505;
+            font-family: sans-serif;
         }
 
         .container {
@@ -33,13 +34,29 @@
             transform: scaleX(-1);
         }
 
-        /* Realistik duman görünüşü üçün intensiv blur */
+        /* Daha realistik duman üçün qatmanlı filtrasiya */
         #outputCanvas {
-            filter: blur(10px) contrast(1.3) brightness(1.1);
+            filter: blur(4px) contrast(1.5) brightness(1.2) saturate(1.4);
+            mix-blend-mode: screen;
+        }
+
+        #loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: #00aaff;
+            z-index: 10;
+            background: rgba(0,0,0,0.7);
+            padding: 20px;
+            border-radius: 10px;
+            border: 1px solid #00aaff;
         }
     </style>
 </head>
 <body>
+
+    <div id="loading">Kamera və Süni İntellekt hazırlanır...</div>
 
     <div class="container">
         <video id="videoElement" playsinline></video>
@@ -50,6 +67,7 @@
         const videoElement = document.getElementById('videoElement');
         const canvasElement = document.getElementById('outputCanvas');
         const ctx = canvasElement.getContext('2d');
+        const loadingDiv = document.getElementById('loading');
 
         let smokeParticles = [];
 
@@ -61,6 +79,7 @@
         resizeCanvas();
 
         function isPointingIndex(landmarks) {
+            // Şəhadət barmağı açıq, digərləri bağlı
             const isIndexOpen = landmarks[8].y < landmarks[6].y;
             const isMiddleClosed = landmarks[12].y > landmarks[10].y;
             const isRingClosed = landmarks[16].y > landmarks[14].y;
@@ -70,32 +89,32 @@
 
         class SmokeParticle {
             constructor(x, y) {
-                this.x = x;
+                this.x = x + (Math.random() - 0.5) * 10;
                 this.y = y;
-                // Başlanğıcda duman daha kiçik başlayır
-                this.size = Math.random() * 15 + 10;
+                this.size = Math.random() * 20 + 15;
+                this.maxSize = Math.random() * 80 + 100; // Tüstü yuxarı qalxdıqca genişlənir
                 
-                // Üfüqi yayılma (sağa-sola yüngül)
-                this.vx = (Math.random() - 0.5) * 2;
-                // Şaquli hərəkət (Həmişə yuxarı qalxması üçün mənfi dəyər)
-                this.vy = (Math.random() * -2) - 1.5; 
+                this.vx = (Math.random() - 0.5) * 1.5; // Üfüqi yayılma
+                this.vy = (Math.random() * -3) - 2;   // Daha sürətli yuxarı qalxma
                 
-                this.alpha = 0.7; 
+                this.alpha = 0.6; 
                 this.rotation = Math.random() * Math.PI * 2;
-                this.fadeSpeed = Math.random() * 0.004 + 0.006; 
+                this.rotationSpeed = (Math.random() - 0.5) * 0.05;
+                this.fadeSpeed = Math.random() * 0.005 + 0.004;
+                this.turbulence = Math.random() * 0.05; // Tüstünün titrəməsi üçün
             }
 
             update() {
-                this.x += this.vx;
+                this.x += this.vx + Math.sin(this.y * 0.05) * 0.5; // Sinusoidal hərəkət
                 this.y += this.vy;
                 
-                // Yuxarı qalxdıqca yavaş-yavaş süzülmə sürətini azaldırıq (realistik olması üçün)
-                this.vy *= 0.99;
-                
+                this.size += 0.8; // Genişlənmə sürəti artırıldı
                 this.alpha -= this.fadeSpeed;
-                // Yuxarı qalxdıqca duman seyrəlir və bir az genişlənir
-                this.size += 0.4; 
-                this.rotation += 0.005;
+                this.rotation += this.rotationSpeed;
+                
+                // Hava müqaviməti simulyasiyası
+                this.vy *= 0.98;
+                this.vx *= 0.99;
             }
 
             draw() {
@@ -106,44 +125,54 @@
                 ctx.rotate(this.rotation);
                 ctx.globalAlpha = this.alpha;
                 
-                // Mavi duman gradienti
+                // Mərkəzi parlaq, kənarları dumanlı gradient
                 const grad = ctx.createRadialGradient(0, 0, 0, 0, 0, this.size);
-                grad.addColorStop(0, 'rgba(0, 150, 255, 0.5)'); // Mərkəz (bir az daha tünd mavi)
-                grad.addColorStop(0.5, 'rgba(0, 100, 255, 0.2)'); // Kenar
+                grad.addColorStop(0, 'rgba(0, 180, 255, 0.6)');  // İntensiv mavi mərkəz
+                grad.addColorStop(0.3, 'rgba(0, 100, 200, 0.3)'); // Keçid
+                grad.addColorStop(0.7, 'rgba(50, 50, 150, 0.1)'); // Dumanlı kənar
                 grad.addColorStop(1, 'transparent');
 
                 ctx.fillStyle = grad;
+                
+                // Tüstü forması üçün bir az qeyri-müntəzəm dairə (scale ilə)
                 ctx.beginPath();
                 ctx.arc(0, 0, this.size, 0, Math.PI * 2);
                 ctx.fill();
+                
                 ctx.restore();
             }
         }
 
         function onResults(results) {
+            if (loadingDiv) loadingDiv.style.display = 'none';
+            
             ctx.clearRect(0, 0, canvasElement.width, canvasElement.height);
-            ctx.globalCompositeOperation = 'lighter'; 
+            
+            // Tüstülərin bir-birinin üstünə minərək parlaqlıq yaratması üçün
+            ctx.globalCompositeOperation = 'screen'; 
 
-            if (results.multiHandLandmarks) {
-                results.multiHandLandmarks.forEach((landmarks) => {
-                    if (isPointingIndex(landmarks)) {
-                        const tip = landmarks[8];
-                        const x = tip.x * canvasElement.width;
-                        const y = tip.y * canvasElement.height;
-                        
-                        // Hər frame-də tüstü hissəcikləri yaradılır
-                        for(let i=0; i<3; i++) {
-                            smokeParticles.push(new SmokeParticle(x, y));
-                        }
+            // Yalnız 1-ci əli götürürük (hətta kamerada 2 əl olsa belə)
+            if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+                const landmarks = results.multiHandLandmarks[0]; 
+                
+                if (isPointingIndex(landmarks)) {
+                    const tip = landmarks[8];
+                    // Normalizə olunmuş koordinatları pikselə çeviririk
+                    const x = tip.x * canvasElement.width;
+                    const y = tip.y * canvasElement.height;
+                    
+                    // Daha qatı tüstü üçün hər frame-də 5 hissəcik
+                    for(let i=0; i<5; i++) {
+                        smokeParticles.push(new SmokeParticle(x, y));
                     }
-                });
+                }
             }
 
-            // Hissəcikləri yenilə və çək
+            // Hissəcikləri emal et
             for (let i = 0; i < smokeParticles.length; i++) {
                 smokeParticles[i].update();
                 smokeParticles[i].draw();
-                if (smokeParticles[i].alpha <= 0) {
+                if (smokeParticles[i].alpha <= 0 || smokeParticles[i].size > 300) {
                     smokeParticles.splice(i, 1);
                     i--;
                 }
@@ -155,10 +184,10 @@
         });
 
         hands.setOptions({
-            maxNumHands: 1,
+            maxNumHands: 1, // MediaPipe-a yalnız 1 əl axtarmağı tapşırırıq
             modelComplexity: 1,
-            minDetectionConfidence: 0.7,
-            minTrackingConfidence: 0.7
+            minDetectionConfidence: 0.8,
+            minTrackingConfidence: 0.8
         });
 
         hands.onResults(onResults);
@@ -171,7 +200,10 @@
             height: 720
         });
 
-        camera.start();
+        camera.start().catch(err => {
+            loadingDiv.innerText = "Kameraya giriş rədd edildi və ya xəta baş verdi.";
+            console.error(err);
+        });
     </script>
 </body>
 </html>
