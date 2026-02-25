@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="az">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Su Simulyasiyası</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <style>
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background-color: #000; }
+        #input_video { display: none; }
+        #output_canvas { width: 100vw; height: 100vh; object-fit: cover; transform: scaleX(-1); }
+        .loading-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: #000; display: flex; flex-direction: column; justify-content: center; align-items: center; color: #00f2ff; z-index: 20; }
+    </style>
+</head>
+<body>
+    <div class="loading-overlay" id="loading">
+        <div class="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-cyan-500"></div>
+    </div>
+    <video id="input_video" playsinline></video>
+    <canvas id="output_canvas"></canvas>
+
+    <script>
+        const videoElement = document.getElementById('input_video');
+        const canvasElement = document.getElementById('output_canvas');
+        const canvasCtx = canvasElement.getContext('2d', { willReadFrequently: true });
+        const loadingOverlay = document.getElementById('loading');
+        
+        const damping = 0.92;
+        let width, height, size, buffer1, buffer2;
+        let canTouch = true;
+        let isCameraActive = false;
+
+        function initWater() {
+            width = 160; 
+            height = Math.floor(width * (window.innerHeight / window.innerWidth));
+            size = width * height;
+            buffer1 = new Float32Array(size).fill(0);
+            buffer2 = new Float32Array(size).fill(0);
+        }
+
+        function triggerRipple(x, y) {
+            let nx = Math.floor((x / window.innerWidth) * width);
+            let ny = Math.floor((y / window.innerHeight) * height);
+            if (nx > 2 && nx < width - 2 && ny > 2 && ny < height - 2) {
+                const index = ny * width + nx;
+                buffer1[index] = 400; 
+                buffer1[index + 1] = 200;
+                buffer1[index - 1] = 200;
+                buffer1[index + width] = 200;
+                buffer1[index - width] = 200;
+            }
+        }
+
+        function updateWater() {
+            if (!buffer1) return;
+            for (let i = width; i < size - width; i++) {
+                buffer2[i] = ((buffer1[i - 1] + buffer1[i + 1] + buffer1[i - width] + buffer1[i + width]) / 2) - buffer2[i];
+                buffer2[i] *= damping;
+            }
+            [buffer1, buffer2] = [buffer2, buffer1];
+        }
+
+        function drawWater() {
+            if (!buffer1) return;
+            try {
+                const imgData = canvasCtx.getImageData(0, 0, canvasElement.width, canvasElement.height);
+                const data = imgData.data;
+                const vw = canvasElement.width;
+                const vh = canvasElement.height;
+                for (let y = 0; y < vh; y++) {
+                    for (let x = 0; x < vw; x++) {
+                        let sx = Math.floor((x / vw) * width);
+                        let sy = Math.floor((y / vh) * height);
+                        let i = sy * width + sx;
+                        if (buffer1[i] > 0.5 || buffer1[i] < -0.5) {
+                            let offset = Math.floor(buffer1[i] / 4);
+                            let targetY = y + offset;
+                            let targetX = x + offset;
+                            if (targetY >= 0 && targetY < vh && targetX >= 0 && targetX < vw) {
+                                let pixelIndex = (y * vw + x) * 4;
+                                let refIndex = (targetY * vw + targetX) * 4;
+                                data[pixelIndex] = data[refIndex] + offset;
+                                data[pixelIndex + 1] = data[refIndex + 1] + offset + 5;
+                                data[pixelIndex + 2] = data[refIndex + 2] + offset + 20;
+                            }
+                        }
+                    }
+                }
+                canvasCtx.putImageData(imgData, 0, 0);
+            } catch (e) {}
+        }
+
+        function onResults(results) {
+            if (!isCameraActive) {
+                isCameraActive = true;
+                loadingOverlay.style.display = 'none';
+            }
+            canvasCtx.save();
+            canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+            canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
+            if (results.multiHandLandmarks) {
+                for (const landmarks of results.multiHandLandmarks) {
+                    const tip = landmarks[8];
+                    const x = tip.x * canvasElement.width;
+                    const y = tip.y * canvasElement.height;
+                    if (tip.z < -0.18) {
+                        if (canTouch) {
+                            triggerRipple(x, y);
+                            canTouch = false;
+                        }
+                    } else if (tip.z > -0.12) {
+                        canTouch = true;
+                    }
+                    drawConnectors(canvasCtx, landmarks, HAND_CONNECTIONS, {color: 'rgba(0, 242, 255, 0.6)', lineWidth: 3});
+                    drawLandmarks(canvasCtx, landmarks, {color: '#ffffff', lineWidth: 1, radius: 2});
+                }
+            }
+            updateWater();
+            drawWater();
+            canvasCtx.restore();
+        }
+
+        async function initApp() {
+            if (typeof Hands === 'undefined') {
+                setTimeout(initApp, 500);
+                return;
+            }
+            initWater();
+            const hands = new Hands({locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`});
+            hands.setOptions({maxNumHands: 1, modelComplexity: 1, minDetectionConfidence: 0.7, minTrackingConfidence: 0.7});
+            hands.onResults(onResults);
+            const camera = new Camera(videoElement, {
+                onFrame: async () => { await hands.send({image: videoElement}); },
+                width: 1280, height: 720
+            });
+            camera.start();
+        }
+
+        window.addEventListener('resize', () => {
+            canvasElement.width = window.innerWidth;
+            canvasElement.height = window.innerHeight;
+            initWater();
+        });
+        
+        canvasElement.width = window.innerWidth;
+        canvasElement.height = window.innerHeight;
+        window.onload = initApp;
+    </script>
+</body>
+</html>
