@@ -458,7 +458,7 @@
 <body class="bg-primary text-white min-h-screen">
     <!-- Google için SEO Content (Hidden) -->
     <div class="seo-content">
-        <h1>AxtarGet Chat - Azərbaycanda ən yaxşı pulsuz online chat platforması</h1>
+        <h1>AxtarGet Chat - Azərbaycanda ən yax��ı pulsuz online chat platforması</h1>
         <h2>Yeni insanlarla tanış olmaq üçün ən asan yol</h2>
         <p>AxtarGet pulsuz online chat platforması ilə yeni dostlar tapın, söhbət edin, tanış olun. Heç bir qeydiyyat tələb olunmur, bir düymə ilə söhbətə başlayın.</p>
         
@@ -1400,23 +1400,20 @@
                     document.getElementById('matching-text').textContent = translations[currentLanguage].noUsersText;
                     document.getElementById('countdown-text').textContent = translations[currentLanguage].pleaseTryAgain;
                     document.getElementById('retry-container').classList.remove('hidden');
+                    matchingChannel.detach();
                     window.handleCancelMatching();
                 }
             }, 1000);
 
             try {
-                matchingChannel.publish('match-request', {
-                    userId: userId,
-                    userName: userName,
-                    language: currentLanguage,
-                    timestamp: Date.now()
-                });
-
-                matchingChannel.subscribe('match-response', (message) => {
-                    if (message.data.partnerId === userId) {
+                // İlk önce diğer match-request'lerini dinle
+                matchingChannel.subscribe('match-request', (message) => {
+                    if (message.data.userId !== userId && !partnerId) {
+                        console.log("👤 Başka bir kullanıcı eşleşme isteği gönderdi:", message.data.userId);
+                        
                         partnerId = message.data.userId;
                         partnerLanguage = message.data.language || 'az';
-                        chatId = message.data.chatId;
+                        chatId = 'chat-' + userId + '-' + partnerId;
                         
                         console.log("🎉 Eşleşme bulundu!", {
                             partnerId: partnerId,
@@ -1428,8 +1425,58 @@
                         document.getElementById('partner-name').textContent = message.data.userName;
                         createLanguageIndicator(partnerLanguage);
                         clearInterval(matchingTimeout);
+                        matchingChannel.detach();
 
-                        channel = ably.channels.get('chat-' + chatId);
+                        // Eşleşmeyi karşı tarafa bildir
+                        matchingChannel.publish('match-response', {
+                            userId: userId,
+                            userName: userName,
+                            language: currentLanguage,
+                            partnerId: partnerId,
+                            chatId: chatId,
+                            timestamp: Date.now()
+                        });
+
+                        channel = ably.channels.get(chatId);
+                        channel.attach();
+
+                        setTimeout(() => {
+                            showScreen('chat-screen');
+                            setupChatListener();
+                            startHeartbeat();
+                            startPartnerHeartbeatCheck();
+                        }, 500);
+                    }
+                });
+
+                // Kendi match-request'ini gönder
+                matchingChannel.publish('match-request', {
+                    userId: userId,
+                    userName: userName,
+                    language: currentLanguage,
+                    timestamp: Date.now()
+                });
+
+                // Match-response'ü dinle
+                matchingChannel.subscribe('match-response', (message) => {
+                    if (message.data.partnerId === userId && !partnerId) {
+                        partnerId = message.data.userId;
+                        partnerLanguage = message.data.language || 'az';
+                        chatId = message.data.chatId;
+                        
+                        console.log("🎉 Eşleşme onaylandı!", {
+                            partnerId: partnerId,
+                            partnerName: message.data.userName,
+                            partnerLanguage: partnerLanguage,
+                            chatId: chatId
+                        });
+
+                        document.getElementById('partner-name').textContent = message.data.userName;
+                        createLanguageIndicator(partnerLanguage);
+                        clearInterval(matchingTimeout);
+                        matchingChannel.detach();
+
+                        channel = ably.channels.get(chatId);
                         channel.attach();
 
                         setTimeout(() => {
