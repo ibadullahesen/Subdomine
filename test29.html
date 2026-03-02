@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="az">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Neon Hand Interaction</title>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <style>
+        :root {
+            --electric-white: #ffffff;
+            --electric-glow: #4fd1ff;
+            --dark-bg: #000000;
+        }
+        body, html {
+            margin: 0; padding: 0;
+            width: 100%; height: 100%;
+            overflow: hidden;
+            background-color: var(--dark-bg);
+        }
+        #input_video { 
+            position: absolute;
+            visibility: hidden;
+            width: 1px; height: 1px;
+        }
+        #output_canvas {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100vw; height: 100vh;
+            z-index: 5;
+            transform: scaleX(-1);
+        }
+        #loading-screen {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: #000;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+        }
+        .loader {
+            width: 50px; height: 50px;
+            border: 3px solid #111;
+            border-top: 3px solid var(--electric-white);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin { 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+    <div id="loading-screen"><div class="loader"></div></div>
+    <video id="input_video" playsinline></video>
+    <canvas id="output_canvas"></canvas>
+
+    <script>
+        const videoElement = document.getElementById('input_video');
+        const canvasElement = document.getElementById('output_canvas');
+        const canvasCtx = canvasElement.getContext('2d');
+        const loadingScreen = document.getElementById('loading-screen');
+
+        let isConnected = false;
+        let particles = []; 
+
+        class Particle {
+            constructor(x, y, color) {
+                this.x = x;
+                this.y = y;
+                this.color = color;
+                this.size = Math.random() * 5 + 2;
+                this.speedX = (Math.random() - 0.5) * 18;
+                this.speedY = (Math.random() - 0.5) * 18;
+                this.life = 1.0; 
+                this.decay = Math.random() * 0.04 + 0.02;
+            }
+            update() {
+                this.x += this.speedX;
+                this.y += this.speedY;
+                this.life -= this.decay;
+                this.size *= 0.96;
+            }
+            draw(ctx) {
+                ctx.save();
+                ctx.globalAlpha = this.life;
+                ctx.shadowBlur = 15;
+                ctx.shadowColor = this.color;
+                ctx.fillStyle = "white";
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+            }
+        }
+
+        function createLineExplosion(x1, y1, x2, y2) {
+            const dist = Math.sqrt((x2-x1)**2 + (y2-y1)**2);
+            const steps = Math.floor(dist / 15);
+            for (let i = 0; i <= steps; i++) {
+                const t = i / steps;
+                const px = x1 + (x2 - x1) * t;
+                const py = y1 + (y2 - y1) * t;
+                for (let j = 0; j < 6; j++) {
+                    particles.push(new Particle(px, py, "#00d4ff"));
+                }
+            }
+        }
+
+        function setupCanvas() {
+            canvasElement.width = window.innerWidth;
+            canvasElement.height = window.innerHeight;
+        }
+        window.addEventListener('resize', setupCanvas);
+        setupCanvas();
+
+        function drawRealisticLightning(ctx, x1, y1, x2, y2, intensity) {
+            const distance = Math.sqrt((x2-x1)**2 + (y2-y1)**2);
+            const segments = Math.max(5, Math.floor(distance / 10));
+            ctx.beginPath();
+            ctx.moveTo(x1, y1);
+            for (let i = 1; i < segments; i++) {
+                const t = i / segments;
+                let tx = x1 + (x2 - x1) * t;
+                let ty = y1 + (y2 - y1) * t;
+                tx += (Math.random() - 0.5) * intensity;
+                ty += (Math.random() - 0.5) * intensity;
+                ctx.lineTo(tx, ty);
+            }
+            ctx.lineTo(x2, y2);
+            ctx.stroke();
+        }
+
+        function getDist(p1, p2) {
+            return Math.sqrt(Math.pow(p1.x - p2.x, 2) + Math.pow(p1.y - p2.y, 2));
+        }
+
+        function isFist(hand) {
+            const tips = [8, 12, 16, 20];
+            const joints = [6, 10, 14, 18];
+            let foldedCount = 0;
+            for (let i = 0; i < tips.length; i++) {
+                if (hand[tips[i]].y > hand[joints[i]].y) foldedCount++;
+            }
+            return foldedCount >= 3;
+        }
+
+        function onResults(results) {
+            if (loadingScreen.style.display !== 'none') loadingScreen.style.display = 'none';
+            canvasCtx.save();
+            canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+            canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
+            particles = particles.filter(p => p.life > 0);
+            particles.forEach(p => { p.update(); p.draw(canvasCtx); });
+            if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+                const hands = results.multiHandLandmarks;
+                const w = canvasElement.width;
+                const h = canvasElement.height;
+                hands.forEach(hand => renderHandElectricity(hand));
+                if (hands.length === 2) {
+                    const hand1 = hands[0];
+                    const hand2 = hands[1];
+                    const tipsIndices = [4, 8, 12, 16, 20];
+                    const fist1 = isFist(hand1);
+                    const fist2 = isFist(hand2);
+                    if (isConnected && (fist1 && fist2)) {
+                        isConnected = false;
+                        tipsIndices.forEach(idx => {
+                            createLineExplosion(hand1[idx].x * w, hand1[idx].y * h, hand2[idx].x * w, hand2[idx].y * h);
+                        });
+                    }
+                    if (!isConnected && !fist1 && !fist2) {
+                        for (let i of tipsIndices) {
+                            for (let j of tipsIndices) {
+                                if (getDist(hand1[i], hand2[j]) < 0.08) {
+                                    isConnected = true;
+                                    break;
+                                }
+                            }
+                            if (isConnected) break;
+                        }
+                    }
+                    if (isConnected) {
+                        tipsIndices.forEach(idx => {
+                            const p1 = { x: hand1[idx].x * w, y: hand1[idx].y * h };
+                            const p2 = { x: hand2[idx].x * w, y: hand2[idx].y * h };
+                            canvasCtx.save();
+                            canvasCtx.shadowBlur = 25;
+                            canvasCtx.shadowColor = "#00bfff";
+                            canvasCtx.strokeStyle = "rgba(180, 240, 255, 0.8)";
+                            canvasCtx.lineWidth = 3;
+                            drawRealisticLightning(canvasCtx, p1.x, p1.y, p2.x, p2.y, 25);
+                            canvasCtx.shadowBlur = 10;
+                            canvasCtx.shadowColor = "white";
+                            canvasCtx.strokeStyle = "white";
+                            canvasCtx.lineWidth = 1.5;
+                            drawRealisticLightning(canvasCtx, p1.x, p1.y, p2.x, p2.y, 15);
+                            canvasCtx.restore();
+                        });
+                    }
+                } else {
+                    if (hands.length < 2) isConnected = false;
+                }
+            } else {
+                isConnected = false;
+            }
+            canvasCtx.restore();
+        }
+
+        function renderHandElectricity(landmarks) {
+            const w = canvasElement.width;
+            const h = canvasElement.height;
+            const tips = [4, 8, 12, 16, 20];
+            const tipPoints = tips.map(idx => ({ x: landmarks[idx].x * w, y: landmarks[idx].y * h }));
+            canvasCtx.save();
+            for (let i = 0; i < tipPoints.length - 1; i++) {
+                canvasCtx.shadowBlur = 10;
+                canvasCtx.shadowColor = "#00d4ff";
+                canvasCtx.strokeStyle = "white";
+                canvasCtx.lineWidth = 1;
+                drawRealisticLightning(canvasCtx, tipPoints[i].x, tipPoints[i].y, tipPoints[i+1].x, tipPoints[i+1].y, 10);
+            }
+            tipPoints.forEach(p => {
+                const rng = Math.random() * 8;
+                canvasCtx.shadowBlur = 15 + rng;
+                canvasCtx.shadowColor = "#00d4ff";
+                canvasCtx.fillStyle = "white";
+                canvasCtx.beginPath();
+                canvasCtx.arc(p.x, p.y, 6 + rng/2, 0, Math.PI * 2);
+                canvasCtx.fill();
+            });
+            canvasCtx.restore();
+        }
+
+        const hands = new Hands({ locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}` });
+        hands.setOptions({ maxNumHands: 2, modelComplexity: 1, minDetectionConfidence: 0.7, minTrackingConfidence: 0.7 });
+        hands.onResults(onResults);
+        const camera = new Camera(videoElement, { onFrame: async () => { await hands.send({image: videoElement}); }, width: 1280, height: 720 });
+        camera.start();
+    </script>
+</body>
+</html>
