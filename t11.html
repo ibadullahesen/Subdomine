@@ -1,1 +1,710 @@
+<!DOCTYPE html>
+<html lang="az">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Real-Time Chat</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
 
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 10px;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 500px;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+            display: flex;
+            flex-direction: column;
+            height: 90vh;
+            max-height: 800px;
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            text-align: center;
+            border-bottom: 2px solid #764ba2;
+        }
+
+        .header h1 {
+            font-size: 24px;
+            margin-bottom: 5px;
+        }
+
+        .status {
+            font-size: 12px;
+            opacity: 0.9;
+            font-weight: 300;
+        }
+
+        .main-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .menu-screen {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding: 30px;
+            text-align: center;
+            overflow-y: auto;
+        }
+
+        .menu-screen h2 {
+            color: #333;
+            margin-bottom: 30px;
+            font-size: 22px;
+        }
+
+        .button-group {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            width: 100%;
+        }
+
+        .btn {
+            padding: 15px;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            width: 100%;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-primary:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .btn-secondary {
+            background: #f0f0f0;
+            color: #333;
+            border: 2px solid #ddd;
+        }
+
+        .btn-secondary:hover {
+            background: #e8e8e8;
+        }
+
+        .btn-danger {
+            background: #ff6b6b;
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background: #ee5a52;
+            transform: translateY(-2px);
+        }
+
+        .chat-screen {
+            display: none;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .chat-screen.active {
+            display: flex;
+        }
+
+        .chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+            background: #f9f9f9;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .message {
+            display: flex;
+            margin-bottom: 10px;
+            animation: slideIn 0.3s ease;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .message.own {
+            justify-content: flex-end;
+        }
+
+        .message-content {
+            max-width: 70%;
+            padding: 12px 15px;
+            border-radius: 12px;
+            word-wrap: break-word;
+            font-size: 14px;
+            line-height: 1.4;
+        }
+
+        .message.other .message-content {
+            background: #e0e0e0;
+            color: #333;
+        }
+
+        .message.own .message-content {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .message.system {
+            justify-content: center;
+            padding: 10px 0;
+        }
+
+        .message.system .message-content {
+            background: none;
+            color: #999;
+            font-size: 12px;
+            padding: 0;
+        }
+
+        .chat-input-area {
+            padding: 15px;
+            background: white;
+            border-top: 1px solid #ddd;
+            display: flex;
+            gap: 10px;
+            align-items: flex-end;
+        }
+
+        .input-field {
+            flex: 1;
+            padding: 10px 15px;
+            border: 1px solid #ddd;
+            border-radius: 20px;
+            font-size: 14px;
+            resize: none;
+            max-height: 100px;
+            font-family: inherit;
+        }
+
+        .input-field:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .btn-send {
+            padding: 10px 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 20px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            flex-shrink: 0;
+        }
+
+        .btn-send:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.3);
+        }
+
+        .btn-send:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .language-selector {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            padding: 8px 12px;
+            background: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 12px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        .timer {
+            color: #ff6b6b;
+            font-weight: bold;
+            font-size: 14px;
+            margin-top: 10px;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #667eea;
+            font-weight: 600;
+        }
+
+        .loader {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .info-text {
+            color: #666;
+            font-size: 13px;
+            margin-top: 15px;
+            line-height: 1.5;
+        }
+
+        .divider {
+            width: 100%;
+            height: 1px;
+            background: #ddd;
+            margin: 20px 0;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+    </style>
+</head>
+<body>
+    <select class="language-selector" id="langSelector">
+        <option value="az">Azərbaycanca</option>
+        <option value="en">English</option>
+        <option value="tr">Türkçe</option>
+        <option value="ru">Русский</option>
+    </select>
+
+    <div class="container">
+        <div class="header">
+            <h1 id="headerTitle">Anonim Söhbət</h1>
+            <div class="status" id="headerStatus">Hazır</div>
+        </div>
+
+        <div class="main-content">
+            <!-- Menu Screen -->
+            <div class="menu-screen" id="menuScreen">
+                <h2 id="welcomeText">Xoş gəlmisiniz!</h2>
+                <p class="info-text" id="infoText">Anonim şəxslərlə söhbət edin</p>
+
+                <div class="divider"></div>
+
+                <div class="button-group">
+                    <button class="btn btn-primary" id="startBtn" onclick="startChat()">
+                        <span id="startBtnText">Söhbətə Başla</span>
+                    </button>
+                </div>
+
+                <div id="timerDisplay"></div>
+            </div>
+
+            <!-- Chat Screen -->
+            <div class="chat-screen" id="chatScreen">
+                <div class="chat-messages" id="chatMessages"></div>
+                <div class="chat-input-area">
+                    <textarea class="input-field" id="messageInput" placeholder="Mesaj yazın..." maxlength="500" rows="1"></textarea>
+                    <button class="btn-send" id="sendBtn" onclick="sendMessage()">
+                        <span id="sendText">Göndər</span>
+                    </button>
+                </div>
+                <div style="padding: 10px; display: flex; gap: 10px; border-top: 1px solid #ddd; background: white;">
+                    <button class="btn btn-secondary" style="flex: 1; padding: 10px;" id="newChatBtn" onclick="refreshMatching()">
+                        <span id="newChatText">Yeni Kimsə Tapa</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Loading Screen -->
+            <div class="menu-screen" id="loadingScreen" style="display: none;">
+                <div class="loader"></div>
+                <p class="loading" id="searchingText">Kimsə aranıyor...</p>
+                <button class="btn btn-secondary" id="cancelBtn" onclick="cancelSearch()" style="width: 200px; margin-top: 20px;">
+                    <span id="cancelText">Ləğv Et</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = '/api/users';
+        
+        // Translations
+        const translations = {
+            az: {
+                headerTitle: "Anonim Söhbət",
+                welcomeText: "Xoş gəlmisiniz!",
+                infoText: "Anonim şəxslərlə söhbət edin",
+                startBtnText: "Söhbətə Başla",
+                cancelText: "Ləğv Et",
+                searchingText: "Kimsə aranıyor...",
+                connectedText: "Kimsə qoşuldu!",
+                sendText: "Göndər",
+                headerStatus: "Hazır",
+                timerText: "Sonra yenə söhbət edə biləcəksiniz:",
+                newChatText: "Yeni Kimsə Tapa"
+            },
+            en: {
+                headerTitle: "Anonymous Chat",
+                welcomeText: "Welcome!",
+                infoText: "Chat with anonymous people",
+                startBtnText: "Start Chat",
+                cancelText: "Cancel",
+                searchingText: "Searching for someone...",
+                connectedText: "Someone connected!",
+                sendText: "Send",
+                headerStatus: "Ready",
+                timerText: "You can chat again in:",
+                newChatText: "Find Someone New"
+            },
+            tr: {
+                headerTitle: "Anonim Sohbet",
+                welcomeText: "Hoş geldiniz!",
+                infoText: "Anonim kişilerle sohbet edin",
+                startBtnText: "Sohbete Başla",
+                cancelText: "İptal Et",
+                searchingText: "Birisi aranıyor...",
+                connectedText: "Birisi bağlandı!",
+                sendText: "Gönder",
+                headerStatus: "Hazır",
+                timerText: "Yeniden sohbet edebilirsiniz:",
+                newChatText: "Yeni Biri Bul"
+            },
+            ru: {
+                headerTitle: "Анонимный чат",
+                welcomeText: "Добро пожаловать!",
+                infoText: "Общайтесь с анонимными людьми",
+                startBtnText: "Начать чат",
+                cancelText: "Отмена",
+                searchingText: "Поиск человека...",
+                connectedText: "Кто-то подключился!",
+                sendText: "Отправить",
+                headerStatus: "Готово",
+                timerText: "Вы сможете общаться снова в:",
+                newChatText: "Найти другого"
+            }
+        };
+
+        // State
+        let currentLang = localStorage.getItem('language') || 'az';
+        let userId = localStorage.getItem('userId');
+        let partnerId = null;
+        let isSearching = false;
+        let isConnected = false;
+        let blockuntilTime = parseInt(localStorage.getItem('blockUntil') || '0');
+        let pollInterval = null;
+        let cancelSearch_flag = false;
+        let lastPartners = JSON.parse(localStorage.getItem('lastPartners') || '[]');
+
+        // Generate user ID
+        if (!userId) {
+            userId = 'user_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+            localStorage.setItem('userId', userId);
+        }
+
+        // Initialize
+        document.getElementById('langSelector').value = currentLang;
+        updateLanguage();
+        checkBlockStatus();
+        registerUser();
+
+        // Event listeners
+        document.getElementById('langSelector').addEventListener('change', (e) => {
+            currentLang = e.target.value;
+            localStorage.setItem('language', currentLang);
+            updateLanguage();
+        });
+
+        // Auto-adjust textarea
+        document.getElementById('messageInput').addEventListener('input', function() {
+            this.style.height = 'auto';
+            this.style.height = Math.min(this.scrollHeight, 100) + 'px';
+        });
+
+        // Send on Enter
+        document.getElementById('messageInput').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendMessage();
+            }
+        });
+
+        async function registerUser() {
+            try {
+                const response = await fetch(API_BASE, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        action: 'register',
+                        userId: userId
+                    })
+                });
+                console.log('[v0] User registered:', userId);
+            } catch (e) {
+                console.log('[v0] Register error:', e.message);
+            }
+        }
+
+        function updateLanguage() {
+            const t = translations[currentLang];
+            document.getElementById('headerTitle').textContent = t.headerTitle;
+            document.getElementById('welcomeText').textContent = t.welcomeText;
+            document.getElementById('infoText').textContent = t.infoText;
+            document.getElementById('startBtnText').textContent = t.startBtnText;
+            document.getElementById('cancelText').textContent = t.cancelText;
+            document.getElementById('searchingText').textContent = t.searchingText;
+            document.getElementById('connectedText').textContent = t.connectedText;
+            document.getElementById('sendText').textContent = t.sendText;
+            document.getElementById('headerStatus').textContent = t.headerStatus;
+            const newChatBtn = document.getElementById('newChatText');
+            if (newChatBtn) newChatBtn.textContent = t.newChatText;
+            document.getElementById('messageInput').placeholder = 
+                currentLang === 'az' ? 'Mesaj yazın...' : 
+                currentLang === 'en' ? 'Type a message...' :
+                currentLang === 'tr' ? 'Mesaj yazın...' : 'Введите сообщение...';
+        }
+
+        function startChat() {
+            if (Date.now() < blockuntilTime) {
+                alert(translations[currentLang].timerText);
+                return;
+            }
+            
+            isSearching = true;
+            cancelSearch_flag = false;
+            document.getElementById('menuScreen').style.display = 'none';
+            document.getElementById('loadingScreen').style.display = 'flex';
+            
+            searchForPartner();
+        }
+
+        function cancelSearch() {
+            cancelSearch_flag = true;
+            isSearching = false;
+            if (pollInterval) clearInterval(pollInterval);
+            
+            document.getElementById('loadingScreen').style.display = 'none';
+            document.getElementById('menuScreen').style.display = 'flex';
+        }
+
+        async function searchForPartner() {
+            if (!isSearching || cancelSearch_flag) return;
+
+            try {
+                const response = await fetch(API_BASE, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        action: 'find-partner',
+                        userId: userId
+                    })
+                });
+                const data = await response.json();
+
+                if (data.partner && isSearching && !cancelSearch_flag) {
+                    partnerId = data.partner;
+                    connectToPartner();
+                } else {
+                    // Keep searching
+                    if (isSearching && !cancelSearch_flag) {
+                        setTimeout(searchForPartner, 500);
+                    }
+                }
+            } catch (e) {
+                console.log('[v0] Search error:', e.message);
+                if (isSearching && !cancelSearch_flag) {
+                    setTimeout(searchForPartner, 1000);
+                }
+            }
+        }
+
+        function connectToPartner() {
+            if (!isSearching || !partnerId) return;
+            
+            isSearching = false;
+            isConnected = true;
+            
+            document.getElementById('loadingScreen').style.display = 'none';
+            document.getElementById('chatScreen').classList.add('active');
+            document.getElementById('chatMessages').innerHTML = 
+                '<div class="message system"><div class="message-content">' + 
+                translations[currentLang].connectedText + '</div></div>';
+            document.getElementById('messageInput').focus();
+            
+            // Start polling for new messages
+            startPollingMessages();
+        }
+
+        async function sendMessage() {
+            const text = document.getElementById('messageInput').value.trim();
+            if (!text || !isConnected || !partnerId) return;
+
+            addMessage(text, 'own');
+            document.getElementById('messageInput').value = '';
+            document.getElementById('messageInput').style.height = 'auto';
+
+            try {
+                const response = await fetch(API_BASE, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        action: 'send-message',
+                        userId: userId,
+                        partnerId: partnerId,
+                        message: text
+                    })
+                });
+            } catch (e) {
+                console.log('[v0] Send error:', e.message);
+            }
+        }
+
+        function addMessage(text, type) {
+            const msgDiv = document.createElement('div');
+            msgDiv.className = 'message ' + type;
+            
+            const content = document.createElement('div');
+            content.className = 'message-content';
+            content.textContent = text;
+            
+            msgDiv.appendChild(content);
+            document.getElementById('chatMessages').appendChild(msgDiv);
+            document.getElementById('chatMessages').scrollTop = 
+                document.getElementById('chatMessages').scrollHeight;
+        }
+
+        async function startPollingMessages() {
+            if (!isConnected) return;
+
+            try {
+                const response = await fetch(API_BASE, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        action: 'get-messages',
+                        userId: userId
+                    })
+                });
+                const data = await response.json();
+                
+                if (data.messages && data.messages.length > 0) {
+                    data.messages.forEach(msg => {
+                        addMessage(msg.text, 'other');
+                    });
+                }
+            } catch (e) {
+                console.log('[v0] Polling error:', e.message);
+            }
+
+            if (isConnected) {
+                setTimeout(startPollingMessages, 800);
+            }
+        }
+
+        function refreshMatching() {
+            if (isConnected && partnerId) {
+                lastPartners.push({ id: partnerId, time: Date.now() });
+                localStorage.setItem('lastPartners', JSON.stringify(lastPartners.slice(-10)));
+                
+                const blockTime = Date.now() + 10000;
+                localStorage.setItem('blockUntil', blockTime);
+                blockuntilTime = blockTime;
+            }
+
+            isConnected = false;
+            partnerId = null;
+            document.getElementById('chatScreen').classList.remove('active');
+            document.getElementById('menuScreen').style.display = 'flex';
+            
+            startChat();
+        }
+
+        function checkBlockStatus() {
+            if (Date.now() < blockuntilTime) {
+                const remaining = Math.ceil((blockuntilTime - Date.now()) / 1000);
+                displayTimer(remaining);
+                
+                setTimeout(checkBlockStatus, 1000);
+            } else {
+                document.getElementById('timerDisplay').innerHTML = '';
+                blockuntilTime = 0;
+                localStorage.setItem('blockUntil', '0');
+            }
+        }
+
+        function displayTimer(seconds) {
+            const timerDiv = document.getElementById('timerDisplay');
+            if (seconds > 0) {
+                timerDiv.innerHTML = '<div class="timer">' + translations[currentLang].timerText + ' ' + seconds + 's</div>';
+                
+                if (seconds === 1) {
+                    setTimeout(() => checkBlockStatus(), 1000);
+                }
+            }
+        }
+
+        // Add disconnect and new chat buttons to header
+        document.addEventListener('DOMContentLoaded', () => {
+            // Add refresh button when connected
+            document.getElementById('chatScreen').addEventListener('click', function(e) {
+                if (e.target.id === 'refreshBtn') {
+                    refreshMatching();
+                }
+            });
+        });
+
+        // Handle page visibility for proper cleanup
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden && isConnected) {
+                // User switched tabs - keep searching in background
+            } else if (!document.hidden && isSearching) {
+                // User came back - continue searching
+                searchForPartner();
+            }
+        });
+    </script>
+</body>
+</html>
