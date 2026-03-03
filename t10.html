@@ -1046,8 +1046,6 @@
         let renderedMessageIds = new Set();
         let isMatched = false;
         let blockedUsers = new Map();
-        let sessionId = null; // Bu browserin unique session ID'si
-        let matchRequestTimestamp = null; // İlk request zamanı
 
         const MATCHING_SECONDS = 20;
         const BLOCK_DURATION = 10000;
@@ -1065,13 +1063,6 @@
                 localStorage.setItem(USER_STORAGE_KEY, stored);
             }
             return stored;
-        }
-
-        function initSessionID() {
-            if (!sessionId) {
-                sessionId = 'session-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
-            }
-            return sessionId;
         }
 
         function canChatWith(partnerId) {
@@ -1221,7 +1212,6 @@
             userName = inputName || (currentLanguage === 'az' ? `İstifadəçi-${userId.substring(0, 6)}` : `Kullanıcı-${userId.substring(0, 6)}`);
             userLanguage = currentLanguage;
             
-            initSessionID();
             showScreen('matching-screen');
             document.getElementById('retry-container').classList.add('hidden');
             document.getElementById('matching-text').textContent = translations[currentLanguage].matchingText;
@@ -1257,23 +1247,15 @@
                 matchingChannel.subscribe('match-request', (message) => {
                     if (message.data.userId !== userId && !isMatched) {
                         const incomingUserId = message.data.userId;
-                        const incomingSessionId = message.data.sessionId;
-                        const incomingTimestamp = message.data.timestamp;
                         
                         if (!canChatWith(incomingUserId)) {
-                            return;
-                        }
-                        
-                        // İlk kim request atsaydı onunla match ol
-                        // Eğer ben daha önce request attıysam bunu reddet
-                        if (matchRequestTimestamp && incomingTimestamp > matchRequestTimestamp) {
                             return;
                         }
                         
                         isMatched = true;
                         partnerId = incomingUserId;
                         partnerLanguage = message.data.language || 'az';
-                        chatId = 'chat-' + incomingUserId + '-' + userId; // Alfabetik sıraya göre düzenle
+                        chatId = 'chat-' + [userId, incomingUserId].sort().join('-');
                         
                         document.getElementById('partner-name').textContent = message.data.userName;
                         createLanguageIndicator(partnerLanguage);
@@ -1281,7 +1263,6 @@
 
                         matchingChannel.publish('match-response', {
                             userId: userId,
-                            sessionId: sessionId,
                             userName: userName,
                             language: currentLanguage,
                             partnerId: partnerId,
@@ -1301,13 +1282,11 @@
                 });
 
                 // İlk request gönder
-                matchRequestTimestamp = Date.now();
                 matchingChannel.publish('match-request', {
                     userId: userId,
-                    sessionId: sessionId,
                     userName: userName,
                     language: currentLanguage,
-                    timestamp: matchRequestTimestamp
+                    timestamp: Date.now()
                 });
 
                 // Gelen match-response'ları dinle
@@ -1400,7 +1379,6 @@
             isMatched = false;
             partnerId = null;
             chatId = null;
-            matchRequestTimestamp = null;
             
             if (partnerId) {
                 blockPartner(partnerId);
