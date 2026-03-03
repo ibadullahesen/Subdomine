@@ -1029,7 +1029,7 @@
 
     <script>
         const ablyApiKey = "bAIUwA.MY6Tlg:Fhf5Dfowu3VfhiRTpJapq0-JF3VgI7RWiC-Eo7Qbvp0";
-        let ably, channel, matchingChannel;
+        let ably, channel, queueChannel;
         
         // USER IDENTIFIER - localStorage ilə saxlayırıq
         let userId = null;
@@ -1043,8 +1043,9 @@
         let typingTimeout = null;
         let renderedMessageIds = new Set();
         let isMatched = false;
+        let isInQueue = false;
+        let isMatching = false;
         let blockedUsers = new Map();
-        let lastPartners = new Map(); // Son 10 partneri saat cinsindən saxlayırıq
 
         const MATCHING_SECONDS = 20;
         const BLOCK_DURATION = 10000; // 10 saniye
@@ -1207,6 +1208,9 @@
                 return;
             }
 
+            // Əgər artıq söhbətdədirsə və ya axtarışdadırsa, yeni axtarış başlatma
+            if (isMatched || isMatching) return;
+
             const inputName = document.getElementById('user-name-input').value.trim();
             userName = inputName || (currentLanguage === 'az' ? `İstifadəçi-${userId.substring(0, 6)}` : `Kullanıcı-${userId.substring(0, 6)}`);
             userLanguage = currentLanguage;
@@ -1214,7 +1218,11 @@
             showScreen('matching-screen');
             document.getElementById('retry-container').classList.add('hidden');
             document.getElementById('matching-text').textContent = translations[currentLanguage].matchingText;
+            
             isMatched = false;
+            isMatching = true;
+            isInQueue = false;
+            
             startMatching();
         };
 
@@ -1222,9 +1230,11 @@
             let remaining = MATCHING_SECONDS;
             document.getElementById('countdown-text').textContent = `${translations[currentLanguage].countdownText} ${remaining} ${translations[currentLanguage].seconds}`;
 
-            matchingChannel = ably.channels.get('matching-queue');
-            matchingChannel.attach();
+            // Queue kanalına qoşul
+            queueChannel = ably.channels.get('matching-queue');
+            queueChannel.attach();
 
+            // Matching timeout
             if (matchingTimeout) clearInterval(matchingTimeout);
             matchingTimeout = setInterval(() => {
                 remaining--;
@@ -1232,107 +1242,137 @@
 
                 if (remaining <= 0) {
                     clearInterval(matchingTimeout);
-                    if (!isMatched) {
+                    if (!isMatched && isMatching) {
+                        // Vaxt bitdi, sıradan çıx
+                        isMatching = false;
+                        isInQueue = false;
                         document.getElementById('matching-text').textContent = translations[currentLanguage].noUsersText;
                         document.getElementById('countdown-text').textContent = translations[currentLanguage].pleaseTryAgain;
                         document.getElementById('retry-container').classList.remove('hidden');
-                        matchingChannel.detach();
+                        
+                        // Sıradan çıx
+                        queueChannel.publish('leave-queue', {
+                            userId: userId
+                        });
+                        queueChannel.detach();
                     }
                 }
             }, 1000);
 
             try {
-                matchingChannel.subscribe('match-request', (message) => {
-                    // Öz mesajını ignore et
-                    if (message.data.userId === userId) return;
-                    
-                    // Əgər artıq match olunubsa, yeni sorğuları ignore et
-                    if (isMatched) return;
-                    
-                    const incomingUserId = message.data.userId;
-                    
-                    // 10 saniye timeout kontrol et
-                    if (!canChatWith(incomingUserId)) {
-                        return;
-                    }
-                    
-                    // Match ol
-                    isMatched = true;
-                    partnerId = incomingUserId;
-                    partnerLanguage = message.data.language || 'az';
-                    chatId = 'chat-' + userId + '-' + partnerId;
-                    
-                    document.getElementById('partner-name').textContent = message.data.userName;
-                    createLanguageIndicator(partnerLanguage);
-                    clearInterval(matchingTimeout);
-
-                    // Match cavabını göndər
-                    matchingChannel.publish('match-response', {
-                        userId: userId,
-                        userName: userName,
-                        language: currentLanguage,
-                        partnerId: partnerId,
-                        chatId: chatId,
-                        timestamp: Date.now()
-                    });
-
-                    // Kanal yarat və keç
-                    channel = ably.channels.get(chatId);
-                    channel.attach();
-
-                    setTimeout(() => {
-                        matchingChannel.detach();
-                        showScreen('chat-screen');
-                        setupChatListener();
-                    }, 300);
-                });
-
-                matchingChannel.publish('match-request', {
+                // Sıraya daxil ol
+                queueChannel.publish('join-queue', {
                     userId: userId,
                     userName: userName,
                     language: currentLanguage,
                     timestamp: Date.now()
                 });
 
-                matchingChannel.subscribe('match-response', (message) => {
-                    // Öz mesajını ignore et
-                    if (message.data.userId === userId) return;
+                isInQueue = true;
+
+                // Sıradakı istifadəçiləri dinlə
+                queueChannel.subscribe('queue-update', (message) => {
+                    if (!isMatching || isMatched) return;
                     
-                    // Əgər bu cavab bizim üçün nəzərdə tutulmayıbsa ignore et
-                    if (message.data.partnerId !== userId) return;
+                    const queue = message.data.queue || [];
                     
-                    // Əgər artıq match olunubsa, ignore et
-                    if (isMatched) return;
-                    
-                    const incomingUserId = message.data.userId;
-                    
-                    // 10 saniye timeout kontrol et
-                    if (!canChatWith(incomingUserId)) {
-                        return;
+                    // Sırada 2 və ya daha çox istifadəçi varsa, ilk ikisini match et
+                    if (queue.length >= 2) {
+                        const user1 = queue[0];
+                        const user2 = queue[1];
+                        
+                        // Əgər bu istifadəçilərdən biri biziksə
+                        if (user1.userId === userId || user2.userId === userId) {
+                            // Digər istifadəçini tap
+                            const partner = user1.userId === userId ? user2 : user1;
+                            
+                            // 10 saniyə block yoxla
+                            if (!canChatWith(partner.userId)) {
+                                return;
+                            }
+                            
+                            // Match et
+                            isMatched = true;
+                            isMatching = false;
+                            isInQueue = false;
+                            
+                            partnerId = partner.userId;
+                            partnerLanguage = partner.language || 'az';
+                            chatId = 'chat-' + userId + '-' + partnerId;
+                            
+                            document.getElementById('partner-name').textContent = partner.userName;
+                            createLanguageIndicator(partnerLanguage);
+                            clearInterval(matchingTimeout);
+
+                            // Sıradan çıx
+                            queueChannel.publish('leave-queue', {
+                                userId: userId
+                            });
+
+                            // Chat kanalı yarat
+                            channel = ably.channels.get(chatId);
+                            channel.attach();
+
+                            // Match məlumatını göndər
+                            queueChannel.publish('match-made', {
+                                chatId: chatId,
+                                user1: user1,
+                                user2: user2,
+                                timestamp: Date.now()
+                            });
+
+                            setTimeout(() => {
+                                queueChannel.detach();
+                                showScreen('chat-screen');
+                                setupChatListener();
+                            }, 300);
+                        }
                     }
-                    
-                    // Match ol
-                    isMatched = true;
-                    partnerId = incomingUserId;
-                    partnerLanguage = message.data.language || 'az';
-                    chatId = message.data.chatId;
-                    
-                    document.getElementById('partner-name').textContent = message.data.userName;
-                    createLanguageIndicator(partnerLanguage);
-                    clearInterval(matchingTimeout);
-
-                    channel = ably.channels.get(chatId);
-                    channel.attach();
-
-                    setTimeout(() => {
-                        matchingChannel.detach();
-                        showScreen('chat-screen');
-                        setupChatListener();
-                    }, 300);
                 });
+
+                // Match hazır olduqda
+                queueChannel.subscribe('match-made', (message) => {
+                    if (!isMatching || isMatched) return;
+                    
+                    const match = message.data;
+                    
+                    // Əgər bu match bizə aiddirsə
+                    if (match.user1.userId === userId || match.user2.userId === userId) {
+                        // Digər istifadəçini tap
+                        const partner = match.user1.userId === userId ? match.user2 : match.user1;
+                        
+                        // 10 saniyə block yoxla
+                        if (!canChatWith(partner.userId)) {
+                            return;
+                        }
+                        
+                        isMatched = true;
+                        isMatching = false;
+                        isInQueue = false;
+                        
+                        partnerId = partner.userId;
+                        partnerLanguage = partner.language || 'az';
+                        chatId = match.chatId;
+                        
+                        document.getElementById('partner-name').textContent = partner.userName;
+                        createLanguageIndicator(partnerLanguage);
+                        clearInterval(matchingTimeout);
+
+                        channel = ably.channels.get(chatId);
+                        channel.attach();
+
+                        setTimeout(() => {
+                            showScreen('chat-screen');
+                            setupChatListener();
+                        }, 300);
+                    }
+                });
+
             } catch (e) {
                 console.error("Matching xətası:", e);
                 addSystemMessageToUI(translations[currentLanguage].messageError);
+                isMatching = false;
+                isInQueue = false;
             }
         }
 
@@ -1389,6 +1429,14 @@
                 channel.detach();
             }
 
+            // Sıradan çıx
+            if (queueChannel && isInQueue) {
+                queueChannel.publish('leave-queue', {
+                    userId: userId
+                });
+                queueChannel.detach();
+            }
+
             if (partnerId) {
                 blockPartner(partnerId); // 10 saniye block et
             }
@@ -1398,6 +1446,8 @@
             partnerLanguage = null;
             renderedMessageIds.clear();
             isMatched = false;
+            isMatching = false;
+            isInQueue = false;
 
             if (backToStart) {
                 showScreen('start-screen');
@@ -1437,6 +1487,11 @@
         window.addEventListener('beforeunload', (e) => {
             if (userId && channel) {
                 channel.publish('disconnect', {
+                    userId: userId
+                });
+            }
+            if (queueChannel && isInQueue) {
+                queueChannel.publish('leave-queue', {
                     userId: userId
                 });
             }
