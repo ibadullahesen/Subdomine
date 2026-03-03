@@ -91,19 +91,17 @@
                 this.y = y;
                 this.z = Math.random() * 20;
                 
-                // Daha realistik, xaotik partlayış sürəti
                 const angle = Math.random() * Math.PI * 2;
                 const force = Math.random() * 7 + 2; 
                 this.vx = Math.cos(angle) * force;
-                this.vy = Math.sin(angle) * force - 2; // Başlanğıcda bir az yuxarı sıçrayış
+                this.vy = Math.sin(angle) * force - 2; 
                 this.vz = (Math.random() - 0.5) * 5;
 
-                this.friction = 0.97; // Sürətin itməsi daha yavaş (daha təbii)
-                this.gravity = 0.25;  // Qravitasiya daha güclü (metal qığılcımı kimi)
+                this.friction = 0.97; 
+                this.gravity = 0.25;  
                 this.life = 1.0;
-                this.decay = 0.01 + Math.random() * 0.015; // Ömür bir az daha uzun
+                this.decay = 0.01 + Math.random() * 0.015; 
                 
-                // Realistik atəş rəngləri: parlaq ağ-sarıdan tünd qırmızıya
                 this.hue = 15 + Math.random() * 25; 
             }
 
@@ -123,7 +121,6 @@
                 ctx.save();
                 ctx.globalAlpha = this.life;
                 
-                // Rəng həyatın sonuna doğru qırmızılaşır
                 const brightness = this.life > 0.5 ? 90 : 50;
                 const color = `hsl(${this.hue}, 100%, ${brightness}%)`;
                 
@@ -131,13 +128,11 @@
                 ctx.lineWidth = this.life * 3;
                 ctx.lineCap = "round";
                 
-                // Parıltı effekti (Glow)
                 ctx.shadowBlur = this.life * 12;
                 ctx.shadowColor = color;
 
                 ctx.beginPath();
                 ctx.moveTo(this.x, this.y);
-                // Quyruq hissəsi sürətə bağlıdır (Motion blur effekti)
                 ctx.lineTo(this.x - this.vx * 0.8, this.y - this.vy * 0.8);
                 ctx.stroke();
                 ctx.restore();
@@ -153,8 +148,6 @@
         function processStrokes() {
             for (let s = completedStrokes.length - 1; s >= 0; s--) {
                 const strokeObj = completedStrokes[s];
-                
-                // Yanma sürəti azaldıldı (daha yavaş fitil effekti)
                 const pointsToProcess = Math.min(strokeObj.points.length, 2); 
                 
                 for (let i = 0; i < pointsToProcess; i++) {
@@ -185,7 +178,6 @@
 
                 if (gestures.isDrawing) {
                     currentStroke.push(indexTip);
-                    // Közərən fitil (içərisi ağ, kənarı sarı)
                     drawStroke(mainCtx, currentStroke, "#fff6e0", "#ffaa00");
                     isDrawingLastFrame = true;
                     
@@ -215,7 +207,6 @@
             }
 
             processStrokes();
-            // Yanmaqda olan fitilin sönməkdə olan hissəsi
             completedStrokes.forEach(s => drawStroke(mainCtx, s.points, "rgba(255, 60, 0, 0.4)", "rgba(100, 20, 0, 0.3)"));
             
             particles = particles.filter(p => p.life > 0);
@@ -238,14 +229,32 @@
             ctx.restore();
         }
 
+        // Əlin görünüşünü tənzimləyən funksiya
         function drawHand(landmarks, isDrawing) {
-            const color = isDrawing ? "rgba(255, 68, 0, 0.8)" : "rgba(255, 255, 255, 0.4)";
+            // Əgər yazırsa (isDrawing), daha parlaq neon narıncı/qırmızı rəng istifadə edirik
+            const baseColor = isDrawing ? "rgba(255, 100, 0, 1)" : "rgba(255, 255, 255, 0.8)";
+            const glowColor = isDrawing ? "rgba(255, 50, 0, 0.8)" : "rgba(200, 200, 255, 0.4)";
+            
             uiCtx.save();
-            drawConnectors(uiCtx, landmarks, HAND_CONNECTIONS, {color: color, lineWidth: 1});
+            
+            // Neon effekti (Glow)
+            uiCtx.shadowBlur = 15;
+            uiCtx.shadowColor = glowColor;
+            
+            // Barmaqları birləşdirən xətlər
+            drawConnectors(uiCtx, landmarks, HAND_CONNECTIONS, {color: baseColor, lineWidth: 2.5});
+            
+            // Barmaq ucları və oynaqlar
             for (const landmark of landmarks) {
                 uiCtx.beginPath();
-                uiCtx.arc(landmark.x * uiCanvas.width, landmark.y * uiCanvas.height, 1, 0, 2 * Math.PI);
-                uiCtx.fillStyle = color;
+                uiCtx.arc(landmark.x * uiCanvas.width, landmark.y * uiCanvas.height, 4, 0, 2 * Math.PI);
+                uiCtx.fillStyle = baseColor;
+                uiCtx.fill();
+                
+                // Mərkəzdə kiçik ağ nöqtə (parlaqlıq üçün)
+                uiCtx.beginPath();
+                uiCtx.arc(landmark.x * uiCanvas.width, landmark.y * uiCanvas.height, 1.5, 0, 2 * Math.PI);
+                uiCtx.fillStyle = "#fff";
                 uiCtx.fill();
             }
             uiCtx.restore();
