@@ -828,7 +828,8 @@
                 closing: 'Söhbət bağlanır...',
                 whatsappTooltip: 'Dəstək üçün yazın',
                 partnerLeft: '❌ Tərəfdaş söhbəti bağladı',
-                messageError: '⚠️ Mesaj göndərilə bilmədi'
+                messageError: '⚠️ Mesaj göndərilə bilmədi',
+                alreadyMatched: '❌ Zaten bir söhbətiniz var. Əvvəl onu bitirin.'
             },
             tr: {
                 language: 'TR',
@@ -870,7 +871,8 @@
                 closing: 'Sohbet kapatılıyor...',
                 whatsappTooltip: 'Destek için yazın',
                 partnerLeft: '❌ Partner sohbeti kapattı',
-                messageError: '⚠️ Mesaj gönderilemedi'
+                messageError: '⚠️ Mesaj gönderilemedi',
+                alreadyMatched: '❌ Zaten bir sohbetiniz var. Önce onu bitirin.'
             }
         };
 
@@ -1031,7 +1033,7 @@
         const ablyApiKey = "bAIUwA.MY6Tlg:Fhf5Dfowu3VfhiRTpJapq0-JF3VgI7RWiC-Eo7Qbvp0";
         let ably, channel, matchingChannel;
         
-        // USER IDENTIFIER - localStorage ilə saxlayırıq
+        // USER IDENTIFIER
         let userId = null;
         let userName = null;
         let userLanguage = null;
@@ -1044,12 +1046,13 @@
         let renderedMessageIds = new Set();
         let isMatched = false;
         let blockedUsers = new Map();
-        let lastPartners = new Map(); // Son 10 partneri saat cinsindən saxlayırıq
+        let activeMatchingSessions = new Map(); // Her kullanıcının kaç matching oturumu var
 
         const MATCHING_SECONDS = 20;
-        const BLOCK_DURATION = 10000; // 10 saniye
+        const BLOCK_DURATION = 10000;
         const USER_STORAGE_KEY = 'axtarget_user_id';
         const PARTNERS_STORAGE_KEY = 'axtarget_partners';
+        const SESSION_STORAGE_KEY = 'axtarget_session_id';
 
         function generateUserID() {
             return 'user-' + Math.random().toString(36).substr(2, 9) + '-' + Date.now();
@@ -1064,13 +1067,22 @@
             return stored;
         }
 
+        function getSessionID() {
+            let sessionId = sessionStorage.getItem(SESSION_STORAGE_KEY);
+            if (!sessionId) {
+                sessionId = 'session-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
+                sessionStorage.setItem(SESSION_STORAGE_KEY, sessionId);
+            }
+            return sessionId;
+        }
+
         function canChatWith(partnerId) {
             const partners = JSON.parse(localStorage.getItem(PARTNERS_STORAGE_KEY) || '{}');
             if (partners[partnerId]) {
                 const blockTime = partners[partnerId];
                 const now = Date.now();
                 if (now - blockTime < BLOCK_DURATION) {
-                    return false; // Hələ 10 saniyelik timeout davam edir
+                    return false;
                 }
             }
             return true;
@@ -1207,6 +1219,12 @@
                 return;
             }
 
+            // Aynı cihazdan başka bir matching oturumu yoksa başla
+            if (isMatched) {
+                addSystemMessageToUI(translations[currentLanguage].alreadyMatched);
+                return;
+            }
+
             const inputName = document.getElementById('user-name-input').value.trim();
             userName = inputName || (currentLanguage === 'az' ? `İstifadəçi-${userId.substring(0, 6)}` : `Kullanıcı-${userId.substring(0, 6)}`);
             userLanguage = currentLanguage;
@@ -1246,8 +1264,12 @@
                     if (message.data.userId !== userId && !isMatched) {
                         const incomingUserId = message.data.userId;
                         
-                        // 10 saniye timeout kontrol et
                         if (!canChatWith(incomingUserId)) {
+                            return;
+                        }
+                        
+                        // Gelen request sahibinin zaten eşleşmiş olup olmadığını kontrol et
+                        if (message.data.isMatched) {
                             return;
                         }
                         
@@ -1266,7 +1288,8 @@
                             language: currentLanguage,
                             partnerId: partnerId,
                             chatId: chatId,
-                            timestamp: Date.now()
+                            timestamp: Date.now(),
+                            isMatched: true
                         });
 
                         channel = ably.channels.get(chatId);
@@ -1284,14 +1307,14 @@
                     userId: userId,
                     userName: userName,
                     language: currentLanguage,
-                    timestamp: Date.now()
+                    timestamp: Date.now(),
+                    isMatched: false
                 });
 
                 matchingChannel.subscribe('match-response', (message) => {
                     if (message.data.partnerId === userId && !isMatched) {
                         const incomingUserId = message.data.userId;
                         
-                        // 10 saniye timeout kontrol et
                         if (!canChatWith(incomingUserId)) {
                             return;
                         }
@@ -1375,7 +1398,7 @@
             }
 
             if (partnerId) {
-                blockPartner(partnerId); // 10 saniye block et
+                blockPartner(partnerId);
             }
 
             chatId = null;
