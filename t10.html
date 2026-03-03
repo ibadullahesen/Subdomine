@@ -1046,13 +1046,13 @@
         let renderedMessageIds = new Set();
         let isMatched = false;
         let blockedUsers = new Map();
-        let activeMatchingSessions = new Map(); // Her kullanıcının kaç matching oturumu var
+        let sessionId = null; // Bu browserin unique session ID'si
+        let matchRequestTimestamp = null; // İlk request zamanı
 
         const MATCHING_SECONDS = 20;
         const BLOCK_DURATION = 10000;
         const USER_STORAGE_KEY = 'axtarget_user_id';
         const PARTNERS_STORAGE_KEY = 'axtarget_partners';
-        const SESSION_STORAGE_KEY = 'axtarget_session_id';
 
         function generateUserID() {
             return 'user-' + Math.random().toString(36).substr(2, 9) + '-' + Date.now();
@@ -1067,11 +1067,9 @@
             return stored;
         }
 
-        function getSessionID() {
-            let sessionId = sessionStorage.getItem(SESSION_STORAGE_KEY);
+        function initSessionID() {
             if (!sessionId) {
                 sessionId = 'session-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
-                sessionStorage.setItem(SESSION_STORAGE_KEY, sessionId);
             }
             return sessionId;
         }
@@ -1219,16 +1217,11 @@
                 return;
             }
 
-            // Aynı cihazdan başka bir matching oturumu yoksa başla
-            if (isMatched) {
-                addSystemMessageToUI(translations[currentLanguage].alreadyMatched);
-                return;
-            }
-
             const inputName = document.getElementById('user-name-input').value.trim();
             userName = inputName || (currentLanguage === 'az' ? `İstifadəçi-${userId.substring(0, 6)}` : `Kullanıcı-${userId.substring(0, 6)}`);
             userLanguage = currentLanguage;
             
+            initSessionID();
             showScreen('matching-screen');
             document.getElementById('retry-container').classList.add('hidden');
             document.getElementById('matching-text').textContent = translations[currentLanguage].matchingText;
@@ -1260,23 +1253,27 @@
             }, 1000);
 
             try {
+                // Gelen match-request'leri dinle
                 matchingChannel.subscribe('match-request', (message) => {
                     if (message.data.userId !== userId && !isMatched) {
                         const incomingUserId = message.data.userId;
+                        const incomingSessionId = message.data.sessionId;
+                        const incomingTimestamp = message.data.timestamp;
                         
                         if (!canChatWith(incomingUserId)) {
                             return;
                         }
                         
-                        // Gelen request sahibinin zaten eşleşmiş olup olmadığını kontrol et
-                        if (message.data.isMatched) {
+                        // İlk kim request atsaydı onunla match ol
+                        // Eğer ben daha önce request attıysam bunu reddet
+                        if (matchRequestTimestamp && incomingTimestamp > matchRequestTimestamp) {
                             return;
                         }
                         
                         isMatched = true;
                         partnerId = incomingUserId;
                         partnerLanguage = message.data.language || 'az';
-                        chatId = 'chat-' + userId + '-' + partnerId;
+                        chatId = 'chat-' + incomingUserId + '-' + userId; // Alfabetik sıraya göre düzenle
                         
                         document.getElementById('partner-name').textContent = message.data.userName;
                         createLanguageIndicator(partnerLanguage);
@@ -1284,12 +1281,12 @@
 
                         matchingChannel.publish('match-response', {
                             userId: userId,
+                            sessionId: sessionId,
                             userName: userName,
                             language: currentLanguage,
                             partnerId: partnerId,
                             chatId: chatId,
-                            timestamp: Date.now(),
-                            isMatched: true
+                            timestamp: Date.now()
                         });
 
                         channel = ably.channels.get(chatId);
@@ -1303,14 +1300,17 @@
                     }
                 });
 
+                // İlk request gönder
+                matchRequestTimestamp = Date.now();
                 matchingChannel.publish('match-request', {
                     userId: userId,
+                    sessionId: sessionId,
                     userName: userName,
                     language: currentLanguage,
-                    timestamp: Date.now(),
-                    isMatched: false
+                    timestamp: matchRequestTimestamp
                 });
 
+                // Gelen match-response'ları dinle
                 matchingChannel.subscribe('match-response', (message) => {
                     if (message.data.partnerId === userId && !isMatched) {
                         const incomingUserId = message.data.userId;
@@ -1397,6 +1397,11 @@
                 channel.detach();
             }
 
+            isMatched = false;
+            partnerId = null;
+            chatId = null;
+            matchRequestTimestamp = null;
+            
             if (partnerId) {
                 blockPartner(partnerId);
             }
