@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="az">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Zərrəcik AR: Çubuq, Kub və Kürə Keçidləri</title>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #000; }
+        #video-canvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            object-fit: cover;
+            transform: scaleX(-1);
+            z-index: 1;
+        }
+        #three-canvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: 2;
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+
+    <video id="input_video" style="display:none"></video>
+    <canvas id="video-canvas"></canvas>
+    <canvas id="three-canvas"></canvas>
+
+    <script>
+        const videoElement = document.getElementById('input_video');
+        const videoCanvas = document.getElementById('video-canvas');
+        const videoCtx = videoCanvas.getContext('2d');
+
+        // --- THREE.JS QURULUMU ---
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        
+        const renderer = new THREE.WebGLRenderer({ 
+            canvas: document.getElementById('three-canvas'), 
+            alpha: true, 
+            antialias: true 
+        });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
+
+        // --- PROFESSIONAL ZƏRRƏCİKLƏR SİSTEMİ ---
+        const particleCount = 15000; 
+        const positions = new Float32Array(particleCount * 3);
+        const targetPositions = new Float32Array(particleCount * 3);
+        const explodePositions = new Float32Array(particleCount * 3);
+
+        for (let i = 0; i < particleCount; i++) {
+            const r = 20 + Math.random() * 10;
+            const theta = Math.random() * Math.PI * 2;
+            const phi = Math.acos((Math.random() * 2) - 1);
+            
+            explodePositions[i * 3] = r * Math.sin(phi) * Math.cos(theta);
+            explodePositions[i * 3 + 1] = r * Math.sin(phi) * Math.sin(theta);
+            explodePositions[i * 3 + 2] = r * Math.cos(phi);
+
+            positions[i * 3] = explodePositions[i * 3];
+            positions[i * 3 + 1] = explodePositions[i * 3 + 1];
+            positions[i * 3 + 2] = explodePositions[i * 3 + 2];
+        }
+
+        const particleGeometry = new THREE.BufferGeometry();
+        particleGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+
+        const particleMaterial = new THREE.PointsMaterial({
+            color: 0x00f2ff,
+            size: 0.05, 
+            transparent: true,
+            opacity: 0.9,
+            blending: THREE.AdditiveBlending,
+            depthWrite: false
+        });
+
+        const particleSystem = new THREE.Points(particleGeometry, particleMaterial);
+        scene.add(particleSystem);
+
+        camera.position.z = 8;
+
+        let mode = "hidden"; // hidden, line, cube, sphere, explode
+        let rotationY = 0;
+        let rotationX = 0;
+
+        // --- MEDIAPIPE HANDS ---
+        const hands = new Hands({
+            locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+        });
+
+        hands.setOptions({
+            maxNumHands: 2,
+            modelComplexity: 1,
+            minDetectionConfidence: 0.75,
+            minTrackingConfidence: 0.75
+        });
+
+        function getDistance(p1, p2) {
+            return Math.sqrt(Math.pow(p1.x - p2.x, 2) + Math.pow(p1.y - p2.y, 2));
+        }
+
+        function updateTargetPositions() {
+            for (let i = 0; i < particleCount; i++) {
+                let tx, ty, tz;
+
+                if (mode === "hidden" || mode === "explode") {
+                    tx = explodePositions[i * 3];
+                    ty = explodePositions[i * 3 + 1];
+                    tz = explodePositions[i * 3 + 2];
+                } else if (mode === "line") {
+                    tx = (Math.random() - 0.5) * 6;
+                    ty = (Math.random() - 0.5) * 0.04;
+                    tz = (Math.random() - 0.5) * 0.04;
+                } else if (mode === "cube") {
+                    // REAL BÖYÜK KUB
+                    tx = (Math.random() - 0.5) * 4.5;
+                    ty = (Math.random() - 0.5) * 4.5;
+                    tz = (Math.random() - 0.5) * 4.5;
+                } else if (mode === "sphere") {
+                    // KÜRƏ FORMASI
+                    const r = 4.0;
+                    const theta = Math.random() * Math.PI * 2;
+                    const phi = Math.acos((Math.random() * 2) - 1);
+                    tx = r * Math.sin(phi) * Math.cos(theta);
+                    ty = r * Math.sin(phi) * Math.sin(theta);
+                    tz = r * Math.cos(phi);
+                }
+
+                targetPositions[i * 3] = tx;
+                targetPositions[i * 3 + 1] = ty;
+                targetPositions[i * 3 + 2] = tz;
+            }
+        }
+
+        function onResults(results) {
+            videoCanvas.width = window.innerWidth;
+            videoCanvas.height = window.innerHeight;
+            videoCtx.save();
+            videoCtx.drawImage(results.image, 0, 0, videoCanvas.width, videoCanvas.height);
+            videoCtx.restore();
+
+            let rightOpen = false;
+            let leftOpen = false;
+            let rightVisible = false;
+            let leftVisible = false;
+            
+            // "Tam açmaq" üçün daha böyük məsafə tələb edirik
+            const pinchThreshold = 0.12; 
+            const fullOpenThreshold = 0.25;
+
+            if (results.multiHandLandmarks && results.multiHandedness) {
+                for (let i = 0; i < results.multiHandLandmarks.length; i++) {
+                    const landmarks = results.multiHandLandmarks[i];
+                    const label = results.multiHandedness[i].label;
+
+                    const thumbTip = landmarks[4];
+                    const indexTip = landmarks[8];
+                    const dist = getDistance(thumbTip, indexTip);
+                    
+                    const isFullyOpen = dist > fullOpenThreshold;
+                    const isPinching = dist > pinchThreshold;
+
+                    if (label === "Left") { // Sağ əl
+                        rightVisible = true;
+                        rightOpen = isPinching;
+                        rightFull = isFullyOpen;
+                        rotationY = ((1 - landmarks[0].x) - 0.5) * 10;
+                        rotationX = (landmarks[0].y - 0.5) * 10;
+                    } else { // Sol əl
+                        leftVisible = true;
+                        leftOpen = isPinching;
+                        leftFull = isFullyOpen;
+                    }
+                }
+            }
+
+            let lastMode = mode;
+            
+            // YENİ MƏNTİQ:
+            if (rightVisible && leftVisible) {
+                // Hər iki əl TAM geniş açılıbsa -> Kürə
+                if (window.rightFull && window.leftFull) {
+                    mode = "sphere";
+                } 
+                // Hər iki əl normal böyütmə vəziyyətindədirsə -> Kub
+                else if (rightOpen && leftOpen) {
+                    mode = "cube";
+                }
+                else {
+                    mode = "explode";
+                }
+            } else if (rightVisible) {
+                if (rightOpen) mode = "line";
+                else mode = "explode";
+            } else {
+                mode = "hidden";
+            }
+
+            if (lastMode !== mode) {
+                updateTargetPositions();
+            }
+        }
+
+        hands.onResults(onResults);
+
+        const cameraFeed = new Camera(videoElement, {
+            onFrame: async () => {
+                await hands.send({image: videoElement});
+            },
+            width: 1280,
+            height: 720
+        });
+        cameraFeed.start();
+
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            const posArray = particleSystem.geometry.attributes.position.array;
+            const lerpSpeed = (mode === "explode") ? 0.15 : 0.06;
+
+            for (let i = 0; i < particleCount * 3; i++) {
+                posArray[i] += (targetPositions[i] - posArray[i]) * lerpSpeed;
+            }
+            particleSystem.geometry.attributes.position.needsUpdate = true;
+
+            if (mode !== "hidden" && mode !== "explode") {
+                particleSystem.rotation.y += (rotationY - particleSystem.rotation.y) * 0.2;
+                particleSystem.rotation.x += (rotationX - particleSystem.rotation.x) * 0.2;
+                particleSystem.rotation.z += 0.005; 
+                particleMaterial.color.setHex(0x00f2ff);
+            } else if (mode === "explode") {
+                particleSystem.rotation.z += 0.05;
+                particleMaterial.color.setHex(0xffaa00);
+            }
+
+            renderer.render(scene, camera);
+        }
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        window.onload = () => {
+            updateTargetPositions();
+            animate();
+        };
+    </script>
+</body>
+</html>
