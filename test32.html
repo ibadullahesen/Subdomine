@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Zərrəcik AR: Çubuq, Kub və Kürə Keçidləri</title>
+    <title>Zərrəcik AR: Canlı və Real Dünya</title>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -15,8 +15,6 @@
             left: 0;
             width: 100vw;
             height: 100vh;
-            object-fit: cover;
-            transform: scaleX(-1);
             z-index: 1;
         }
         #three-canvas {
@@ -41,10 +39,24 @@
         const videoCanvas = document.getElementById('video-canvas');
         const videoCtx = videoCanvas.getContext('2d');
 
+        // --- YÜKSƏK KEYFİYYƏTLİ DÜNYA DATA ANALİZİ ---
+        const mapCanvas = document.createElement('canvas');
+        const mapCtx = mapCanvas.getContext('2d');
+        const mapImg = new Image();
+        mapImg.crossOrigin = "anonymous";
+        mapImg.src = "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c3/Blue_Marble_2002.png/1024px-Blue_Marble_2002.png";
+        
+        let mapData = null;
+        mapImg.onload = () => {
+            mapCanvas.width = 1024;
+            mapCanvas.height = 512;
+            mapCtx.drawImage(mapImg, 0, 0, 1024, 512);
+            mapData = mapCtx.getImageData(0, 0, 1024, 512).data;
+        };
+
         // --- THREE.JS QURULUMU ---
         const scene = new THREE.Scene();
         const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-        
         const renderer = new THREE.WebGLRenderer({ 
             canvas: document.getElementById('three-canvas'), 
             alpha: true, 
@@ -53,34 +65,41 @@
         renderer.setSize(window.innerWidth, window.innerHeight);
         renderer.setPixelRatio(window.devicePixelRatio);
 
-        // --- PROFESSIONAL ZƏRRƏCİKLƏR SİSTEMİ ---
-        const particleCount = 15000; 
+        const particleCount = 40000; 
         const positions = new Float32Array(particleCount * 3);
         const targetPositions = new Float32Array(particleCount * 3);
-        const explodePositions = new Float32Array(particleCount * 3);
+        const randomSource = new Float32Array(particleCount * 3);
+        const colors = new Float32Array(particleCount * 3);
+
+        const colorCyan = new THREE.Color(0x00f2ff);
 
         for (let i = 0; i < particleCount; i++) {
-            const r = 20 + Math.random() * 10;
+            const r = 35 + Math.random() * 20;
             const theta = Math.random() * Math.PI * 2;
             const phi = Math.acos((Math.random() * 2) - 1);
             
-            explodePositions[i * 3] = r * Math.sin(phi) * Math.cos(theta);
-            explodePositions[i * 3 + 1] = r * Math.sin(phi) * Math.sin(theta);
-            explodePositions[i * 3 + 2] = r * Math.cos(phi);
+            randomSource[i * 3] = r * Math.sin(phi) * Math.cos(theta);
+            randomSource[i * 3 + 1] = r * Math.sin(phi) * Math.sin(theta);
+            randomSource[i * 3 + 2] = r * Math.cos(phi);
 
-            positions[i * 3] = explodePositions[i * 3];
-            positions[i * 3 + 1] = explodePositions[i * 3 + 1];
-            positions[i * 3 + 2] = explodePositions[i * 3 + 2];
+            positions[i * 3] = randomSource[i * 3];
+            positions[i * 3 + 1] = randomSource[i * 3 + 1];
+            positions[i * 3 + 2] = randomSource[i * 3 + 2];
+
+            colors[i * 3] = colorCyan.r;
+            colors[i * 3 + 1] = colorCyan.g;
+            colors[i * 3 + 2] = colorCyan.b;
         }
 
         const particleGeometry = new THREE.BufferGeometry();
         particleGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+        particleGeometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
 
         const particleMaterial = new THREE.PointsMaterial({
-            color: 0x00f2ff,
-            size: 0.05, 
+            size: 0.03, 
+            vertexColors: true,
             transparent: true,
-            opacity: 0.9,
+            opacity: 1.0,
             blending: THREE.AdditiveBlending,
             depthWrite: false
         });
@@ -88,175 +107,167 @@
         const particleSystem = new THREE.Points(particleGeometry, particleMaterial);
         scene.add(particleSystem);
 
-        camera.position.z = 8;
+        camera.position.z = 9;
 
-        let mode = "hidden"; // hidden, line, cube, sphere, explode
+        let mode = "hidden";
         let rotationY = 0;
         let rotationX = 0;
 
-        // --- MEDIAPIPE HANDS ---
-        const hands = new Hands({
-            locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
-        });
+        function getRealWorldCoords(i) {
+            const phi = Math.acos(-1 + (2 * i) / particleCount);
+            const theta = Math.sqrt(particleCount * Math.PI) * phi;
+            const u = ((theta % (Math.PI * 2)) / (Math.PI * 2));
+            const v = (phi / Math.PI);
+            const x_map = Math.floor(u * 1023);
+            const y_map = Math.floor(v * 511);
+            
+            let r = 4.2;
+            let targetColor = new THREE.Color();
 
-        hands.setOptions({
-            maxNumHands: 2,
-            modelComplexity: 1,
-            minDetectionConfidence: 0.75,
-            minTrackingConfidence: 0.75
-        });
-
-        function getDistance(p1, p2) {
-            return Math.sqrt(Math.pow(p1.x - p2.x, 2) + Math.pow(p1.y - p2.y, 2));
+            if (mapData) {
+                const idx = (y_map * 1024 + x_map) * 4;
+                const g_val = mapData[idx + 1];
+                const b_val = mapData[idx + 2];
+                const isLand = g_val > b_val - 10 && g_val > 45;
+                if (isLand) {
+                    r = 4.4;
+                    targetColor.setRGB(0.1, 0.9, 0.2); 
+                } else {
+                    r = 4.2;
+                    targetColor.setRGB(0.0, 0.3, 1.0);
+                }
+            }
+            return {
+                x: r * Math.sin(phi) * Math.cos(theta),
+                y: r * Math.cos(phi),
+                z: r * Math.sin(phi) * Math.sin(theta),
+                color: targetColor
+            };
         }
 
         function updateTargetPositions() {
+            const colorAttr = particleSystem.geometry.attributes.color;
             for (let i = 0; i < particleCount; i++) {
                 let tx, ty, tz;
+                let targetColor = colorCyan;
 
-                if (mode === "hidden" || mode === "explode") {
-                    tx = explodePositions[i * 3];
-                    ty = explodePositions[i * 3 + 1];
-                    tz = explodePositions[i * 3 + 2];
+                if (mode === "hidden") {
+                    tx = randomSource[i * 3]; ty = randomSource[i * 3 + 1]; tz = randomSource[i * 3 + 2];
                 } else if (mode === "line") {
-                    tx = (Math.random() - 0.5) * 6;
-                    ty = (Math.random() - 0.5) * 0.04;
-                    tz = (Math.random() - 0.5) * 0.04;
+                    tx = (Math.random() - 0.5) * 8; ty = (Math.random() - 0.5) * 0.05; tz = (Math.random() - 0.5) * 0.05;
                 } else if (mode === "cube") {
-                    // REAL BÖYÜK KUB
-                    tx = (Math.random() - 0.5) * 4.5;
-                    ty = (Math.random() - 0.5) * 4.5;
-                    tz = (Math.random() - 0.5) * 4.5;
+                    tx = (Math.random() - 0.5) * 5.0; ty = (Math.random() - 0.5) * 5.0; tz = (Math.random() - 0.5) * 5.0;
                 } else if (mode === "sphere") {
-                    // KÜRƏ FORMASI
-                    const r = 4.0;
-                    const theta = Math.random() * Math.PI * 2;
-                    const phi = Math.acos((Math.random() * 2) - 1);
-                    tx = r * Math.sin(phi) * Math.cos(theta);
-                    ty = r * Math.sin(phi) * Math.sin(theta);
-                    tz = r * Math.cos(phi);
+                    const radius = 4.0;
+                    const p = Math.acos(-1 + (2 * i) / particleCount);
+                    const t = Math.sqrt(particleCount * Math.PI) * p;
+                    tx = radius * Math.sin(p) * Math.cos(t); ty = radius * Math.cos(p); tz = radius * Math.sin(p) * Math.sin(t);
+                } else if (mode === "earth") {
+                    const coords = getRealWorldCoords(i);
+                    tx = coords.x; ty = coords.y; tz = coords.z;
+                    targetColor = coords.color;
                 }
 
                 targetPositions[i * 3] = tx;
                 targetPositions[i * 3 + 1] = ty;
                 targetPositions[i * 3 + 2] = tz;
+
+                colorAttr.array[i * 3] = targetColor.r;
+                colorAttr.array[i * 3 + 1] = targetColor.g;
+                colorAttr.array[i * 3 + 2] = targetColor.b;
             }
+            colorAttr.needsUpdate = true;
         }
+
+        const hands = new Hands({ locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}` });
+        hands.setOptions({ maxNumHands: 2, modelComplexity: 1, minDetectionConfidence: 0.75, minTrackingConfidence: 0.75 });
 
         function onResults(results) {
             videoCanvas.width = window.innerWidth;
             videoCanvas.height = window.innerHeight;
+            
             videoCtx.save();
-            videoCtx.drawImage(results.image, 0, 0, videoCanvas.width, videoCanvas.height);
+            videoCtx.scale(-1, 1);
+            videoCtx.translate(-videoCanvas.width, 0);
+            
+            // Kamera görüntüsünü mərkəzləşdirib düzgün miqyasda çəkmək (Object-fit: cover məntiqi)
+            const videoRatio = results.image.width / results.image.height;
+            const canvasRatio = videoCanvas.width / videoCanvas.height;
+            let drawWidth, drawHeight, offsetX, offsetY;
+
+            if (videoRatio > canvasRatio) {
+                drawHeight = videoCanvas.height;
+                drawWidth = videoCanvas.height * videoRatio;
+                offsetX = (videoCanvas.width - drawWidth) / 2;
+                offsetY = 0;
+            } else {
+                drawWidth = videoCanvas.width;
+                drawHeight = videoCanvas.width / videoRatio;
+                offsetX = 0;
+                offsetY = (videoCanvas.height - drawHeight) / 2;
+            }
+
+            videoCtx.drawImage(results.image, offsetX, offsetY, drawWidth, drawHeight);
             videoCtx.restore();
 
-            let rightOpen = false;
-            let leftOpen = false;
-            let rightVisible = false;
-            let leftVisible = false;
-            
-            // "Tam açmaq" üçün daha böyük məsafə tələb edirik
-            const pinchThreshold = 0.12; 
-            const fullOpenThreshold = 0.25;
+            let rOpen = false, lOpen = false, rVis = false, lVis = false;
+            const pThr = 0.12, fThr = 0.28;
 
-            if (results.multiHandLandmarks && results.multiHandedness) {
-                for (let i = 0; i < results.multiHandLandmarks.length; i++) {
-                    const landmarks = results.multiHandLandmarks[i];
-                    const label = results.multiHandedness[i].label;
-
-                    const thumbTip = landmarks[4];
-                    const indexTip = landmarks[8];
-                    const dist = getDistance(thumbTip, indexTip);
-                    
-                    const isFullyOpen = dist > fullOpenThreshold;
-                    const isPinching = dist > pinchThreshold;
-
-                    if (label === "Left") { // Sağ əl
-                        rightVisible = true;
-                        rightOpen = isPinching;
-                        rightFull = isFullyOpen;
+            if (results.multiHandLandmarks) {
+                results.multiHandLandmarks.forEach((landmarks, idx) => {
+                    const label = results.multiHandedness[idx].label;
+                    const d = Math.sqrt(Math.pow(landmarks[4].x - landmarks[8].x, 2) + Math.pow(landmarks[4].y - landmarks[8].y, 2));
+                    if (label === "Left") { 
+                        rVis = true; rOpen = d > pThr; window.rFull = d > fThr;
                         rotationY = ((1 - landmarks[0].x) - 0.5) * 10;
                         rotationX = (landmarks[0].y - 0.5) * 10;
-                    } else { // Sol əl
-                        leftVisible = true;
-                        leftOpen = isPinching;
-                        leftFull = isFullyOpen;
+                    } else { 
+                        lVis = true; lOpen = d > pThr; window.lFull = d > fThr;
                     }
-                }
+                });
             }
 
             let lastMode = mode;
-            
-            // YENİ MƏNTİQ:
-            if (rightVisible && leftVisible) {
-                // Hər iki əl TAM geniş açılıbsa -> Kürə
-                if (window.rightFull && window.leftFull) {
-                    mode = "sphere";
-                } 
-                // Hər iki əl normal böyütmə vəziyyətindədirsə -> Kub
-                else if (rightOpen && leftOpen) {
-                    mode = "cube";
-                }
-                else {
-                    mode = "explode";
-                }
-            } else if (rightVisible) {
-                if (rightOpen) mode = "line";
-                else mode = "explode";
-            } else {
-                mode = "hidden";
-            }
+            if (rVis && lVis) {
+                if (window.rFull && window.lFull) mode = "sphere";
+                else if (rOpen && lOpen) mode = "cube";
+                else mode = "earth";
+            } else if (rVis) {
+                mode = rOpen ? "line" : "earth";
+            } else mode = "hidden";
 
-            if (lastMode !== mode) {
-                updateTargetPositions();
-            }
+            if (lastMode !== mode) updateTargetPositions();
         }
 
         hands.onResults(onResults);
-
-        const cameraFeed = new Camera(videoElement, {
-            onFrame: async () => {
-                await hands.send({image: videoElement});
-            },
-            width: 1280,
-            height: 720
-        });
+        const cameraFeed = new Camera(videoElement, { onFrame: async () => { await hands.send({image: videoElement}); }, width: 1280, height: 720 });
         cameraFeed.start();
 
         function animate() {
             requestAnimationFrame(animate);
-            
             const posArray = particleSystem.geometry.attributes.position.array;
-            const lerpSpeed = (mode === "explode") ? 0.15 : 0.06;
-
-            for (let i = 0; i < particleCount * 3; i++) {
-                posArray[i] += (targetPositions[i] - posArray[i]) * lerpSpeed;
-            }
+            const lerpSpeed = (mode === "earth") ? 0.05 : 0.08;
+            for (let i = 0; i < particleCount * 3; i++) posArray[i] += (targetPositions[i] - posArray[i]) * lerpSpeed;
             particleSystem.geometry.attributes.position.needsUpdate = true;
 
-            if (mode !== "hidden" && mode !== "explode") {
-                particleSystem.rotation.y += (rotationY - particleSystem.rotation.y) * 0.2;
-                particleSystem.rotation.x += (rotationX - particleSystem.rotation.x) * 0.2;
-                particleSystem.rotation.z += 0.005; 
-                particleMaterial.color.setHex(0x00f2ff);
-            } else if (mode === "explode") {
-                particleSystem.rotation.z += 0.05;
-                particleMaterial.color.setHex(0xffaa00);
+            if (mode !== "hidden") {
+                particleSystem.rotation.y += (rotationY - particleSystem.rotation.y) * 0.1;
+                particleSystem.rotation.x += (rotationX - particleSystem.rotation.x) * 0.1;
+                if(mode === "earth") {
+                    particleSystem.rotation.y += 0.003;
+                } else {
+                    particleSystem.rotation.z += 0.005;
+                }
             }
-
             renderer.render(scene, camera);
         }
 
         window.addEventListener('resize', () => {
-            camera.aspect = window.innerWidth / window.innerHeight;
-            camera.updateProjectionMatrix();
+            camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix();
             renderer.setSize(window.innerWidth, window.innerHeight);
         });
 
-        window.onload = () => {
-            updateTargetPositions();
-            animate();
-        };
+        window.onload = () => { updateTargetPositions(); animate(); };
     </script>
 </body>
 </html>
