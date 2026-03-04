@@ -3,271 +3,341 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Zərrəcik AR: Canlı və Real Dünya</title>
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <title>Quantum Galaxy Pro - High Visibility Skeleton</title>
     <style>
-        body { margin: 0; overflow: hidden; background-color: #000; }
-        #video-canvas {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100vw;
-            height: 100vh;
-            z-index: 1;
+        body { margin: 0; overflow: hidden; background: #000; }
+        canvas { display: block; }
+        
+        #loading-screen {
+            position: fixed; inset: 0; background: #000;
+            display: flex; justify-content: center; align-items: center;
+            z-index: 1000; transition: opacity 1.5s ease;
         }
-        #three-canvas {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100vw;
-            height: 100vh;
-            z-index: 2;
-            pointer-events: none;
+
+        .loader {
+            width: 40px; height: 40px; border: 2px solid rgba(0, 242, 255, 0.1);
+            border-top-color: #00f2ff; border-radius: 50%;
+            animation: spin 1s linear infinite;
         }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
+        #video-element { position: absolute; visibility: hidden; }
     </style>
 </head>
 <body>
 
-    <video id="input_video" style="display:none"></video>
-    <canvas id="video-canvas"></canvas>
-    <canvas id="three-canvas"></canvas>
+<div id="loading-screen">
+    <div class="loader"></div>
+</div>
 
-    <script>
-        const videoElement = document.getElementById('input_video');
-        const videoCanvas = document.getElementById('video-canvas');
-        const videoCtx = videoCanvas.getContext('2d');
+<video id="video-element" playsinline></video>
 
-        // --- YÜKSƏK KEYFİYYƏTLİ DÜNYA DATA ANALİZİ ---
-        const mapCanvas = document.createElement('canvas');
-        const mapCtx = mapCanvas.getContext('2d');
-        const mapImg = new Image();
-        mapImg.crossOrigin = "anonymous";
-        mapImg.src = "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c3/Blue_Marble_2002.png/1024px-Blue_Marble_2002.png";
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/0.160.0/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+
+<script>
+/**
+ * Professional Quantum Galaxy Engine v2.7
+ * Təkmilləşdirilmiş Skelet Görünüşü
+ */
+
+let scene, camera, renderer, starSystem;
+let hands, cameraPipe;
+let handGroup, joints = [], bones = [];
+const particleCount = 200000;
+let clock = new THREE.Clock();
+
+let targetRotationX = 0, targetRotationY = 0;
+let lerpRotationX = 0, lerpRotationY = 0;
+let zoomFactor = 1.0;
+let expansionFactor = 0;
+let disintegrationFactor = 0;
+
+const PALETTE = {
+    standard: new THREE.Color(0x2244ff),
+    fist: new THREE.Color(0xff4400),
+    disintegrate: new THREE.Color(0x00ffcc),
+    open: new THREE.Color(0x00f2ff),
+    joint: 0x00f2ff, // Neon Göy
+    bone: 0x00ffff   // Daha parlaq Siyan
+};
+
+async function init() {
+    scene = new THREE.Scene();
+    camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 15000);
+    camera.position.z = 1000;
+
+    renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(window.devicePixelRatio);
+    document.body.appendChild(renderer.domElement);
+
+    handGroup = new THREE.Group();
+    scene.add(handGroup);
+    createSkeletonObjects();
+
+    createGalaxy();
+    initMediaPipe();
+
+    window.addEventListener('resize', onWindowResize);
+    animate();
+
+    setTimeout(() => {
+        document.getElementById('loading-screen').style.opacity = '0';
+        setTimeout(() => document.getElementById('loading-screen').remove(), 1500);
+    }, 2000);
+}
+
+function createSkeletonObjects() {
+    // Oynaqlar - Ölçü 4-dən 7-yə artırıldı, parlaqlıq artırıldı
+    const jointGeo = new THREE.SphereGeometry(7, 12, 12);
+    const jointMat = new THREE.MeshBasicMaterial({ 
+        color: PALETTE.joint, 
+        transparent: true, 
+        opacity: 0.9,
+        depthTest: false 
+    });
+
+    for (let i = 0; i < 21; i++) {
+        const mesh = new THREE.Mesh(jointGeo, jointMat);
+        mesh.visible = false;
+        mesh.renderOrder = 999; // Həmişə ulduzların önündə görünsün
+        joints.push(mesh);
+        handGroup.add(mesh);
+    }
+
+    // Sümüklər - Rəng daha parlaq edildi və renderOrder artırıldı
+    const boneMat = new THREE.LineBasicMaterial({ 
+        color: PALETTE.bone, 
+        transparent: true, 
+        opacity: 0.7,
+        linewidth: 3, // Qeyd: Bəzi brauzerlərdə WebGL linewidth məhdudiyyəti ola bilər
+        depthTest: false
+    });
+
+    for(let i = 0; i < 21; i++) {
+        const lineGeo = new THREE.BufferGeometry();
+        lineGeo.setAttribute('position', new THREE.Float32BufferAttribute([0,0,0,0,0,0], 3));
+        const line = new THREE.Line(lineGeo, boneMat);
+        line.visible = false;
+        line.renderOrder = 998;
+        bones.push(line);
+        handGroup.add(line);
+    }
+}
+
+function createGalaxy() {
+    const geo = new THREE.BufferGeometry();
+    const pos = new Float32Array(particleCount * 3);
+    const origin = new Float32Array(particleCount * 3);
+    const colors = new Float32Array(particleCount * 3);
+    const sizes = new Float32Array(particleCount);
+
+    for (let i = 0; i < particleCount; i++) {
+        const i3 = i * 3;
+        const radius = Math.random() * Math.random() * 900;
+        const spin = radius * 0.012;
+        const angle = Math.random() * Math.PI * 2 + spin;
         
-        let mapData = null;
-        mapImg.onload = () => {
-            mapCanvas.width = 1024;
-            mapCanvas.height = 512;
-            mapCtx.drawImage(mapImg, 0, 0, 1024, 512);
-            mapData = mapCtx.getImageData(0, 0, 1024, 512).data;
-        };
+        origin[i3] = Math.cos(angle) * radius;
+        origin[i3 + 1] = (Math.random() - 0.5) * (radius * 0.25);
+        origin[i3 + 2] = Math.sin(angle) * radius;
 
-        // --- THREE.JS QURULUMU ---
-        const scene = new THREE.Scene();
-        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-        const renderer = new THREE.WebGLRenderer({ 
-            canvas: document.getElementById('three-canvas'), 
-            alpha: true, 
-            antialias: true 
-        });
-        renderer.setSize(window.innerWidth, window.innerHeight);
-        renderer.setPixelRatio(window.devicePixelRatio);
+        pos[i3] = origin[i3] * 3;
+        pos[i3 + 1] = origin[i3 + 1] * 3;
+        pos[i3 + 2] = origin[i3 + 2] * 3;
 
-        const particleCount = 40000; 
-        const positions = new Float32Array(particleCount * 3);
-        const targetPositions = new Float32Array(particleCount * 3);
-        const randomSource = new Float32Array(particleCount * 3);
-        const colors = new Float32Array(particleCount * 3);
+        const mix = radius / 900;
+        const c = PALETTE.standard.clone().lerp(new THREE.Color(0x000044), mix);
+        colors[i3] = c.r; colors[i3 + 1] = c.g; colors[i3 + 2] = c.b;
 
-        const colorCyan = new THREE.Color(0x00f2ff);
+        sizes[i] = Math.random() * 3.5 + 1.2;
+    }
 
-        for (let i = 0; i < particleCount; i++) {
-            const r = 35 + Math.random() * 20;
-            const theta = Math.random() * Math.PI * 2;
-            const phi = Math.acos((Math.random() * 2) - 1);
-            
-            randomSource[i * 3] = r * Math.sin(phi) * Math.cos(theta);
-            randomSource[i * 3 + 1] = r * Math.sin(phi) * Math.sin(theta);
-            randomSource[i * 3 + 2] = r * Math.cos(phi);
+    geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    geo.setAttribute('origin', new THREE.BufferAttribute(origin, 3));
+    geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+    geo.setAttribute('size', new THREE.BufferAttribute(sizes, 1));
 
-            positions[i * 3] = randomSource[i * 3];
-            positions[i * 3 + 1] = randomSource[i * 3 + 1];
-            positions[i * 3 + 2] = randomSource[i * 3 + 2];
+    const mat = new THREE.ShaderMaterial({
+        uniforms: {
+            time: { value: 0 },
+            uExp: { value: 0 },
+            uDis: { value: 0 },
+            uColorShift: { value: new THREE.Color(1, 1, 1) }
+        },
+        vertexShader: `
+            attribute vec3 origin;
+            attribute float size;
+            attribute vec3 color;
+            varying vec3 vColor;
+            uniform float time;
+            uniform float uExp;
+            uniform float uDis;
 
-            colors[i * 3] = colorCyan.r;
-            colors[i * 3 + 1] = colorCyan.g;
-            colors[i * 3 + 2] = colorCyan.b;
-        }
+            void main() {
+                vColor = color;
+                vec3 pos = origin;
+                pos += normalize(pos) * uExp * 250.0;
 
-        const particleGeometry = new THREE.BufferGeometry();
-        particleGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-        particleGeometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
-
-        const particleMaterial = new THREE.PointsMaterial({
-            size: 0.03, 
-            vertexColors: true,
-            transparent: true,
-            opacity: 1.0,
-            blending: THREE.AdditiveBlending,
-            depthWrite: false
-        });
-
-        const particleSystem = new THREE.Points(particleGeometry, particleMaterial);
-        scene.add(particleSystem);
-
-        camera.position.z = 9;
-
-        let mode = "hidden";
-        let rotationY = 0;
-        let rotationX = 0;
-
-        function getRealWorldCoords(i) {
-            const phi = Math.acos(-1 + (2 * i) / particleCount);
-            const theta = Math.sqrt(particleCount * Math.PI) * phi;
-            const u = ((theta % (Math.PI * 2)) / (Math.PI * 2));
-            const v = (phi / Math.PI);
-            const x_map = Math.floor(u * 1023);
-            const y_map = Math.floor(v * 511);
-            
-            let r = 4.2;
-            let targetColor = new THREE.Color();
-
-            if (mapData) {
-                const idx = (y_map * 1024 + x_map) * 4;
-                const g_val = mapData[idx + 1];
-                const b_val = mapData[idx + 2];
-                const isLand = g_val > b_val - 10 && g_val > 45;
-                if (isLand) {
-                    r = 4.4;
-                    targetColor.setRGB(0.1, 0.9, 0.2); 
-                } else {
-                    r = 4.2;
-                    targetColor.setRGB(0.0, 0.3, 1.0);
-                }
-            }
-            return {
-                x: r * Math.sin(phi) * Math.cos(theta),
-                y: r * Math.cos(phi),
-                z: r * Math.sin(phi) * Math.sin(theta),
-                color: targetColor
-            };
-        }
-
-        function updateTargetPositions() {
-            const colorAttr = particleSystem.geometry.attributes.color;
-            for (let i = 0; i < particleCount; i++) {
-                let tx, ty, tz;
-                let targetColor = colorCyan;
-
-                if (mode === "hidden") {
-                    tx = randomSource[i * 3]; ty = randomSource[i * 3 + 1]; tz = randomSource[i * 3 + 2];
-                } else if (mode === "line") {
-                    tx = (Math.random() - 0.5) * 8; ty = (Math.random() - 0.5) * 0.05; tz = (Math.random() - 0.5) * 0.05;
-                } else if (mode === "cube") {
-                    tx = (Math.random() - 0.5) * 5.0; ty = (Math.random() - 0.5) * 5.0; tz = (Math.random() - 0.5) * 5.0;
-                } else if (mode === "sphere") {
-                    const radius = 4.0;
-                    const p = Math.acos(-1 + (2 * i) / particleCount);
-                    const t = Math.sqrt(particleCount * Math.PI) * p;
-                    tx = radius * Math.sin(p) * Math.cos(t); ty = radius * Math.cos(p); tz = radius * Math.sin(p) * Math.sin(t);
-                } else if (mode === "earth") {
-                    const coords = getRealWorldCoords(i);
-                    tx = coords.x; ty = coords.y; tz = coords.z;
-                    targetColor = coords.color;
+                if(uDis > 0.01) {
+                    pos.x += sin(time * 8.0 + origin.y * 0.5) * uDis * 120.0;
+                    pos.y += cos(time * 9.0 + origin.z * 0.5) * uDis * 120.0;
+                    pos.z += sin(time * 7.0 + origin.x * 0.5) * uDis * 120.0;
                 }
 
-                targetPositions[i * 3] = tx;
-                targetPositions[i * 3 + 1] = ty;
-                targetPositions[i * 3 + 2] = tz;
-
-                colorAttr.array[i * 3] = targetColor.r;
-                colorAttr.array[i * 3 + 1] = targetColor.g;
-                colorAttr.array[i * 3 + 2] = targetColor.b;
+                vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
+                gl_PointSize = size * (1200.0 / -mvPosition.z) * (1.1 + abs(uExp) * 0.3);
+                gl_Position = projectionMatrix * mvPosition;
             }
-            colorAttr.needsUpdate = true;
+        `,
+        fragmentShader: `
+            varying vec3 vColor;
+            uniform vec3 uColorShift;
+            void main() {
+                float d = distance(gl_PointCoord, vec2(0.5));
+                if(d > 0.5) discard;
+                float alpha = pow(1.0 - d * 2.0, 1.5);
+                gl_FragColor = vec4(vColor * uColorShift * 1.5, alpha);
+            }
+        `,
+        transparent: true,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false
+    });
+
+    starSystem = new THREE.Points(geo, mat);
+    scene.add(starSystem);
+}
+
+function initMediaPipe() {
+    const video = document.getElementById('video-element');
+    hands = new Hands({ locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}` });
+    hands.setOptions({ maxNumHands: 1, modelComplexity: 1, minDetectionConfidence: 0.8, minTrackingConfidence: 0.8 });
+    hands.onResults(onHandResults);
+
+    cameraPipe = new Camera(video, {
+        onFrame: async () => { await hands.send({ image: video }); },
+        width: 640, height: 480
+    });
+    cameraPipe.start();
+}
+
+function onHandResults(results) {
+    if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+        const lm = results.multiHandLandmarks[0];
+        
+        updateSkeleton(lm);
+
+        // Sürətli rotasiya - Həssaslıq bir qədər də artırıldı (0.15 -> 0.18)
+        targetRotationY = (lm[0].x - 0.5) * 8.5; 
+        targetRotationX = (lm[0].y - 0.5) * 5.5;
+
+        const dist = (p1, p2) => Math.hypot(p1.x - p2.x, p1.y - p2.y);
+        const palm = lm[0];
+        const indexTip = lm[8], middleTip = lm[12], ringTip = lm[16], pinkyTip = lm[20];
+        const avgFingerDist = (dist(indexTip, palm) + dist(middleTip, palm) + dist(ringTip, palm) + dist(pinkyTip, palm)) / 4;
+
+        if (dist(indexTip, palm) > 0.25 && dist(middleTip, palm) > 0.25 && dist(ringTip, palm) < 0.2 && dist(pinkyTip, palm) < 0.2) {
+            disintegrationFactor = THREE.MathUtils.lerp(disintegrationFactor, 1.0, 0.1);
+            expansionFactor = THREE.MathUtils.lerp(expansionFactor, 0.4, 0.1);
+            zoomFactor = THREE.MathUtils.lerp(zoomFactor, 1.1, 0.05);
+            starSystem.material.uniforms.uColorShift.value.lerp(PALETTE.disintegrate, 0.1);
+        } 
+        else if (avgFingerDist < 0.17) {
+            expansionFactor = THREE.MathUtils.lerp(expansionFactor, -0.7, 0.1);
+            disintegrationFactor = THREE.MathUtils.lerp(disintegrationFactor, 0.0, 0.1);
+            zoomFactor = THREE.MathUtils.lerp(zoomFactor, 1.25, 0.05);
+            starSystem.material.uniforms.uColorShift.value.lerp(PALETTE.fist, 0.1);
+        } 
+        else if (avgFingerDist > 0.35) {
+            expansionFactor = THREE.MathUtils.lerp(expansionFactor, 1.3, 0.1);
+            disintegrationFactor = THREE.MathUtils.lerp(disintegrationFactor, 0.0, 0.1);
+            zoomFactor = THREE.MathUtils.lerp(zoomFactor, 0.65, 0.05);
+            starSystem.material.uniforms.uColorShift.value.lerp(PALETTE.open, 0.1);
         }
-
-        const hands = new Hands({ locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}` });
-        hands.setOptions({ maxNumHands: 2, modelComplexity: 1, minDetectionConfidence: 0.75, minTrackingConfidence: 0.75 });
-
-        function onResults(results) {
-            videoCanvas.width = window.innerWidth;
-            videoCanvas.height = window.innerHeight;
-            
-            videoCtx.save();
-            videoCtx.scale(-1, 1);
-            videoCtx.translate(-videoCanvas.width, 0);
-            
-            // Kamera görüntüsünü mərkəzləşdirib düzgün miqyasda çəkmək (Object-fit: cover məntiqi)
-            const videoRatio = results.image.width / results.image.height;
-            const canvasRatio = videoCanvas.width / videoCanvas.height;
-            let drawWidth, drawHeight, offsetX, offsetY;
-
-            if (videoRatio > canvasRatio) {
-                drawHeight = videoCanvas.height;
-                drawWidth = videoCanvas.height * videoRatio;
-                offsetX = (videoCanvas.width - drawWidth) / 2;
-                offsetY = 0;
-            } else {
-                drawWidth = videoCanvas.width;
-                drawHeight = videoCanvas.width / videoRatio;
-                offsetX = 0;
-                offsetY = (videoCanvas.height - drawHeight) / 2;
-            }
-
-            videoCtx.drawImage(results.image, offsetX, offsetY, drawWidth, drawHeight);
-            videoCtx.restore();
-
-            let rOpen = false, lOpen = false, rVis = false, lVis = false;
-            const pThr = 0.12, fThr = 0.28;
-
-            if (results.multiHandLandmarks) {
-                results.multiHandLandmarks.forEach((landmarks, idx) => {
-                    const label = results.multiHandedness[idx].label;
-                    const d = Math.sqrt(Math.pow(landmarks[4].x - landmarks[8].x, 2) + Math.pow(landmarks[4].y - landmarks[8].y, 2));
-                    if (label === "Left") { 
-                        rVis = true; rOpen = d > pThr; window.rFull = d > fThr;
-                        rotationY = ((1 - landmarks[0].x) - 0.5) * 10;
-                        rotationX = (landmarks[0].y - 0.5) * 10;
-                    } else { 
-                        lVis = true; lOpen = d > pThr; window.lFull = d > fThr;
-                    }
-                });
-            }
-
-            let lastMode = mode;
-            if (rVis && lVis) {
-                if (window.rFull && window.lFull) mode = "sphere";
-                else if (rOpen && lOpen) mode = "cube";
-                else mode = "earth";
-            } else if (rVis) {
-                mode = rOpen ? "line" : "earth";
-            } else mode = "hidden";
-
-            if (lastMode !== mode) updateTargetPositions();
+        else {
+            resetFactors();
         }
+    } else {
+        hideSkeleton();
+        resetFactors();
+        targetRotationY += 0.003;
+    }
+}
 
-        hands.onResults(onResults);
-        const cameraFeed = new Camera(videoElement, { onFrame: async () => { await hands.send({image: videoElement}); }, width: 1280, height: 720 });
-        cameraFeed.start();
+function updateSkeleton(landmarks) {
+    landmarks.forEach((pt, i) => {
+        // Koordinatları daha geniş məkana yayırıq ki, daha belirgin olsun
+        const x = (0.5 - pt.x) * 1200; 
+        const y = (0.5 - pt.y) * 1000;
+        const z = -pt.z * 1000; 
+        joints[i].position.set(x, y, z);
+        joints[i].visible = true;
+    });
 
-        function animate() {
-            requestAnimationFrame(animate);
-            const posArray = particleSystem.geometry.attributes.position.array;
-            const lerpSpeed = (mode === "earth") ? 0.05 : 0.08;
-            for (let i = 0; i < particleCount * 3; i++) posArray[i] += (targetPositions[i] - posArray[i]) * lerpSpeed;
-            particleSystem.geometry.attributes.position.needsUpdate = true;
+    const pairs = [
+        [0,1],[1,2],[2,3],[3,4],[0,5],[5,6],[6,7],[7,8],[5,9],[9,10],
+        [10,11],[11,12],[9,13],[13,14],[14,15],[15,16],[13,17],[17,18],[18,19],[19,20],[0,17]
+    ];
 
-            if (mode !== "hidden") {
-                particleSystem.rotation.y += (rotationY - particleSystem.rotation.y) * 0.1;
-                particleSystem.rotation.x += (rotationX - particleSystem.rotation.x) * 0.1;
-                if(mode === "earth") {
-                    particleSystem.rotation.y += 0.003;
-                } else {
-                    particleSystem.rotation.z += 0.005;
-                }
-            }
-            renderer.render(scene, camera);
+    pairs.forEach((pair, i) => {
+        if (bones[i]) {
+            const p1 = joints[pair[0]].position;
+            const p2 = joints[pair[1]].position;
+            const posAttr = bones[i].geometry.attributes.position;
+            posAttr.setXYZ(0, p1.x, p1.y, p1.z);
+            posAttr.setXYZ(1, p2.x, p2.y, p2.z);
+            posAttr.needsUpdate = true;
+            bones[i].visible = true;
         }
+    });
+}
 
-        window.addEventListener('resize', () => {
-            camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix();
-            renderer.setSize(window.innerWidth, window.innerHeight);
-        });
+function hideSkeleton() {
+    joints.forEach(j => j.visible = false);
+    bones.forEach(b => b.visible = false);
+}
 
-        window.onload = () => { updateTargetPositions(); animate(); };
-    </script>
+function resetFactors() {
+    expansionFactor = THREE.MathUtils.lerp(expansionFactor, 0.0, 0.05);
+    disintegrationFactor = THREE.MathUtils.lerp(disintegrationFactor, 0.0, 0.05);
+    zoomFactor = THREE.MathUtils.lerp(zoomFactor, 1.0, 0.05);
+    starSystem.material.uniforms.uColorShift.value.lerp(new THREE.Color(1, 1, 1), 0.05);
+}
+
+function animate() {
+    requestAnimationFrame(animate);
+    const delta = clock.getDelta();
+    const elapsed = clock.getElapsedTime();
+
+    // Rotasiya hamarlaşdırma əmsalı (0.15 -> 0.18) fırlanmanı daha çevik edir
+    lerpRotationX += (targetRotationX - lerpRotationX) * 0.18;
+    lerpRotationY += (targetRotationY - lerpRotationY) * 0.18;
+
+    starSystem.rotation.x = lerpRotationX;
+    starSystem.rotation.y = lerpRotationY;
+
+    const targetZ = 1000 * zoomFactor;
+    camera.position.z += (targetZ - camera.position.z) * 0.1;
+
+    starSystem.material.uniforms.time.value = elapsed;
+    starSystem.material.uniforms.uExp.value = expansionFactor;
+    starSystem.material.uniforms.uDis.value = disintegrationFactor;
+
+    starSystem.rotation.y += delta * 0.05;
+    renderer.render(scene, camera);
+}
+
+function onWindowResize() {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+}
+
+window.onload = init;
+</script>
 </body>
 </html>
+
