@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="az">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quantum Galaxy Pro - Minimalist</title>
+    <style>
+        body { margin: 0; overflow: hidden; background: #000; }
+        canvas { display: block; }
+        
+        #loading-screen {
+            position: fixed; inset: 0; background: #000;
+            display: flex; justify-content: center; align-items: center;
+            z-index: 1000; transition: opacity 1.5s ease;
+        }
+
+        .loader {
+            width: 40px; height: 40px; border: 2px solid rgba(0, 242, 255, 0.1);
+            border-top-color: #00f2ff; border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
+        #video-element { position: absolute; visibility: hidden; }
+    </style>
+</head>
+<body>
+
+<div id="loading-screen">
+    <div class="loader"></div>
+</div>
+
+<video id="video-element" playsinline></video>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/0.160.0/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+
+<script>
+/**
+ * Professional Quantum Galaxy Engine v2.6
+ * Minimalist UI - Yazısız Versiya
+ */
+
+let scene, camera, renderer, starSystem;
+let hands, cameraPipe;
+let handGroup, joints = [], bones = [];
+const particleCount = 200000;
+let clock = new THREE.Clock();
+
+let targetRotationX = 0, targetRotationY = 0;
+let lerpRotationX = 0, lerpRotationY = 0;
+let zoomFactor = 1.0;
+let expansionFactor = 0;
+let disintegrationFactor = 0;
+
+const PALETTE = {
+    standard: new THREE.Color(0x2244ff),
+    fist: new THREE.Color(0xff4400),
+    disintegrate: new THREE.Color(0x00ffcc),
+    open: new THREE.Color(0x00f2ff),
+    joint: 0x00f2ff,
+    bone: 0x004466
+};
+
+async function init() {
+    scene = new THREE.Scene();
+    camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 15000);
+    camera.position.z = 1000;
+
+    renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(window.devicePixelRatio);
+    document.body.appendChild(renderer.domElement);
+
+    handGroup = new THREE.Group();
+    scene.add(handGroup);
+    createSkeletonObjects();
+
+    createGalaxy();
+    initMediaPipe();
+
+    window.addEventListener('resize', onWindowResize);
+    animate();
+
+    setTimeout(() => {
+        document.getElementById('loading-screen').style.opacity = '0';
+        setTimeout(() => document.getElementById('loading-screen').remove(), 1500);
+    }, 2000);
+}
+
+function createSkeletonObjects() {
+    const jointGeo = new THREE.SphereGeometry(4, 8, 8);
+    const jointMat = new THREE.MeshBasicMaterial({ color: PALETTE.joint, transparent: true, opacity: 0.8 });
+
+    for (let i = 0; i < 21; i++) {
+        const mesh = new THREE.Mesh(jointGeo, jointMat);
+        mesh.visible = false;
+        joints.push(mesh);
+        handGroup.add(mesh);
+    }
+
+    const boneMat = new THREE.LineBasicMaterial({ color: PALETTE.bone, transparent: true, opacity: 0.6 });
+    for(let i = 0; i < 21; i++) {
+        const lineGeo = new THREE.BufferGeometry();
+        lineGeo.setAttribute('position', new THREE.Float32BufferAttribute([0,0,0,0,0,0], 3));
+        const line = new THREE.Line(lineGeo, boneMat);
+        line.visible = false;
+        bones.push(line);
+        handGroup.add(line);
+    }
+}
+
+function createGalaxy() {
+    const geo = new THREE.BufferGeometry();
+    const pos = new Float32Array(particleCount * 3);
+    const origin = new Float32Array(particleCount * 3);
+    const colors = new Float32Array(particleCount * 3);
+    const sizes = new Float32Array(particleCount);
+
+    for (let i = 0; i < particleCount; i++) {
+        const i3 = i * 3;
+        const radius = Math.random() * Math.random() * 900;
+        const spin = radius * 0.012;
+        const angle = Math.random() * Math.PI * 2 + spin;
+        
+        origin[i3] = Math.cos(angle) * radius;
+        origin[i3 + 1] = (Math.random() - 0.5) * (radius * 0.25);
+        origin[i3 + 2] = Math.sin(angle) * radius;
+
+        pos[i3] = origin[i3] * 3;
+        pos[i3 + 1] = origin[i3 + 1] * 3;
+        pos[i3 + 2] = origin[i3 + 2] * 3;
+
+        const mix = radius / 900;
+        const c = PALETTE.standard.clone().lerp(new THREE.Color(0x000044), mix);
+        colors[i3] = c.r; colors[i3 + 1] = c.g; colors[i3 + 2] = c.b;
+
+        sizes[i] = Math.random() * 3.5 + 1.2;
+    }
+
+    geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    geo.setAttribute('origin', new THREE.BufferAttribute(origin, 3));
+    geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+    geo.setAttribute('size', new THREE.BufferAttribute(sizes, 1));
+
+    const mat = new THREE.ShaderMaterial({
+        uniforms: {
+            time: { value: 0 },
+            uExp: { value: 0 },
+            uDis: { value: 0 },
+            uColorShift: { value: new THREE.Color(1, 1, 1) }
+        },
+        vertexShader: `
+            attribute vec3 origin;
+            attribute float size;
+            attribute vec3 color;
+            varying vec3 vColor;
+            uniform float time;
+            uniform float uExp;
+            uniform float uDis;
+
+            void main() {
+                vColor = color;
+                vec3 pos = origin;
+                pos += normalize(pos) * uExp * 250.0;
+
+                if(uDis > 0.01) {
+                    pos.x += sin(time * 8.0 + origin.y * 0.5) * uDis * 120.0;
+                    pos.y += cos(time * 9.0 + origin.z * 0.5) * uDis * 120.0;
+                    pos.z += sin(time * 7.0 + origin.x * 0.5) * uDis * 120.0;
+                }
+
+                vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
+                gl_PointSize = size * (1200.0 / -mvPosition.z) * (1.1 + abs(uExp) * 0.3);
+                gl_Position = projectionMatrix * mvPosition;
+            }
+        `,
+        fragmentShader: `
+            varying vec3 vColor;
+            uniform vec3 uColorShift;
+            void main() {
+                float d = distance(gl_PointCoord, vec2(0.5));
+                if(d > 0.5) discard;
+                float alpha = pow(1.0 - d * 2.0, 1.5);
+                gl_FragColor = vec4(vColor * uColorShift * 1.5, alpha);
+            }
+        `,
+        transparent: true,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false
+    });
+
+    starSystem = new THREE.Points(geo, mat);
+    scene.add(starSystem);
+}
+
+function initMediaPipe() {
+    const video = document.getElementById('video-element');
+    hands = new Hands({ locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}` });
+    hands.setOptions({ maxNumHands: 1, modelComplexity: 1, minDetectionConfidence: 0.8, minTrackingConfidence: 0.8 });
+    hands.onResults(onHandResults);
+
+    cameraPipe = new Camera(video, {
+        onFrame: async () => { await hands.send({ image: video }); },
+        width: 640, height: 480
+    });
+    cameraPipe.start();
+}
+
+function onHandResults(results) {
+    if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+        const lm = results.multiHandLandmarks[0];
+        
+        updateSkeleton(lm);
+
+        // Sürətli rotasiya
+        targetRotationY = (lm[0].x - 0.5) * 8.5; 
+        targetRotationX = (lm[0].y - 0.5) * 5.5;
+
+        const dist = (p1, p2) => Math.hypot(p1.x - p2.x, p1.y - p2.y);
+        const palm = lm[0];
+        const indexTip = lm[8], middleTip = lm[12], ringTip = lm[16], pinkyTip = lm[20];
+        const avgFingerDist = (dist(indexTip, palm) + dist(middleTip, palm) + dist(ringTip, palm) + dist(pinkyTip, palm)) / 4;
+
+        if (dist(indexTip, palm) > 0.25 && dist(middleTip, palm) > 0.25 && dist(ringTip, palm) < 0.2 && dist(pinkyTip, palm) < 0.2) {
+            disintegrationFactor = THREE.MathUtils.lerp(disintegrationFactor, 1.0, 0.1);
+            expansionFactor = THREE.MathUtils.lerp(expansionFactor, 0.4, 0.1);
+            zoomFactor = THREE.MathUtils.lerp(zoomFactor, 1.1, 0.05);
+            starSystem.material.uniforms.uColorShift.value.lerp(PALETTE.disintegrate, 0.1);
+        } 
+        else if (avgFingerDist < 0.17) {
+            expansionFactor = THREE.MathUtils.lerp(expansionFactor, -0.7, 0.1);
+            disintegrationFactor = THREE.MathUtils.lerp(disintegrationFactor, 0.0, 0.1);
+            zoomFactor = THREE.MathUtils.lerp(zoomFactor, 1.25, 0.05);
+            starSystem.material.uniforms.uColorShift.value.lerp(PALETTE.fist, 0.1);
+        } 
+        else if (avgFingerDist > 0.35) {
+            expansionFactor = THREE.MathUtils.lerp(expansionFactor, 1.3, 0.1);
+            disintegrationFactor = THREE.MathUtils.lerp(disintegrationFactor, 0.0, 0.1);
+            zoomFactor = THREE.MathUtils.lerp(zoomFactor, 0.65, 0.05);
+            starSystem.material.uniforms.uColorShift.value.lerp(PALETTE.open, 0.1);
+        }
+        else {
+            resetFactors();
+        }
+    } else {
+        hideSkeleton();
+        resetFactors();
+        targetRotationY += 0.003;
+    }
+}
+
+function updateSkeleton(landmarks) {
+    landmarks.forEach((pt, i) => {
+        const x = (0.5 - pt.x) * 1200; 
+        const y = (0.5 - pt.y) * 1000;
+        const z = -pt.z * 1000; 
+        joints[i].position.set(x, y, z);
+        joints[i].visible = true;
+    });
+
+    const pairs = [
+        [0,1],[1,2],[2,3],[3,4],[0,5],[5,6],[6,7],[7,8],[5,9],[9,10],
+        [10,11],[11,12],[9,13],[13,14],[14,15],[15,16],[13,17],[17,18],[18,19],[19,20],[0,17]
+    ];
+
+    pairs.forEach((pair, i) => {
+        if (bones[i]) {
+            const p1 = joints[pair[0]].position;
+            const p2 = joints[pair[1]].position;
+            const posAttr = bones[i].geometry.attributes.position;
+            posAttr.setXYZ(0, p1.x, p1.y, p1.z);
+            posAttr.setXYZ(1, p2.x, p2.y, p2.z);
+            posAttr.needsUpdate = true;
+            bones[i].visible = true;
+        }
+    });
+}
+
+function hideSkeleton() {
+    joints.forEach(j => j.visible = false);
+    bones.forEach(b => b.visible = false);
+}
+
+function resetFactors() {
+    expansionFactor = THREE.MathUtils.lerp(expansionFactor, 0.0, 0.05);
+    disintegrationFactor = THREE.MathUtils.lerp(disintegrationFactor, 0.0, 0.05);
+    zoomFactor = THREE.MathUtils.lerp(zoomFactor, 1.0, 0.05);
+    starSystem.material.uniforms.uColorShift.value.lerp(new THREE.Color(1, 1, 1), 0.05);
+}
+
+function animate() {
+    requestAnimationFrame(animate);
+    const delta = clock.getDelta();
+    const elapsed = clock.getElapsedTime();
+
+    lerpRotationX += (targetRotationX - lerpRotationX) * 0.15;
+    lerpRotationY += (targetRotationY - lerpRotationY) * 0.15;
+
+    starSystem.rotation.x = lerpRotationX;
+    starSystem.rotation.y = lerpRotationY;
+
+    const targetZ = 1000 * zoomFactor;
+    camera.position.z += (targetZ - camera.position.z) * 0.1;
+
+    starSystem.material.uniforms.time.value = elapsed;
+    starSystem.material.uniforms.uExp.value = expansionFactor;
+    starSystem.material.uniforms.uDis.value = disintegrationFactor;
+
+    starSystem.rotation.y += delta * 0.05;
+    renderer.render(scene, camera);
+}
+
+function onWindowResize() {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+}
+
+window.onload = init;
+</script>
+</body>
+</html>
