@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="az">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Neon Piano - Kvadrat Maska</title>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            background-color: #000000;
+            margin: 0;
+            padding: 0;
+            cursor: pointer;
+            overflow: hidden;
+        }
+        .mirror-view {
+            transform: scaleX(-1);
+        }
+        .piano-key {
+            transition: all 0.1s cubic-bezier(0.4, 0, 0.2, 1);
+            border: 2px solid rgba(0, 255, 255, 0.2);
+            background: rgba(0, 255, 255, 0.05);
+            color: #00ffff;
+            text-shadow: 0 0 10px #00ffff;
+            box-shadow: inset 0 0 15px rgba(0, 255, 255, 0.05);
+            user-select: none;
+        }
+        .key-active {
+            background: rgba(0, 255, 255, 0.6) !important;
+            box-shadow: 0 0 50px #00ffff, inset 0 0 30px #00ffff !important;
+            transform: translateY(10px) scale(0.95);
+            color: white;
+            text-shadow: 0 0 20px #ffffff;
+        }
+    </style>
+</head>
+<body class="text-white flex flex-col h-screen font-sans">
+
+    <div class="relative w-full h-1/2 bg-black flex items-center justify-center border-b-2 border-cyan-500/30 overflow-hidden">
+        <video id="input_video" class="hidden" playsinline></video>
+        <canvas id="output_canvas" class="h-full w-auto mirror-view"></canvas>
+        
+        <div id="status" class="absolute inset-0 flex items-center justify-center bg-black/95 z-50 transition-opacity duration-700">
+            <div class="text-center">
+                <p class="text-3xl font-bold text-cyan-400 animate-pulse mb-4">BAŞLAMAQ ÜÇÜN KLİKLƏYİN</p>
+                <p class="text-gray-400">Əlləriniz kvadrat daxilində izləniləcək</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="w-full h-1/2 flex items-center justify-center p-10 bg-gradient-to-t from-black via-slate-950 to-black">
+        <div class="flex gap-4 h-full max-h-80 w-full max-w-7xl">
+            <div id="key-C" class="piano-key flex-1 rounded-3xl flex items-center justify-center font-black text-4xl italic">DO</div>
+            <div id="key-D" class="piano-key flex-1 rounded-3xl flex items-center justify-center font-black text-4xl italic">RE</div>
+            <div id="key-E" class="piano-key flex-1 rounded-3xl flex items-center justify-center font-black text-4xl italic">Mİ</div>
+            <div id="key-F" class="piano-key flex-1 rounded-3xl flex items-center justify-center font-black text-4xl italic">FA</div>
+            <div id="key-G" class="piano-key flex-1 rounded-3xl flex items-center justify-center font-black text-4xl italic">SOL</div>
+            <div id="key-A" class="piano-key flex-1 rounded-3xl flex items-center justify-center font-black text-4xl italic">LYA</div>
+            <div id="key-B" class="piano-key flex-1 rounded-3xl flex items-center justify-center font-black text-4xl italic">Sİ</div>
+            <div id="key-C2" class="piano-key flex-1 rounded-3xl flex items-center justify-center font-black text-4xl italic">DO+</div>
+        </div>
+    </div>
+
+    <script>
+        const videoElement = document.getElementById('input_video');
+        const canvasElement = document.getElementById('output_canvas');
+        const canvasCtx = canvasElement.getContext('2d');
+        const statusDiv = document.getElementById('status');
+
+        let audioCtx = null;
+        const frequencies = {
+            'C': 261.63, 'D': 293.66, 'E': 329.63, 'F': 349.23,
+            'G': 392.00, 'A': 440.00, 'B': 493.88, 'C2': 523.25
+        };
+
+        const activeNotes = new Map();
+
+        async function initAudio() {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            if (audioCtx.state === 'suspended') {
+                await audioCtx.resume();
+            }
+            statusDiv.style.opacity = '0';
+            setTimeout(() => statusDiv.style.display = 'none', 700);
+        }
+
+        function playTone(freq, keyId) {
+            if (!audioCtx || audioCtx.state !== 'running') return;
+            if (activeNotes.has(keyId)) return;
+            
+            activeNotes.set(keyId, true);
+
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            
+            osc.type = 'sine'; 
+            osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+            
+            gain.gain.setValueAtTime(0.5, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.6);
+            
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            
+            osc.start();
+            osc.stop(audioCtx.currentTime + 0.6);
+
+            const el = document.getElementById(`key-${keyId}`);
+            if (el) el.classList.add('key-active');
+
+            setTimeout(() => {
+                activeNotes.delete(keyId);
+                if (el) el.classList.remove('key-active');
+            }, 300);
+        }
+
+        function getDistance(p1, p2) {
+            return Math.sqrt(Math.pow(p1.x - p2.x, 2) + Math.pow(p1.y - p2.y, 2));
+        }
+
+        function onResults(results) {
+            canvasCtx.save();
+            canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+            canvasCtx.fillStyle = '#000000';
+            canvasCtx.fillRect(0, 0, canvasElement.width, canvasElement.height);
+            
+            if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+                results.multiHandLandmarks.forEach((landmarks, i) => {
+                    const centerX = landmarks[9].x * canvasElement.width;
+                    const centerY = landmarks[9].y * canvasElement.height;
+                    const boxSize = 350;
+
+                    canvasCtx.save();
+                    canvasCtx.beginPath();
+                    canvasCtx.rect(centerX - boxSize/2, centerY - boxSize/2, boxSize, boxSize);
+                    canvasCtx.clip();
+                    canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
+                    canvasCtx.restore();
+
+                    canvasCtx.strokeStyle = '#00ffff';
+                    canvasCtx.lineWidth = 3;
+                    canvasCtx.shadowBlur = 10;
+                    canvasCtx.shadowColor = '#00ffff';
+                    canvasCtx.strokeRect(centerX - boxSize/2, centerY - boxSize/2, boxSize, boxSize);
+                    canvasCtx.shadowBlur = 0;
+
+                    const classification = results.multiHandedness[i];
+                    const isLeftHand = classification.label === 'Right'; 
+
+                    drawConnectors(canvasCtx, landmarks, HAND_CONNECTIONS, {color: '#00ffff', lineWidth: 2});
+                    drawLandmarks(canvasCtx, landmarks, {color: '#ffffff', lineWidth: 1, radius: 2});
+
+                    const thumbTip = landmarks[4];
+                    const fingers = [8, 12, 16, 20]; 
+                    const threshold = 0.085; 
+
+                    fingers.forEach((fingerIdx, index) => {
+                        const fingerTip = landmarks[fingerIdx];
+                        const dist = getDistance(thumbTip, fingerTip);
+                        
+                        if (dist < threshold) {
+                            let note = isLeftHand ? ['C', 'D', 'E', 'F'][index] : ['G', 'A', 'B', 'C2'][index];
+                            if (note) playTone(frequencies[note], note);
+
+                            canvasCtx.beginPath();
+                            canvasCtx.arc(fingerTip.x * canvasElement.width, fingerTip.y * canvasElement.height, 40, 0, 2 * Math.PI);
+                            canvasCtx.fillStyle = "rgba(0, 255, 255, 0.4)";
+                            canvasCtx.fill();
+                        }
+                    });
+                });
+            }
+            canvasCtx.restore();
+        }
+
+        const hands = new Hands({
+            locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+        });
+
+        hands.setOptions({
+            maxNumHands: 2,
+            modelComplexity: 1,
+            minDetectionConfidence: 0.7,
+            minTrackingConfidence: 0.7
+        });
+
+        hands.onResults(onResults);
+
+        const camera = new Camera(videoElement, {
+            onFrame: async () => {
+                await hands.send({image: videoElement});
+            },
+            width: 1280,
+            height: 720
+        });
+
+        window.onload = () => {
+            canvasElement.width = 1280;
+            canvasElement.height = 720;
+            camera.start();
+            document.body.onclick = initAudio;
+        };
+    </script>
+</body>
+</html>
