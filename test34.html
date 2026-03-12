@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="az">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Neon Ürək</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background-color: #000;
+            cursor: crosshair;
+        }
+        canvas {
+            display: block;
+        }
+        #quote-container {
+            position: absolute;
+            bottom: 40px;
+            width: 100%;
+            text-align: center;
+            color: white;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            pointer-events: none;
+            line-height: 1.6;
+        }
+        .quote-en {
+            font-size: 18px;
+            font-weight: 500;
+            margin-bottom: 5px;
+        }
+        .quote-az {
+            font-size: 16px;
+            font-style: italic;
+            opacity: 0.9;
+        }
+        .highlight {
+            color: #ff0000;
+            font-weight: bold;
+            text-shadow: 0 0 10px rgba(255, 0, 0, 0.8);
+        }
+    </style>
+</head>
+<body>
+    <div id="quote-container">
+        <div class="quote-en">
+            Challenges are temporary; what matters is <span class="highlight">not to be defeated</span>.
+        </div>
+        <div class="quote-az">
+            (Çətinliklər Müvəqqətidir; önəmli olan məğlub <span class="highlight">olmamaqdır</span>.)
+        </div>
+    </div>
+
+    <script>
+        let scene, camera, renderer, particles;
+        let bullets = [];
+        const PARTICLE_COUNT = 45000; 
+
+        function getHeartPoint(t) {
+            const x = 16 * Math.pow(Math.sin(t), 3);
+            const y = 13 * Math.cos(t) - 5 * Math.cos(2 * t) - 2 * Math.cos(3 * t) - Math.cos(4 * t);
+            return new THREE.Vector3(x, y, 0);
+        }
+
+        function init() {
+            scene = new THREE.Scene();
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.z = 50;
+
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            document.body.appendChild(renderer.domElement);
+
+            const geometry = new THREE.BufferGeometry();
+            const positions = new Float32Array(PARTICLE_COUNT * 3);
+            const velocities = new Float32Array(PARTICLE_COUNT * 3);
+            const originalPositions = new Float32Array(PARTICLE_COUNT * 3);
+            const hitTimes = new Float32Array(PARTICLE_COUNT);
+
+            for (let i = 0; i < PARTICLE_COUNT; i++) {
+                const t = Math.random() * Math.PI * 2;
+                const point = getHeartPoint(t);
+                const r = Math.sqrt(Math.random());
+                point.multiplyScalar(r * 1.5);
+
+                const i3 = i * 3;
+                positions[i3] = point.x;
+                positions[i3 + 1] = point.y;
+                positions[i3 + 2] = (Math.random() - 0.5) * 10;
+
+                originalPositions[i3] = positions[i3];
+                originalPositions[i3 + 1] = positions[i3 + 1];
+                originalPositions[i3 + 2] = positions[i3 + 2];
+
+                velocities[i3] = 0;
+                velocities[i3 + 1] = 0;
+                velocities[i3 + 2] = 0;
+                hitTimes[i] = 0;
+            }
+
+            geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+            
+            const material = new THREE.PointsMaterial({
+                color: 0xffffff,
+                size: 0.15,
+                transparent: true,
+                blending: THREE.AdditiveBlending,
+                opacity: 0.8,
+                depthWrite: false
+            });
+
+            particles = new THREE.Points(geometry, material);
+            particles.userData = { originalPositions, velocities, hitTimes };
+            scene.add(particles);
+
+            window.addEventListener('resize', onWindowResize, false);
+            window.addEventListener('mousedown', shootBullet, false);
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        function shootBullet(event) {
+            const angle = Math.random() * Math.PI * 2;
+            const radius = 100;
+            const startX = Math.cos(angle) * radius;
+            const startY = Math.sin(angle) * radius;
+
+            const mouse = new THREE.Vector2();
+            mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+            const raycaster = new THREE.Raycaster();
+            raycaster.setFromCamera(mouse, camera);
+            const target = new THREE.Vector3();
+            raycaster.ray.at(50, target);
+
+            const bulletGeom = new THREE.SphereGeometry(1, 8, 8);
+            const bulletMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+            const bullet = new THREE.Mesh(bulletGeom, bulletMat);
+            bullet.position.set(startX, startY, 0);
+
+            const direction = new THREE.Vector3().subVectors(target, bullet.position).normalize();
+
+            const trail = [];
+            const trailCount = 12;
+            for(let i=0; i<trailCount; i++) {
+                const tGeom = new THREE.SphereGeometry(0.5 * (1 - i/trailCount), 6, 6);
+                const tMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.4 * (1 - i/trailCount) });
+                const tPart = new THREE.Mesh(tGeom, tMat);
+                scene.add(tPart);
+                trail.push(tPart);
+            }
+
+            bullet.userData = { direction: direction, speed: 2.5, trail: trail };
+            scene.add(bullet);
+            bullets.push(bullet);
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            const now = Date.now();
+
+            const positions = particles.geometry.attributes.position.array;
+            const originals = particles.userData.originalPositions;
+            const vels = particles.userData.velocities;
+            const hits = particles.userData.hitTimes;
+
+            for (let i = bullets.length - 1; i >= 0; i--) {
+                const b = bullets[i];
+                b.position.addScaledVector(b.userData.direction, b.userData.speed);
+
+                for(let k=0; k<b.userData.trail.length; k++) {
+                    const trailPart = b.userData.trail[k];
+                    trailPart.position.copy(b.position).addScaledVector(b.userData.direction, -(k + 1) * 1.5);
+                }
+
+                for (let j = 0; j < PARTICLE_COUNT; j++) {
+                    const j3 = j * 3;
+                    const dx = positions[j3] - b.position.x;
+                    const dy = positions[j3 + 1] - b.position.y;
+                    const dz = positions[j3 + 2] - b.position.z;
+                    const distSq = dx*dx + dy*dy + dz*dz;
+
+                    if (distSq < 45) {
+                        const dist = Math.sqrt(distSq) || 1;
+                        const force = (1 - dist/6.7) * 4.2; 
+                        vels[j3] += (dx / dist) * force;
+                        vels[j3 + 1] += (dy / dist) * force;
+                        vels[j3 + 2] += (dz / dist) * force;
+                        hits[j] = now; 
+                    }
+                }
+
+                if (b.position.length() > 200) {
+                    b.userData.trail.forEach(t => scene.remove(t));
+                    scene.remove(b);
+                    bullets.splice(i, 1);
+                }
+            }
+
+            for (let i = 0; i < PARTICLE_COUNT; i++) {
+                const i3 = i * 3;
+                const timeSinceHit = now - hits[i];
+                const isWaiting = timeSinceHit < 600; 
+
+                const friction = isWaiting ? 0.85 : 0.90; 
+                vels[i3] *= friction;
+                vels[i3 + 1] *= friction;
+                vels[i3 + 2] *= friction;
+
+                if (!isWaiting) {
+                    const homeX = originals[i3];
+                    const homeY = originals[i3 + 1];
+                    const homeZ = originals[i3 + 2];
+                    const recoverSpeed = 0.025; 
+                    vels[i3] += (homeX - positions[i3]) * recoverSpeed;
+                    vels[i3 + 1] += (homeY - positions[i3 + 1]) * recoverSpeed;
+                    vels[i3 + 2] += (homeZ - positions[i3 + 2]) * recoverSpeed;
+                }
+
+                positions[i3] += vels[i3];
+                positions[i3 + 1] += vels[i3 + 1];
+                positions[i3 + 2] += vels[i3 + 2];
+            }
+
+            particles.geometry.attributes.position.needsUpdate = true;
+            
+            const pulse = 1 + Math.sin(now * 0.002) * 0.02;
+            particles.scale.set(pulse, pulse, pulse);
+
+            renderer.render(scene, camera);
+        }
+
+        window.onload = function() {
+            init();
+            animate();
+        };
+    </script>
+</body>
+</html>
