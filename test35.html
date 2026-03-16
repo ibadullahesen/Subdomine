@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="az">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Realistic 2D Skeleton - Gold & Blue Transition</title>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #000; }
+        #ui-overlay {
+            position: absolute; top: 20px; left: 20px;
+            color: #00ffff; font-family: 'Courier New', Courier, monospace;
+            pointer-events: none; z-index: 100;
+            text-shadow: 0 0 15px #00ffff;
+        }
+        #skeleton-canvas {
+            position: absolute; top: 0; left: 0;
+            width: 100vw; height: 100vh;
+            pointer-events: none; z-index: 50;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="ui-overlay">
+        <h1 class="text-2xl font-black tracking-tighter opacity-90 uppercase">Neon Skull Ghost</h1>
+        <p class="text-[10px] opacity-70 mt-1 uppercase tracking-widest">Dağılanda Qızılı / Qayıdanda Mavi</p>
+    </div>
+
+    <canvas id="skeleton-canvas"></canvas>
+    <video id="input-video" style="display:none"></video>
+
+    <script>
+        const videoElement = document.getElementById('input-video');
+        const skelCanvas = document.getElementById('skeleton-canvas');
+        const skelCtx = skelCanvas.getContext('2d');
+        
+        let scene, camera, renderer, particleSystem;
+        const particleCount = 28000;
+        let positions = [], targetPositions = [], velocities = [], colors = [];
+        let interactionPos = new THREE.Vector3(2000, 2000, 2000); 
+
+        // Rəng sabitləri
+        const baseColor = new THREE.Color(0x00ffff); // Mavi
+        const scatterColor = new THREE.Color(0xffd700); // Qızılı
+
+        function resize() {
+            skelCanvas.width = window.innerWidth;
+            skelCanvas.height = window.innerHeight;
+            if (renderer) {
+                renderer.setSize(window.innerWidth, window.innerHeight);
+                camera.aspect = window.innerWidth / window.innerHeight;
+                camera.updateProjectionMatrix();
+            }
+        }
+        window.addEventListener('resize', resize);
+
+        function createSkullPoints() {
+            for (let i = 0; i < particleCount; i++) {
+                let x, y, z;
+                const rand = Math.random();
+
+                if (rand > 0.35) {
+                    const phi = Math.random() * Math.PI * 2;
+                    const theta = Math.random() * Math.PI;
+                    const r = 3 + Math.random() * 0.35;
+                    x = r * Math.sin(theta) * Math.cos(phi);
+                    y = r * Math.cos(theta) + 1.5;
+                    z = r * Math.sin(theta) * Math.sin(phi);
+                } else if (rand > 0.1) {
+                    x = (Math.random() - 0.5) * 4;
+                    y = Math.random() * -4.2 + 1;
+                    z = (Math.random() - 0.5) * 3.5 + 0.5;
+                } else {
+                    x = (Math.random() - 0.5) * 12;
+                    y = (Math.random() - 0.5) * 12;
+                    z = (Math.random() - 0.5) * 12;
+                }
+
+                targetPositions.push(x, y, z);
+                positions.push((Math.random() - 0.5) * 50, (Math.random() - 0.5) * 50, (Math.random() - 0.5) * 50);
+                velocities.push(0, 0, 0);
+                
+                // Başlanğıc rəng (Mavi)
+                colors.push(baseColor.r, baseColor.g, baseColor.b);
+            }
+        }
+
+        function init() {
+            scene = new THREE.Scene();
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.z = 12;
+
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            document.body.appendChild(renderer.domElement);
+            resize();
+
+            createSkullPoints();
+
+            const geometry = new THREE.BufferGeometry();
+            geometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(positions), 3));
+            geometry.setAttribute('color', new THREE.BufferAttribute(new Float32Array(colors), 3));
+            
+            const material = new THREE.PointsMaterial({
+                size: 0.04,
+                transparent: true,
+                opacity: 0.85,
+                blending: THREE.AdditiveBlending,
+                depthWrite: false,
+                vertexColors: true // Vertex rənglərini aktivləşdiririk
+            });
+
+            particleSystem = new THREE.Points(geometry, material);
+            scene.add(particleSystem);
+        }
+
+        const hands = new Hands({
+            locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+        });
+
+        hands.setOptions({ 
+            maxNumHands: 1, 
+            modelComplexity: 1, 
+            minDetectionConfidence: 0.85, 
+            minTrackingConfidence: 0.85 
+        });
+
+        hands.onResults(results => {
+            skelCtx.clearRect(0, 0, skelCanvas.width, skelCanvas.height);
+            
+            if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+                const landmarks = results.multiHandLandmarks[0];
+                const indexTip = landmarks[8];
+                // Mirror effect üçün 0.5 - x istifadə olunur
+                interactionPos.set((0.5 - indexTip.x) * 20, (0.5 - indexTip.y) * 15, 0);
+                drawRealisticSkeleton(landmarks);
+            } else {
+                interactionPos.set(2000, 2000, 2000);
+            }
+        });
+
+        function drawRealisticSkeleton(landmarks) {
+            const width = skelCanvas.width;
+            const height = skelCanvas.height;
+            const connections = [[0,1,2,3,4],[0,5,6,7,8],[9,10,11,12],[13,14,15,16],[17,18,19,20],[5,9,13,17],[0,17]];
+
+            function drawBone(p1, p2, thickness) {
+                const x1 = (1 - p1.x) * width;
+                const y1 = p1.y * height;
+                const x2 = (1 - p2.x) * width;
+                const y2 = p2.y * height;
+                const dx = x2 - x1;
+                const dy = y2 - y1;
+                const len = Math.sqrt(dx*dx + dy*dy);
+                const angle = Math.atan2(dy, dx);
+
+                skelCtx.save();
+                skelCtx.translate(x1, y1);
+                skelCtx.rotate(angle);
+                const grad = skelCtx.createLinearGradient(0, -thickness, 0, thickness);
+                grad.addColorStop(0, '#008888');
+                grad.addColorStop(0.5, '#00ffff');
+                grad.addColorStop(1, '#008888');
+                skelCtx.fillStyle = grad;
+                skelCtx.shadowBlur = 10;
+                skelCtx.shadowColor = "#00ffff";
+                skelCtx.beginPath();
+                skelCtx.roundRect(0, -thickness/2, len, thickness, thickness/2);
+                skelCtx.fill();
+                skelCtx.restore();
+            }
+
+            connections.forEach(path => {
+                for (let i = 0; i < path.length - 1; i++) {
+                    drawBone(landmarks[path[i]], landmarks[path[i+1]], 6);
+                }
+            });
+
+            landmarks.forEach((lm, idx) => {
+                const x = (1 - lm.x) * width;
+                const y = lm.y * height;
+                const isTip = [4, 8, 12, 16, 20].includes(idx);
+                skelCtx.beginPath();
+                const rad = isTip ? 10 : 7;
+                const grad = skelCtx.createRadialGradient(x, y, 0, x, y, rad);
+                grad.addColorStop(0, '#ffffff');
+                grad.addColorStop(0.4, '#00ffff');
+                grad.addColorStop(1, 'rgba(0, 255, 255, 0)');
+                skelCtx.fillStyle = grad;
+                skelCtx.arc(x, y, rad, 0, Math.PI * 2);
+                skelCtx.fill();
+            });
+        }
+
+        const cam = new Camera(videoElement, {
+            onFrame: async () => { await hands.send({ image: videoElement }); },
+            width: 640, height: 480
+        });
+        cam.start();
+
+        function animate() {
+            requestAnimationFrame(animate);
+            const posAttr = particleSystem.geometry.attributes.position;
+            const colAttr = particleSystem.geometry.attributes.color;
+            const time = Date.now() * 0.0007;
+
+            const s = Math.sin(time);
+            const c = Math.cos(time);
+
+            for (let i = 0; i < particleCount; i++) {
+                const i3 = i * 3;
+                
+                // Rotasiya hesablanması
+                let tx = targetPositions[i3];
+                let ty = targetPositions[i3 + 1];
+                let tz = targetPositions[i3 + 2];
+                const rx = tx * c - tz * s;
+                const rz = tx * s + tz * c;
+                
+                let px = posAttr.array[i3];
+                let py = posAttr.array[i3 + 1];
+                let pz = posAttr.array[i3 + 2];
+
+                // İnteraksiya (Dağılma)
+                const dx = px - interactionPos.x;
+                const dy = py - interactionPos.y;
+                const dz = pz - interactionPos.z;
+                const dist = Math.sqrt(dx*dx + dy*dy + dz*dz);
+
+                let isScattered = false;
+                if (dist < 4.0) {
+                    const force = (4.0 - dist) * 0.35; 
+                    velocities[i3] += (dx / dist) * force;
+                    velocities[i3 + 1] += (dy / dist) * force;
+                    velocities[i3 + 2] += (dz / dist) * force;
+                    isScattered = true;
+                }
+
+                // Geri qayıtma qüvvəsi
+                velocities[i3] += (rx - px) * 0.02;
+                velocities[i3 + 1] += (ty - py) * 0.02;
+                velocities[i3 + 2] += (rz - pz) * 0.02;
+
+                // Sürtünmə
+                velocities[i3] *= 0.88;
+                velocities[i3 + 1] *= 0.88;
+                velocities[i3 + 2] *= 0.88;
+
+                // Mövqe yeniləmə
+                posAttr.array[i3] += velocities[i3];
+                posAttr.array[i3 + 1] += velocities[i3 + 1];
+                posAttr.array[i3 + 2] += velocities[i3 + 2];
+
+                // --- Rəng Keçidi Məntiqi ---
+                // Əgər zərrəcik hədəfindən uzaqdırsa və ya əl yaxınındadırsa qızılıya meyl etsin
+                const distFromTarget = Math.sqrt(Math.pow(rx-px, 2) + Math.pow(ty-py, 2) + Math.pow(rz-pz, 2));
+                
+                // Rəng hədəfini təyin edirik
+                let targetR, targetG, targetB;
+                if (isScattered || distFromTarget > 1.5) {
+                    targetR = scatterColor.r;
+                    targetG = scatterColor.g;
+                    targetB = scatterColor.b;
+                } else {
+                    targetR = baseColor.r;
+                    targetG = baseColor.g;
+                    targetB = baseColor.b;
+                }
+
+                // Rəngləri rəvan keçidlə yeniləyirik (Lerp)
+                colAttr.array[i3] += (targetR - colAttr.array[i3]) * 0.05;
+                colAttr.array[i3+1] += (targetG - colAttr.array[i3+1]) * 0.05;
+                colAttr.array[i3+2] += (targetB - colAttr.array[i3+2]) * 0.05;
+            }
+
+            posAttr.needsUpdate = true;
+            colAttr.needsUpdate = true;
+            renderer.render(scene, camera);
+        }
+
+        init();
+        animate();
+    </script>
+</body>
+</html>
