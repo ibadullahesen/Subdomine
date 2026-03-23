@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Göy Qurşağı - Həssas Tutma</title>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #050505;
+            font-family: 'Segoe UI', sans-serif;
+        }
+
+        #canvas-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+        }
+
+        canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            transform: scaleX(-1);
+        }
+
+        #video-hidden { display: none; }
+
+        #clear-btn {
+            position: fixed;
+            bottom: 25px;
+            left: 25px;
+            z-index: 300;
+            padding: 12px 28px;
+            background: rgba(255, 50, 50, 0.15);
+            color: #ff4d4d;
+            border: 1px solid rgba(255, 77, 77, 0.4);
+            border-radius: 12px;
+            cursor: pointer;
+            backdrop-filter: blur(10px);
+            font-weight: 600;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+        }
+
+        #clear-btn:hover {
+            background: rgba(255, 50, 50, 0.8);
+            color: white;
+            box-shadow: 0 10px 20px rgba(255, 77, 77, 0.3);
+        }
+
+        #loader {
+            position: fixed;
+            inset: 0;
+            background: #000;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 400;
+            color: white;
+        }
+
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 3px solid rgba(255, 255, 255, 0.1);
+            border-top-color: #00d2ff;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-bottom: 15px;
+        }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+
+    <div id="loader">
+        <div class="spinner"></div>
+        <p>SİSTEM YÜKLƏNİR...</p>
+    </div>
+
+    <button id="clear-btn">Hər şeyi sil</button>
+
+    <div id="canvas-container">
+        <video id="video-hidden"></video>
+        <canvas id="ui-canvas"></canvas>
+        <canvas id="main-canvas"></canvas>
+    </div>
+
+    <script>
+        const videoElement = document.getElementById('video-hidden');
+        const uiCanvas = document.getElementById('ui-canvas');
+        const mainCanvas = document.getElementById('main-canvas'); 
+        const uiCtx = uiCanvas.getContext('2d');
+        const mainCtx = mainCanvas.getContext('2d');
+        const loader = document.getElementById('loader');
+        const clearBtn = document.getElementById('clear-btn');
+
+        let particles = [];
+        let strokes = []; 
+        let currentStroke = null;
+        let draggedStroke = null;
+        let potentialStroke = null; // Tutula biləcək xətt (hover effekti üçün)
+        let dragOffset = { x: 0, y: 0 };
+        let globalHue = 0;
+
+        class SparkParticle {
+            constructor(x, y, hue) {
+                this.x = x;
+                this.y = y;
+                const angle = Math.random() * Math.PI * 2;
+                const force = Math.random() * 5 + 2;
+                this.vx = Math.cos(angle) * force;
+                this.vy = Math.sin(angle) * force;
+                this.life = 1.0;
+                this.decay = 0.03 + Math.random() * 0.03; 
+                this.hue = hue;
+            }
+            update() {
+                this.x += this.vx;
+                this.y += this.vy;
+                this.life -= this.decay;
+            }
+            draw(ctx) {
+                if (this.life <= 0) return;
+                ctx.save();
+                ctx.globalAlpha = this.life;
+                ctx.fillStyle = `hsl(${this.hue}, 100%, 75%)`;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, 2, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+            }
+        }
+
+        clearBtn.addEventListener('click', () => {
+            strokes = [];
+            particles = [];
+            currentStroke = null;
+            draggedStroke = null;
+            potentialStroke = null;
+        });
+
+        function getDist(p1, p2) {
+            return Math.sqrt((p1.x - p2.x)**2 + (p1.y - p2.y)**2);
+        }
+
+        // Bir xəttin sərhədlərini hesablayır (Performance üçün)
+        function getStrokeBounds(stroke) {
+            if (!stroke.points.length) return null;
+            let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+            stroke.points.forEach(p => {
+                if (p.x < minX) minX = p.x;
+                if (p.y < minY) minY = p.y;
+                if (p.x > maxX) maxX = p.x;
+                if (p.y > maxY) maxY = p.y;
+            });
+            return { minX: minX - 20, minY: minY - 20, maxX: maxX + 20, maxY: maxY + 20 };
+        }
+
+        function onResults(results) {
+            if (loader.style.display !== 'none') loader.style.display = 'none';
+
+            if (uiCanvas.width !== window.innerWidth) {
+                uiCanvas.width = mainCanvas.width = window.innerWidth;
+                uiCanvas.height = mainCanvas.height = window.innerHeight;
+            }
+
+            uiCtx.clearRect(0, 0, uiCanvas.width, uiCanvas.height);
+            mainCtx.clearRect(0, 0, mainCanvas.width, mainCanvas.height);
+
+            globalHue = (globalHue + 6) % 360;
+
+            if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+                const landmarks = results.multiHandLandmarks[0];
+                const indexTip = landmarks[8];
+                const thumbTip = landmarks[4];
+                const middleTip = landmarks[12];
+                
+                // Həssaslıq eşiyi (0.06 bir qədər daha geniş məsafəyə icazə verir)
+                const pinchDist = getDist(indexTip, thumbTip);
+                const isPinching = pinchDist < 0.06;
+                const isDrawing = indexTip.y < landmarks[6].y && middleTip.y > landmarks[10].y && !isPinching;
+
+                const pos = { x: indexTip.x * mainCanvas.width, y: indexTip.y * mainCanvas.height };
+                const thumbPos = { x: thumbTip.x * mainCanvas.width, y: thumbTip.y * mainCanvas.height };
+                const midPoint = { x: (pos.x + thumbPos.x)/2, y: (pos.y + thumbPos.y)/2 };
+
+                // 1. POTENSİAL TUTULA BİLƏCƏK XƏTTİ TAPMA (Hover effekti)
+                potentialStroke = null;
+                if (!isDrawing && !draggedStroke) {
+                    for (let i = strokes.length - 1; i >= 0; i--) {
+                        let s = strokes[i];
+                        const bounds = getStrokeBounds(s);
+                        // Əvvəlcə qutu daxilindədirmi bax (Sürət üçün)
+                        if (midPoint.x >= bounds.minX && midPoint.x <= bounds.maxX && 
+                            midPoint.y >= bounds.minY && midPoint.y <= bounds.maxY) {
+                            
+                            // Sonra ən yaxın nöqtəyə bax (Həssaslıq üçün - 45px radius)
+                            if (s.points.some(p => getDist(midPoint, p) < 45)) {
+                                potentialStroke = s;
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                // 2. ÇİZMƏ
+                if (isDrawing) {
+                    draggedStroke = null;
+                    if (!currentStroke) {
+                        currentStroke = { points: [] };
+                        strokes.push(currentStroke);
+                    }
+                    currentStroke.points.push({ x: pos.x, y: pos.y, hue: globalHue });
+                    for(let i=0; i<3; i++) particles.push(new SparkParticle(pos.x, pos.y, globalHue));
+                } else {
+                    currentStroke = null;
+                }
+
+                // 3. DAŞIMA (DRAG)
+                if (isPinching) {
+                    if (!draggedStroke && potentialStroke) {
+                        draggedStroke = potentialStroke;
+                        dragOffset = { x: midPoint.x, y: midPoint.y };
+                    }
+                    
+                    if (draggedStroke) {
+                        const dx = midPoint.x - dragOffset.x;
+                        const dy = midPoint.y - dragOffset.y;
+                        draggedStroke.points.forEach(p => { p.x += dx; p.y += dy; });
+                        dragOffset = { ...midPoint };
+                        // Daşıyarkən rəngləri yüngülcə yenilə (opsional canlılıq)
+                        if (Math.random() > 0.8) {
+                             particles.push(new SparkParticle(midPoint.x, midPoint.y, globalHue));
+                        }
+                    }
+                } else {
+                    draggedStroke = null;
+                }
+
+                drawHand(landmarks, isDrawing, isPinching, !!draggedStroke || !!potentialStroke);
+            }
+
+            // XƏTLƏRİ ÇƏKİRİK
+            strokes.forEach(stroke => {
+                const isSelected = (stroke === draggedStroke || stroke === potentialStroke);
+                drawMultiColorStroke(mainCtx, stroke, isSelected);
+            });
+
+            // HİSSƏCİKLƏR
+            particles = particles.filter(p => p.life > 0);
+            particles.forEach(p => { p.update(); p.draw(mainCtx); });
+        }
+
+        function drawMultiColorStroke(ctx, stroke, highlight) {
+            if (stroke.points.length < 2) return;
+            ctx.save();
+            
+            // Kölgə effekti
+            ctx.shadowColor = "rgba(0,0,0,0.7)";
+            ctx.shadowBlur = highlight ? 20 : 12;
+            ctx.shadowOffsetX = 6;
+            ctx.shadowOffsetY = 10;
+            
+            ctx.lineCap = "round";
+            ctx.lineJoin = "round";
+
+            for (let i = 1; i < stroke.points.length; i++) {
+                const p1 = stroke.points[i - 1];
+                const p2 = stroke.points[i];
+                ctx.beginPath();
+                // Seçiləndə xətt daha qalın və parlaq olur
+                ctx.lineWidth = highlight ? 16 : 10;
+                ctx.strokeStyle = `hsl(${p2.hue}, 100%, ${highlight ? 65 : 50}%)`;
+                ctx.moveTo(p1.x, p1.y);
+                ctx.lineTo(p2.x, p2.y);
+                ctx.stroke();
+
+                // Üst parlaqlıq (3D silindr effekti)
+                ctx.save();
+                ctx.shadowBlur = 0; ctx.shadowOffsetX = 0; ctx.shadowOffsetY = 0;
+                ctx.lineWidth = highlight ? 6 : 3;
+                ctx.strokeStyle = highlight ? "rgba(255,255,255,0.9)" : `hsl(${p2.hue}, 100%, 85%)`;
+                ctx.stroke();
+                ctx.restore();
+            }
+            ctx.restore();
+        }
+
+        function drawHand(landmarks, isDrawing, isPinching, isNearStroke) {
+            // Əlin rəngi vəziyyətə görə dəyişir
+            let baseColor = "white";
+            if (isDrawing) baseColor = `hsl(${globalHue}, 100%, 70%)`;
+            else if (isPinching) baseColor = "#00ffcc";
+            else if (isNearStroke) baseColor = "#ffcc00"; // Xəttə yaxınlaşanda sarı parıltı
+
+            uiCtx.save();
+            uiCtx.shadowBlur = 20;
+            uiCtx.shadowColor = baseColor;
+            
+            drawConnectors(uiCtx, landmarks, HAND_CONNECTIONS, {
+                color: baseColor,
+                lineWidth: 3
+            });
+
+            for (const landmark of landmarks) {
+                const x = landmark.x * uiCanvas.width;
+                const y = landmark.y * uiCanvas.height;
+                uiCtx.beginPath();
+                uiCtx.arc(x, y, 5, 0, 2 * Math.PI);
+                uiCtx.fillStyle = baseColor;
+                uiCtx.fill();
+            }
+
+            // Pinch (Tutma) nöqtəsi indikatoru
+            if (isPinching || isNearStroke) {
+                const thumb = landmarks[4];
+                const index = landmarks[8];
+                const midX = ((thumb.x + index.x) / 2) * uiCanvas.width;
+                const midY = ((thumb.y + index.y) / 2) * uiCanvas.height;
+                
+                uiCtx.beginPath();
+                uiCtx.arc(midX, midY, isPinching ? 12 : 8, 0, Math.PI * 2);
+                uiCtx.strokeStyle = "white";
+                uiCtx.lineWidth = 2;
+                uiCtx.stroke();
+            }
+
+            uiCtx.restore();
+        }
+
+        const hands = new Hands({ locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}` });
+        hands.setOptions({ maxNumHands: 1, modelComplexity: 1, minDetectionConfidence: 0.8, minTrackingConfidence: 0.8 });
+        hands.onResults(onResults);
+
+        const camera = new Camera(videoElement, {
+            onFrame: async () => { await hands.send({image: videoElement}); },
+            width: 1280, height: 720
+        });
+        camera.start();
+
+        window.addEventListener('resize', () => {
+            uiCanvas.width = mainCanvas.width = window.innerWidth;
+            uiCanvas.height = mainCanvas.height = window.innerHeight;
+        });
+    </script>
+</body>
+</html>
