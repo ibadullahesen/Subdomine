@@ -109,13 +109,6 @@
         #text-canvas {
             display: none;
         }
-
-        .footer-text {
-            color: rgba(255,255,255,0.4); 
-            font-size: 0.7rem; 
-            letter-spacing: 2px;
-            pointer-events: auto;
-        }
     </style>
 </head>
 <body>
@@ -124,7 +117,7 @@
 
     <div class="ui-panel">
         <div class="input-group">
-            <input type="text" id="text-input" placeholder="Yazını daxil edin..." maxlength="15" autocomplete="off">
+            <input type="text" id="text-input" placeholder="Yazını daxil edin..." maxlength="25" autocomplete="off">
             <button id="transform-btn">DƏVAM ET</button>
         </div>
     </div>
@@ -137,7 +130,7 @@
         const transformBtn = document.getElementById('transform-btn');
         const loadingScreen = document.getElementById('loading-screen');
         const textCanvas = document.getElementById('text-canvas');
-        const tCtx = textCanvas.getContext('2d');
+        const tCtx = textCanvas.getContext('2d', { willReadFrequently: true });
 
         const scene = new THREE.Scene();
         const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
@@ -154,6 +147,7 @@
         const geometry = new THREE.BufferGeometry();
 
         let isTextMode = false;
+        let isInitialLoad = true; // İlk yüklənməni izləmək üçün
         let mouse = new THREE.Vector3(-1000, -1000, 0);
 
         const baseColor = new THREE.Color(0x00f2ff);
@@ -177,12 +171,19 @@
 
         function textToPoints(text) {
             isTextMode = true;
-            const size = 150;
-            textCanvas.width = size * 8; 
-            textCanvas.height = size;
+            isInitialLoad = false; // Mətn daxil edildisə artıq ilk yüklənmə deyil
+            const fontSize = 100;
+            tCtx.font = `bold ${fontSize}px Arial`;
+            
+            const metrics = tCtx.measureText(text);
+            const textWidth = Math.ceil(metrics.width) + 40;
+            const textHeight = fontSize * 1.5;
+
+            textCanvas.width = textWidth;
+            textCanvas.height = textHeight;
             
             tCtx.fillStyle = 'white';
-            tCtx.font = `bold 70px Arial`; 
+            tCtx.font = `bold ${fontSize}px Arial`;
             tCtx.textAlign = 'center';
             tCtx.textBaseline = 'middle';
             tCtx.clearRect(0, 0, textCanvas.width, textCanvas.height);
@@ -192,13 +193,19 @@
             const pixels = imageData.data;
             const points = [];
 
+            const maxWorldWidth = 140; 
+            let scale = 0.6;
+            if ((textWidth * scale) > maxWorldWidth) {
+                scale = maxWorldWidth / textWidth;
+            }
+
             for (let y = 0; y < textCanvas.height; y += 1) {
                 for (let x = 0; x < textCanvas.width; x += 1) {
                     const alpha = pixels[(y * textCanvas.width + x) * 4 + 3];
                     if (alpha > 128) {
                         points.push({
-                            x: (x - textCanvas.width / 2) * 0.6,
-                            y: (textCanvas.height / 2 - y) * 0.6
+                            x: (x - textCanvas.width / 2) * scale,
+                            y: (textCanvas.height / 2 - y) * scale
                         });
                     }
                 }
@@ -214,11 +221,12 @@
             }
         }
 
+        // İlk mövqeləri daha uzağa (məsələn 1200 vahid) atırıq ki, gəlmələri vaxt aparsın
         for (let i = 0; i < particleCount; i++) {
             const i3 = i * 3;
-            positions[i3] = (Math.random() - 0.5) * 800;
-            positions[i3 + 1] = (Math.random() - 0.5) * 800;
-            positions[i3 + 2] = (Math.random() - 0.5) * 800;
+            positions[i3] = (Math.random() - 0.5) * 1200;
+            positions[i3 + 1] = (Math.random() - 0.5) * 1200;
+            positions[i3 + 2] = (Math.random() - 0.5) * 1200;
             
             colors[i3] = baseColor.r;
             colors[i3 + 1] = baseColor.g;
@@ -261,13 +269,12 @@
             const posAttr = geometry.attributes.position;
             const colAttr = geometry.attributes.color;
             
-            const mouseInfluenceRadius = isTextMode ? 15 : 25;
+            const mouseInfluenceRadius = isTextMode ? 12 : 25;
             
-            // Sürət parametrləri:
-            // lerpSpeed artırıldı (0.012 -> 0.04) ki, hissəciklər yerinə çox tez çatsın
-            const lerpSpeed = 0.04; 
-            // friction bir qədər azaldıldı ki, hərəkət daha kəskin olsun və gecikməsin
-            const friction = 0.88;   
+            // İlk yüklənmə zamanı sürəti (lerpSpeed) azaldırıq (0.01), 
+            // sonra tədricən normal sürətə (0.05) qayıdırıq.
+            let currentLerpSpeed = isInitialLoad ? 0.015 : 0.05;
+            const friction = isInitialLoad ? 0.95 : 0.85;   
 
             for (let i = 0; i < particleCount; i++) {
                 const i3 = i * 3;
@@ -294,20 +301,19 @@
 
                 if (dist < mouseInfluenceRadius) {
                     const force = (mouseInfluenceRadius - dist) / mouseInfluenceRadius;
-                    velocities[i3] += (dx / dist) * force * 1.2;
-                    velocities[i3 + 1] += (dy / dist) * force * 1.2;
-                    velocities[i3 + 2] += (dz / dist) * force * 1.2;
+                    velocities[i3] += (dx / dist) * force * 1.5;
+                    velocities[i3 + 1] += (dy / dist) * force * 1.5;
+                    velocities[i3 + 2] += (dz / dist) * force * 1.5;
 
-                    colAttr.array[i3] += (goldColor.r - colAttr.array[i3]) * 0.15;
-                    colAttr.array[i3+1] += (goldColor.g - colAttr.array[i3+1]) * 0.15;
-                    colAttr.array[i3+2] += (goldColor.b - colAttr.array[i3+2]) * 0.15;
+                    colAttr.array[i3] += (goldColor.r - colAttr.array[i3]) * 0.2;
+                    colAttr.array[i3+1] += (goldColor.g - colAttr.array[i3+1]) * 0.2;
+                    colAttr.array[i3+2] += (goldColor.b - colAttr.array[i3+2]) * 0.2;
                 } else {
                     colAttr.array[i3] += (baseColor.r - colAttr.array[i3]) * 0.05;
                     colAttr.array[i3+1] += (baseColor.g - colAttr.array[i3+1]) * 0.05;
                     colAttr.array[i3+2] += (baseColor.b - colAttr.array[i3+2]) * 0.05;
                 }
 
-                // Sürət tətbiqi (Mouse effekti)
                 velocities[i3] *= friction;
                 velocities[i3+1] *= friction;
                 velocities[i3+2] *= friction;
@@ -316,10 +322,9 @@
                 posAttr.array[i3+1] += velocities[i3+1];
                 posAttr.array[i3+2] += velocities[i3+2];
 
-                // Bitişmə (Recovery): Çox daha sürətli və dəqiq qayıdış
-                posAttr.array[i3] += (tx - posAttr.array[i3]) * lerpSpeed;
-                posAttr.array[i3 + 1] += (ty - posAttr.array[i3 + 1]) * lerpSpeed;
-                posAttr.array[i3 + 2] += (tz - posAttr.array[i3 + 2]) * lerpSpeed;
+                posAttr.array[i3] += (tx - posAttr.array[i3]) * currentLerpSpeed;
+                posAttr.array[i3 + 1] += (ty - posAttr.array[i3 + 1]) * currentLerpSpeed;
+                posAttr.array[i3 + 2] += (tz - posAttr.array[i3 + 2]) * currentLerpSpeed;
             }
 
             posAttr.needsUpdate = true;
@@ -328,7 +333,7 @@
             if (!isTextMode) {
                 pointsObj.rotation.y += 0.003;
             } else {
-                pointsObj.rotation.y *= 0.95;
+                pointsObj.rotation.y *= 0.9;
             }
 
             renderer.render(scene, camera);
@@ -350,7 +355,11 @@
 
         window.onload = () => {
             loadingScreen.style.opacity = '0';
-            setTimeout(() => loadingScreen.style.display = 'none', 500);
+            setTimeout(() => {
+                loadingScreen.style.display = 'none';
+                // Animasiya başladıqdan bir neçə saniyə sonra normal sürətə keçid edə bilərik
+                setTimeout(() => { isInitialLoad = false; }, 4000);
+            }, 500);
             animate();
         };
 
