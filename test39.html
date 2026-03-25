@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="az">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Parlaq Neon Ürək Animasiyası</title>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    
+    <style>
+        :root {
+            --neon-red: #ff0044;
+            --dark-bg: #000000;
+        }
+
+        body, html {
+            margin: 0; padding: 0;
+            width: 100%; height: 100%;
+            overflow: hidden;
+            background-color: var(--dark-bg);
+        }
+
+        #input_video { 
+            position: absolute;
+            visibility: hidden;
+            width: 1px; height: 1px;
+        }
+
+        #output_canvas {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100vw; height: 100vh;
+            z-index: 5;
+            transform: scaleX(-1);
+        }
+
+        #loading-screen {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: #000;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+        }
+
+        .loader {
+            width: 40px; height: 40px;
+            border: 3px solid #222;
+            border-top: 3px solid var(--neon-red);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin { 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+
+    <div id="loading-screen">
+        <div class="loader"></div>
+    </div>
+
+    <video id="input_video" playsinline></video>
+    <canvas id="output_canvas"></canvas>
+
+    <script>
+        const videoElement = document.getElementById('input_video');
+        const canvasElement = document.getElementById('output_canvas');
+        const canvasCtx = canvasElement.getContext('2d', { alpha: false });
+        const loadingScreen = document.getElementById('loading-screen');
+
+        let heartParticles = []; 
+        let isHeartVisible = false;
+        let isFist = false;
+        
+        const PARTICLE_COUNT = 1800; // Sürət üçün cüzi azaldıldı, lakin parlaqlıq artırıldı
+        const HEART_SCALE = 12;
+
+        function setupCanvas() {
+            canvasElement.width = window.innerWidth;
+            canvasElement.height = window.innerHeight;
+            initHeart();
+        }
+        window.addEventListener('resize', setupCanvas);
+
+        function getHeartPoint(t) {
+            const x = 16 * Math.pow(Math.sin(t), 3);
+            const y = -(13 * Math.cos(t) - 5 * Math.cos(2 * t) - 2 * Math.cos(3 * t) - Math.cos(4 * t));
+            return { x: x * HEART_SCALE, y: y * HEART_SCALE };
+        }
+
+        function initHeart() {
+            heartParticles = [];
+            const centerX = canvasElement.width / 2;
+            const centerY = canvasElement.height / 2;
+            
+            for (let i = 0; i < PARTICLE_COUNT; i++) {
+                const t = Math.random() * Math.PI * 2;
+                const point = getHeartPoint(t);
+                const innerFactor = Math.sqrt(Math.random()); 
+                
+                heartParticles.push({
+                    x: Math.random() * canvasElement.width,
+                    y: Math.random() * canvasElement.height,
+                    targetX: centerX + point.x * innerFactor,
+                    targetY: centerY + point.y * innerFactor,
+                    vx: 0,
+                    vy: 0,
+                    size: Math.random() * 2.5 + 0.5,
+                    opacity: 0,
+                    isExploding: false,
+                    life: 1.0,
+                    ease: 0.02 + Math.random() * 0.04,
+                    // Parlaqlıq üçün rəng tonları
+                    color: i % 3 === 0 ? '#ff0044' : (i % 3 === 1 ? '#ff4d79' : '#ffffff')
+                });
+            }
+        }
+
+        function triggerExplosion() {
+            const centerX = canvasElement.width / 2;
+            const centerY = canvasElement.height / 2;
+            
+            for (let i = 0; i < heartParticles.length; i++) {
+                const p = heartParticles[i];
+                p.isExploding = true;
+                const angle = Math.atan2(p.y - centerY, p.x - centerX);
+                const force = Math.random() * 18 + 7;
+                p.vx = Math.cos(angle) * force;
+                p.vy = Math.sin(angle) * force;
+                p.life = 1.0;
+            }
+        }
+
+        function resetHeart() {
+            for (let i = 0; i < heartParticles.length; i++) {
+                const p = heartParticles[i];
+                p.isExploding = false;
+                p.opacity = 0;
+                p.vx = 0;
+                p.vy = 0;
+                p.x = Math.random() * canvasElement.width;
+                p.y = Math.random() * canvasElement.height;
+            }
+        }
+
+        function checkFistGesture(landmarks) {
+            const points = [8, 12, 16, 20];
+            const wrist = landmarks[0];
+            let folded = 0;
+            for (let i = 0; i < points.length; i++) {
+                const p = landmarks[points[i]];
+                const dist = Math.sqrt(Math.pow(p.x - wrist.x, 2) + Math.pow(p.y - wrist.y, 2));
+                if (dist < 0.16) folded++;
+            }
+            return folded >= 3;
+        }
+
+        function drawSkeleton(landmarks) {
+            canvasCtx.save();
+            // Skelet üçün neon effekt
+            canvasCtx.shadowBlur = 10;
+            canvasCtx.shadowColor = '#ff0044';
+            canvasCtx.strokeStyle = '#ff3366';
+            canvasCtx.lineWidth = 4;
+            canvasCtx.lineCap = 'round';
+            canvasCtx.globalAlpha = 0.9;
+
+            const connections = [[0,1],[1,2],[2,3],[3,4],[0,5],[5,6],[6,7],[7,8],[5,9],[9,10],[10,11],[11,12],[9,13],[13,14],[14,15],[15,16],[13,17],[17,18],[18,19],[19,20],[0,17]];
+            const w = canvasElement.width;
+            const h = canvasElement.height;
+
+            canvasCtx.beginPath();
+            for (let i = 0; i < connections.length; i++) {
+                const [a, b] = connections[i];
+                canvasCtx.moveTo(landmarks[a].x * w, landmarks[a].y * h);
+                canvasCtx.lineTo(landmarks[b].x * w, landmarks[b].y * h);
+            }
+            canvasCtx.stroke();
+
+            canvasCtx.fillStyle = '#ffffff';
+            for (let i = 0; i < landmarks.length; i++) {
+                canvasCtx.beginPath();
+                canvasCtx.arc(landmarks[i].x * w, landmarks[i].y * h, 3, 0, 6.28);
+                canvasCtx.fill();
+            }
+            canvasCtx.restore();
+        }
+
+        function updateAndDrawParticles() {
+            const time = Date.now() * 0.002;
+            const cx = canvasElement.width / 2;
+            const cy = canvasElement.height / 2;
+
+            // Parlaqlıq sirri: Additive blending
+            canvasCtx.globalCompositeOperation = 'lighter';
+
+            for (let i = 0; i < heartParticles.length; i++) {
+                const p = heartParticles[i];
+                
+                if (p.isExploding) {
+                    p.x += p.vx;
+                    p.y += p.vy;
+                    p.vx *= 0.95; 
+                    p.vy *= 0.95;
+                    p.life -= 0.015;
+                    p.opacity = p.life;
+                } else if (isHeartVisible && !isFist) {
+                    p.x += (p.targetX - p.x) * p.ease;
+                    p.y += (p.targetY - p.y) * p.ease;
+                    if (p.opacity < 1) p.opacity += 0.04;
+                } else {
+                    p.opacity *= 0.85;
+                }
+
+                if (p.opacity > 0.05) {
+                    canvasCtx.globalAlpha = p.opacity;
+                    canvasCtx.fillStyle = p.color;
+                    
+                    let dx = p.x;
+                    let dy = p.y;
+
+                    if (!p.isExploding && Math.abs(p.x - p.targetX) < 2) {
+                        const pulse = Math.sin(time * 4) * 1.2;
+                        dx += (p.x - cx) * (pulse * 0.012);
+                        dy += (p.y - cy) * (pulse * 0.012);
+                    }
+                    
+                    // İkiqat çəkim effekti: daha parlaq mərkəz
+                    canvasCtx.fillRect(dx, dy, p.size, p.size);
+                    if (p.opacity > 0.5 && i % 4 === 0) {
+                        canvasCtx.fillStyle = '#ffffff';
+                        canvasCtx.fillRect(dx + 0.5, dy + 0.5, p.size * 0.5, p.size * 0.5);
+                    }
+                }
+            }
+            canvasCtx.globalCompositeOperation = 'source-over';
+        }
+
+        function onResults(results) {
+            if (loadingScreen.style.display !== 'none') loadingScreen.style.display = 'none';
+
+            canvasCtx.globalAlpha = 1.0;
+            canvasCtx.fillStyle = '#000000';
+            canvasCtx.fillRect(0, 0, canvasElement.width, canvasElement.height);
+
+            if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+                const hand = results.multiHandLandmarks[0];
+                isHeartVisible = true;
+                drawSkeleton(hand);
+                
+                const currentlyFist = checkFistGesture(hand);
+                if (currentlyFist && !isFist) triggerExplosion();
+                else if (!currentlyFist && isFist) resetHeart();
+                isFist = currentlyFist;
+            } else {
+                if (isHeartVisible) resetHeart();
+                isHeartVisible = false;
+                isFist = false;
+            }
+
+            updateAndDrawParticles();
+        }
+
+        setupCanvas();
+
+        const hands = new Hands({
+            locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+        });
+
+        hands.setOptions({
+            maxNumHands: 1,
+            modelComplexity: 0,
+            minDetectionConfidence: 0.7,
+            minTrackingConfidence: 0.7
+        });
+
+        hands.onResults(onResults);
+
+        const camera = new Camera(videoElement, {
+            onFrame: async () => {
+                await hands.send({image: videoElement});
+            },
+            width: 640, height: 480
+        });
+        camera.start();
+    </script>
+</body>
+</html>
