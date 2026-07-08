@@ -1,0 +1,1244 @@
+<!DOCTYPE html>
+<html lang="az">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>AxtarGet - Qeyri-şəbəkə Fayl Ötürmə</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <style>
+        :root {
+            --bg: #060b14;
+            --bg-card: #0d1520;
+            --fg: #e8ecf1;
+            --muted: #5a6578;
+            --accent: #00e5a0;
+            --accent-dim: rgba(0, 229, 160, 0.15);
+            --accent-glow: rgba(0, 229, 160, 0.4);
+            --border: #1a2535;
+            --danger: #ff4757;
+            --warn: #ffa502;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Space Grotesk', sans-serif;
+            background: var(--bg);
+            color: var(--fg);
+            min-height: 100vh;
+            overflow-x: hidden;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        /* Arxa plan animasiyaları */
+        .bg-grid {
+            position: fixed; inset: 0; z-index: 0; pointer-events: none;
+            background-image:
+                linear-gradient(rgba(0,229,160,0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(0,229,160,0.03) 1px, transparent 1px);
+            background-size: 60px 60px;
+        }
+
+        .bg-orb {
+            position: fixed; border-radius: 50%; filter: blur(100px);
+            pointer-events: none; z-index: 0;
+        }
+        .bg-orb-1 {
+            width: 500px; height: 500px; top: -150px; right: -100px;
+            background: radial-gradient(circle, rgba(0,229,160,0.12), transparent 70%);
+            animation: orbFloat1 12s ease-in-out infinite;
+        }
+        .bg-orb-2 {
+            width: 400px; height: 400px; bottom: -100px; left: -80px;
+            background: radial-gradient(circle, rgba(0,180,220,0.1), transparent 70%);
+            animation: orbFloat2 15s ease-in-out infinite;
+        }
+        .bg-orb-3 {
+            width: 300px; height: 300px; top: 40%; left: 50%;
+            background: radial-gradient(circle, rgba(0,229,160,0.06), transparent 70%);
+            animation: orbFloat3 10s ease-in-out infinite;
+        }
+
+        @keyframes orbFloat1 {
+            0%, 100% { transform: translate(0, 0) scale(1); }
+            50% { transform: translate(-40px, 30px) scale(1.1); }
+        }
+        @keyframes orbFloat2 {
+            0%, 100% { transform: translate(0, 0) scale(1); }
+            50% { transform: translate(30px, -40px) scale(1.15); }
+        }
+        @keyframes orbFloat3 {
+            0%, 100% { transform: translate(-50%, 0) scale(1); }
+            50% { transform: translate(-50%, -20px) scale(0.9); }
+        }
+
+        /* Ekran keçidləri */
+        .screen {
+            position: fixed; inset: 0; z-index: 10;
+            display: flex; flex-direction: column;
+            align-items: center; justify-content: center;
+            transition: opacity 0.4s ease, transform 0.4s ease;
+            opacity: 0; transform: translateY(20px) scale(0.98);
+            pointer-events: none; padding: 20px;
+        }
+        .screen.active {
+            opacity: 1; transform: translateY(0) scale(1);
+            pointer-events: all;
+        }
+
+        /* Kartlar */
+        .card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            padding: 40px;
+            backdrop-filter: blur(10px);
+            transition: all 0.3s ease;
+        }
+        .card-interactive {
+            cursor: pointer;
+            position: relative;
+            overflow: hidden;
+        }
+        .card-interactive::before {
+            content: '';
+            position: absolute; inset: 0;
+            background: linear-gradient(135deg, var(--accent-dim), transparent 60%);
+            opacity: 0; transition: opacity 0.3s ease;
+            border-radius: 20px;
+        }
+        .card-interactive:hover::before,
+        .card-interactive:active::before { opacity: 1; }
+        .card-interactive:hover {
+            border-color: var(--accent);
+            box-shadow: 0 0 30px var(--accent-dim), 0 8px 32px rgba(0,0,0,0.4);
+            transform: translateY(-4px);
+        }
+        .card-interactive:active { transform: translateY(-1px) scale(0.99); }
+
+        /* Düymələr */
+        .btn-primary {
+            background: linear-gradient(135deg, var(--accent), #00c48c);
+            color: #060b14; font-weight: 600;
+            padding: 14px 32px; border-radius: 14px;
+            border: none; cursor: pointer;
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 16px; transition: all 0.25s ease;
+            box-shadow: 0 4px 20px var(--accent-dim);
+        }
+        .btn-primary:hover {
+            box-shadow: 0 6px 30px var(--accent-glow);
+            transform: translateY(-2px);
+        }
+        .btn-primary:active { transform: translateY(0) scale(0.98); }
+        .btn-primary:disabled {
+            opacity: 0.4; cursor: not-allowed;
+            transform: none !important;
+            box-shadow: none !important;
+        }
+
+        .btn-ghost {
+            background: transparent; color: var(--muted);
+            border: 1px solid var(--border);
+            padding: 12px 24px; border-radius: 14px;
+            cursor: pointer; font-family: 'Space Grotesk', sans-serif;
+            font-size: 15px; transition: all 0.25s ease;
+        }
+        .btn-ghost:hover {
+            color: var(--fg); border-color: var(--muted);
+            background: rgba(255,255,255,0.03);
+        }
+
+        /* Logo */
+        .logo-text {
+            font-family: 'JetBrains Mono', monospace;
+            font-weight: 700; font-size: 36px;
+            background: linear-gradient(135deg, var(--accent), #00c48c, #00b4dc);
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+            background-clip: text; letter-spacing: -1px;
+        }
+
+        /* QR konteyner */
+        .qr-wrapper {
+            position: relative;
+            background: #ffffff;
+            border-radius: 16px;
+            padding: 16px;
+            box-shadow: 0 0 40px var(--accent-dim), 0 12px 40px rgba(0,0,0,0.5);
+            transition: box-shadow 0.3s ease;
+        }
+        .qr-wrapper.scanning {
+            animation: qrPulse 1.5s ease-in-out infinite;
+        }
+        .qr-wrapper.paused {
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+        }
+        @keyframes qrPulse {
+            0%, 100% { box-shadow: 0 0 40px var(--accent-dim), 0 12px 40px rgba(0,0,0,0.5); }
+            50% { box-shadow: 0 0 60px var(--accent-glow), 0 12px 50px rgba(0,0,0,0.5); }
+        }
+        .qr-wrapper #qrcode {
+            display: flex; align-items: center; justify-content: center;
+        }
+        .qr-wrapper #qrcode img,
+        .qr-wrapper #qrcode canvas {
+            border-radius: 4px;
+        }
+
+        /* İrəliləyiş çubuğu */
+        .progress-track {
+            width: 100%; height: 8px;
+            background: rgba(255,255,255,0.06);
+            border-radius: 99px; overflow: hidden;
+            position: relative;
+        }
+        .progress-fill {
+            height: 100%; width: 0%;
+            background: linear-gradient(90deg, var(--accent), #00c48c);
+            border-radius: 99px;
+            transition: width 0.3s ease;
+            position: relative;
+        }
+        .progress-fill::after {
+            content: '';
+            position: absolute; right: 0; top: 50%;
+            transform: translateY(-50%);
+            width: 14px; height: 14px;
+            background: var(--accent);
+            border-radius: 50%;
+            box-shadow: 0 0 12px var(--accent-glow);
+        }
+
+        .progress-pct {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 48px; font-weight: 700;
+            color: var(--accent);
+            line-height: 1;
+        }
+
+        /* Skaner arayüzü */
+        .scanner-container {
+            position: fixed; inset: 0; z-index: 100;
+            background: #000;
+        }
+        .scanner-container video {
+            width: 100%; height: 100%;
+            object-fit: cover;
+        }
+        .scanner-overlay {
+            position: absolute; inset: 0;
+            display: flex; align-items: center; justify-content: center;
+        }
+
+        /* Skaner fokus çərçivəsi */
+        .scanner-frame {
+            width: 280px; height: 280px;
+            position: relative;
+        }
+        .scanner-corner {
+            position: absolute;
+            width: 36px; height: 36px;
+            border-color: var(--accent);
+            border-style: solid;
+            border-width: 0;
+        }
+        .scanner-corner.tl { top: 0; left: 0; border-top-width: 4px; border-left-width: 4px; border-top-left-radius: 12px; }
+        .scanner-corner.tr { top: 0; right: 0; border-top-width: 4px; border-right-width: 4px; border-top-right-radius: 12px; }
+        .scanner-corner.bl { bottom: 0; left: 0; border-bottom-width: 4px; border-left-width: 4px; border-bottom-left-radius: 12px; }
+        .scanner-corner.br { bottom: 0; right: 0; border-bottom-width: 4px; border-right-width: 4px; border-bottom-right-radius: 12px; }
+
+        .scanner-line {
+            position: absolute; left: 8px; right: 8px;
+            height: 3px;
+            background: linear-gradient(90deg, transparent, var(--accent), transparent);
+            box-shadow: 0 0 16px var(--accent-glow);
+            animation: scanLine 2.2s ease-in-out infinite;
+            border-radius: 2px;
+        }
+        @keyframes scanLine {
+            0% { top: 8px; opacity: 0; }
+            10% { opacity: 1; }
+            90% { opacity: 1; }
+            100% { top: calc(100% - 11px); opacity: 0; }
+        }
+
+        .scanner-border-glow {
+            position: absolute; inset: -2px;
+            border: 2px solid rgba(0,229,160,0.2);
+            border-radius: 14px;
+            animation: frameGlow 2s ease-in-out infinite;
+        }
+        @keyframes frameGlow {
+            0%, 100% { border-color: rgba(0,229,160,0.15); }
+            50% { border-color: rgba(0,229,160,0.4); }
+        }
+
+        /* Skaner üst panel */
+        .scanner-top-bar {
+            position: absolute; top: 0; left: 0; right: 0;
+            padding: 16px 20px;
+            padding-top: max(16px, env(safe-area-inset-top));
+            background: linear-gradient(to bottom, rgba(0,0,0,0.8), transparent);
+            display: flex; align-items: center; justify-content: space-between;
+            z-index: 5;
+        }
+
+        /* Skaner alt panel */
+        .scanner-bottom-panel {
+            position: absolute; bottom: 0; left: 0; right: 0;
+            padding: 20px;
+            padding-bottom: max(20px, env(safe-area-inset-bottom));
+            background: linear-gradient(to top, rgba(6,11,20,0.95) 60%, transparent);
+            z-index: 5;
+        }
+
+        /* Toast bildirişləri */
+        .toast-container {
+            position: fixed; top: 20px; right: 20px;
+            z-index: 9999; display: flex; flex-direction: column; gap: 10px;
+        }
+        .toast {
+            padding: 14px 20px;
+            border-radius: 12px;
+            font-size: 14px; font-weight: 500;
+            display: flex; align-items: center; gap: 10px;
+            animation: toastIn 0.35s ease;
+            box-shadow: 0 8px 30px rgba(0,0,0,0.4);
+            max-width: 360px;
+        }
+        .toast.success { background: #0d2818; border: 1px solid #1a5c2e; color: #4ade80; }
+        .toast.error { background: #2a0f12; border: 1px solid #5c1a1e; color: #f87171; }
+        .toast.info { background: #0d1f2a; border: 1px solid #1a3a5c; color: #60a5fa; }
+        .toast.fade-out { animation: toastOut 0.3s ease forwards; }
+
+        @keyframes toastIn {
+            from { opacity: 0; transform: translateX(40px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+        @keyframes toastOut {
+            from { opacity: 1; transform: translateX(0); }
+            to { opacity: 0; transform: translateX(40px); }
+        }
+
+        /* Tam ekran şəkil göstəricisi */
+        .image-viewer {
+            position: fixed; inset: 0; z-index: 200;
+            background: #000;
+            display: flex; align-items: center; justify-content: center;
+            opacity: 0; pointer-events: none;
+            transition: opacity 0.5s ease;
+        }
+        .image-viewer.active { opacity: 1; pointer-events: all; }
+        .image-viewer img {
+            max-width: 100%; max-height: 100%;
+            object-fit: contain;
+            animation: imgReveal 0.6s ease 0.2s both;
+        }
+        @keyframes imgReveal {
+            from { opacity: 0; transform: scale(0.9); }
+            to { opacity: 1; transform: scale(1); }
+        }
+        .image-viewer .close-btn {
+            position: absolute; top: 20px; right: 20px;
+            width: 44px; height: 44px;
+            background: rgba(255,255,255,0.1);
+            border: 1px solid rgba(255,255,255,0.15);
+            border-radius: 50%; color: #fff;
+            font-size: 20px; cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+            transition: all 0.2s ease;
+            backdrop-filter: blur(10px);
+            z-index: 5;
+        }
+        .image-viewer .close-btn:hover {
+            background: rgba(255,255,255,0.2);
+            transform: rotate(90deg);
+        }
+        .image-viewer .save-btn {
+            position: absolute; bottom: 30px;
+            left: 50%; transform: translateX(-50%);
+            padding: 14px 36px;
+            background: var(--accent); color: var(--bg);
+            border: none; border-radius: 14px;
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 16px; font-weight: 600;
+            cursor: pointer; z-index: 5;
+            box-shadow: 0 4px 20px var(--accent-dim);
+            transition: all 0.25s ease;
+        }
+        .image-viewer .save-btn:hover {
+            transform: translateX(-50%) translateY(-2px);
+            box-shadow: 0 6px 30px var(--accent-glow);
+        }
+
+        /* Fayl məlumatı */
+        .file-info {
+            display: flex; align-items: center; gap: 14px;
+            padding: 14px 18px;
+            background: rgba(255,255,255,0.03);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+        }
+        .file-info .file-icon {
+            width: 44px; height: 44px;
+            background: var(--accent-dim);
+            border-radius: 10px;
+            display: flex; align-items: center; justify-content: center;
+            color: var(--accent); font-size: 18px;
+            flex-shrink: 0;
+        }
+
+        /* Status indikatoru */
+        .status-dot {
+            width: 10px; height: 10px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+        .status-dot.active {
+            background: var(--accent);
+            box-shadow: 0 0 8px var(--accent-glow);
+            animation: dotPulse 1.5s ease-in-out infinite;
+        }
+        .status-dot.paused {
+            background: var(--warn);
+            box-shadow: 0 0 8px rgba(255,165,2,0.4);
+        }
+        .status-dot.done {
+            background: var(--accent);
+        }
+        @keyframes dotPulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+        }
+
+        /* Partikul effekti tamamlanmada */
+        .confetti-container {
+            position: fixed; inset: 0; z-index: 150;
+            pointer-events: none; overflow: hidden;
+        }
+        .confetti-piece {
+            position: absolute;
+            width: 10px; height: 10px;
+            border-radius: 2px;
+            animation: confettiFall 1.5s ease-out forwards;
+        }
+        @keyframes confettiFall {
+            0% { transform: translateY(-20px) rotate(0deg) scale(1); opacity: 1; }
+            100% { transform: translateY(100vh) rotate(720deg) scale(0); opacity: 0; }
+        }
+
+        /* Responsiv */
+        @media (max-width: 640px) {
+            .logo-text { font-size: 28px; }
+            .card { padding: 28px 20px; }
+            .progress-pct { font-size: 36px; }
+            .scanner-frame { width: 240px; height: 240px; }
+        }
+
+        /* Reduce motion */
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after {
+                animation-duration: 0.01ms !important;
+                transition-duration: 0.01ms !important;
+            }
+        }
+
+        /* Gizli fayl inputu */
+        .hidden-input { display: none; }
+
+        /* Ətraf mühit mətni */
+        .mono { font-family: 'JetBrains Mono', monospace; }
+    </style>
+</head>
+<body>
+
+    <!-- Arxa plan effektləri -->
+    <div class="bg-grid"></div>
+    <div class="bg-orb bg-orb-1"></div>
+    <div class="bg-orb bg-orb-2"></div>
+    <div class="bg-orb bg-orb-3"></div>
+
+    <!-- Toast bildirişləri -->
+    <div class="toast-container" id="toastContainer"></div>
+
+    <!-- ============ ƏSAS MENYU ============ -->
+    <section class="screen active" id="screenMenu">
+        <div class="text-center" style="max-width: 480px; width: 100%;">
+            <!-- Logo -->
+            <div style="margin-bottom: 12px;">
+                <div style="display: inline-flex; align-items: center; justify-content: center; width: 64px; height: 64px; border-radius: 18px; background: var(--accent-dim); border: 1px solid rgba(0,229,160,0.2); margin-bottom: 16px;">
+                    <i class="fa-solid fa-arrow-right-arrow-left" style="font-size: 26px; color: var(--accent);"></i>
+                </div>
+            </div>
+            <div class="logo-text" style="margin-bottom: 8px;">AxtarGet</div>
+            <p style="color: var(--muted); font-size: 16px; margin-bottom: 48px; line-height: 1.6;">
+                Heç bir internet və ya server lazım deyil.<br>
+                QR kod vasitəsilə şəkil ötürün.
+            </p>
+
+            <!-- Seçim kartları -->
+            <div style="display: flex; flex-direction: column; gap: 16px;">
+                <div class="card card-interactive" onclick="startSend()" role="button" tabindex="0"
+                     onkeydown="if(event.key==='Enter')startSend()">
+                    <div style="display: flex; align-items: center; gap: 18px; position: relative; z-index: 1;">
+                        <div style="width: 56px; height: 56px; border-radius: 14px; background: linear-gradient(135deg, var(--accent-dim), rgba(0,196,140,0.1)); display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                            <i class="fa-solid fa-cloud-arrow-up" style="font-size: 22px; color: var(--accent);"></i>
+                        </div>
+                        <div style="text-align: left;">
+                            <div style="font-size: 19px; font-weight: 600; margin-bottom: 4px;">Göndər</div>
+                            <div style="font-size: 14px; color: var(--muted);">Kompüterdən şəkil seçin və QR kod yaradın</div>
+                        </div>
+                        <i class="fa-solid fa-chevron-right" style="margin-left: auto; color: var(--muted); font-size: 14px;"></i>
+                    </div>
+                </div>
+
+                <div class="card card-interactive" onclick="startReceive()" role="button" tabindex="0"
+                     onkeydown="if(event.key==='Enter')startReceive()">
+                    <div style="display: flex; align-items: center; gap: 18px; position: relative; z-index: 1;">
+                        <div style="width: 56px; height: 56px; border-radius: 14px; background: linear-gradient(135deg, rgba(0,180,220,0.15), rgba(0,180,220,0.05)); display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                            <i class="fa-solid fa-camera" style="font-size: 22px; color: #00b4dc;"></i>
+                        </div>
+                        <div style="text-align: left;">
+                            <div style="font-size: 19px; font-weight: 600; margin-bottom: 4px;">Al</div>
+                            <div style="font-size: 14px; color: var(--muted);">Telefon kamerası ilə QR kodları skan edin</div>
+                        </div>
+                        <i class="fa-solid fa-chevron-right" style="margin-left: auto; color: var(--muted); font-size: 14px;"></i>
+                    </div>
+                </div>
+            </div>
+
+            <p style="margin-top: 40px; font-size: 12px; color: var(--muted); opacity: 0.6;">
+                Maksimum fayl ölçüsü: ~200KB (şəkil üçün optimal)
+            </p>
+        </div>
+    </section>
+
+    <!-- ============ GÖNDƏR EKRANI ============ -->
+    <section class="screen" id="screenSend">
+        <div style="max-width: 440px; width: 100%; text-align: center;">
+            <!-- Başlıq -->
+            <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 32px; justify-content: center;">
+                <button class="btn-ghost" onclick="goToMenu()" style="padding: 10px 14px; border-radius: 10px;" aria-label="Geri qayıt">
+                    <i class="fa-solid fa-arrow-left"></i>
+                </button>
+                <h2 style="font-size: 22px; font-weight: 600;">Göndər</h2>
+            </div>
+
+            <!-- Fayl seçmə zonası (fayl seçilməmişdən əvvəl) -->
+            <div id="sendFileZone" class="card" style="cursor: pointer; transition: all 0.3s ease;"
+                 onclick="document.getElementById('fileInput').click()">
+                <div style="padding: 30px 20px;">
+                    <div style="width: 72px; height: 72px; border-radius: 50%; background: var(--accent-dim); display: flex; align-items: center; justify-content: center; margin: 0 auto 18px;">
+                        <i class="fa-solid fa-image" style="font-size: 28px; color: var(--accent);"></i>
+                    </div>
+                    <p style="font-size: 17px; font-weight: 500; margin-bottom: 6px;">Şəkil seçin</p>
+                    <p style="font-size: 13px; color: var(--muted);">JPG, PNG, WebP - Maks. ~200KB</p>
+                </div>
+            </div>
+            <input type="file" id="fileInput" class="hidden-input" accept="image/*" onchange="handleFileSelect(event)">
+
+            <!-- Fayl seçildikdən sonra görünən zona -->
+            <div id="sendActiveZone" style="display: none;">
+                <!-- Fayl məlumatı -->
+                <div class="file-info" style="margin-bottom: 24px; text-align: left;">
+                    <div class="file-icon">
+                        <i class="fa-solid fa-image"></i>
+                    </div>
+                    <div style="min-width: 0; flex: 1;">
+                        <div id="sendFileName" style="font-size: 14px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;"></div>
+                        <div id="sendFileSize" class="mono" style="font-size: 12px; color: var(--muted); margin-top: 2px;"></div>
+                    </div>
+                    <button class="btn-ghost" onclick="resetSend()" style="padding: 8px 12px; border-radius: 8px; font-size: 13px;" aria-label="Fayl dəyişdir">
+                        <i class="fa-solid fa-rotate"></i>
+                    </button>
+                </div>
+
+                <!-- QR Kod -->
+                <div class="qr-wrapper" id="qrWrapper" style="display: inline-block; margin-bottom: 24px;">
+                    <div id="qrcode"></div>
+                </div>
+
+                <!-- Status mətni -->
+                <div style="display: flex; align-items: center; gap: 8px; justify-content: center; margin-bottom: 16px;">
+                    <div class="status-dot paused" id="sendStatusDot"></div>
+                    <span id="sendStatusText" style="font-size: 13px; color: var(--muted);">Skan edilməyi gözləyir...</span>
+                </div>
+
+                <!-- Faiz göstəricisi -->
+                <div class="progress-pct" id="sendPct" style="margin-bottom: 12px;">0%</div>
+
+                <!-- İrəliləyiş çubuğu -->
+                <div class="progress-track" style="margin-bottom: 12px;">
+                    <div class="progress-fill" id="sendProgressFill"></div>
+                </div>
+                <div class="mono" style="font-size: 12px; color: var(--muted);">
+                    <span id="sendChunkInfo">0 / 0 hissə</span>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ============ AL EKRANI (SKANER) ============ -->
+    <div class="scanner-container" id="scannerContainer" style="display: none;">
+        <video id="scannerVideo" autoplay playsinline muted></video>
+        <canvas id="scannerCanvas" style="display: none;"></canvas>
+
+        <!-- Skaner overlay -->
+        <div class="scanner-overlay">
+            <div class="scanner-frame">
+                <div class="scanner-border-glow"></div>
+                <div class="scanner-corner tl"></div>
+                <div class="scanner-corner tr"></div>
+                <div class="scanner-corner bl"></div>
+                <div class="scanner-corner br"></div>
+                <div class="scanner-line" id="scannerLine"></div>
+            </div>
+        </div>
+
+        <!-- Üst panel -->
+        <div class="scanner-top-bar">
+            <button onclick="stopScanner()" style="width: 40px; height: 40px; border-radius: 50%; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.15); color: #fff; font-size: 18px; cursor: pointer; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(10px);" aria-label="İmtina et">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+            <span style="font-size: 15px; font-weight: 500; color: rgba(255,255,255,0.9);">QR Skaner</span>
+            <div style="width: 40px;"></div>
+        </div>
+
+        <!-- Alt panel -->
+        <div class="scanner-bottom-panel">
+            <div style="text-align: center;">
+                <!-- Faiz göstəricisi -->
+                <div class="progress-pct" id="recvPct" style="margin-bottom: 8px; font-size: 40px;">0%</div>
+                <div class="progress-track" style="margin-bottom: 10px; max-width: 300px; margin-left: auto; margin-right: auto;">
+                    <div class="progress-fill" id="recvProgressFill"></div>
+                </div>
+                <p id="recvStatusText" style="font-size: 13px; color: rgba(255,255,255,0.5); margin-bottom: 6px;">QR kodu kadrə daxil edin</p>
+                <p id="recvChunkInfo" class="mono" style="font-size: 11px; color: rgba(255,255,255,0.3);">0 / 0 hissə</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============ ŞƏKİL GÖSTƏRİCİ ============ -->
+    <div class="image-viewer" id="imageViewer">
+        <button class="close-btn" onclick="closeImageViewer()" aria-label="Bağla">
+            <i class="fa-solid fa-xmark"></i>
+        </button>
+        <img id="viewerImage" src="" alt="Ötürülən şəkil">
+        <button class="save-btn" onclick="saveImage()" id="saveBtn">
+            <i class="fa-solid fa-download" style="margin-right: 8px;"></i>Yadda Saxla
+        </button>
+    </div>
+
+    <!-- Konfeti konteyneri -->
+    <div class="confetti-container" id="confettiContainer"></div>
+
+    <script>
+    /* ====================================================
+       AxtarGet — QR kod vasitəsilə server-siz fayl ötürmə
+       ==================================================== */
+
+    // --- Konfiqurasiya ---
+    const CFG = {
+        CHUNK_SIZE: 800,       // Hər QR kodda olan byte miqdarı
+        QR_SIZE: 300,          // QR kod piksel ölçüsü
+        MAX_FILE_BYTES: 204800,// Maksimum fayl ölçüsü (~200KB)
+        IDLE_DELAY: 2000,      // Skan olunmayan frame-lər üçün dayanma gözləməsi (ms)
+        FAST_INTERVAL: 120,    // Aktiv skan edəndə QR yeniləmə sürəti (ms)
+        SLOW_INTERVAL: 1500,   // Dayanmış vəziyyətdə seans yeniləmə sürəti (ms)
+    };
+
+    // --- Vəziyyət dəyişənləri ---
+    let sendState = {
+        active: false,
+        chunks: [],
+        totalChunks: 0,
+        currentChunk: 0,
+        sessionId: '',
+        fileName: '',
+        fileType: '',
+        lastSuccessTime: 0,
+        scanning: false,
+        timer: null,
+        qrInstance: null,
+    };
+
+    let recvState = {
+        active: false,
+        chunks: new Map(),
+        totalChunks: 0,
+        sessionId: '',
+        fileName: '',
+        fileType: '',
+        lastSuccessTime: 0,
+        stream: null,
+        animFrame: null,
+        completed: false,
+    };
+
+    // --- Yardımçı funksiyalar ---
+
+    /** Seans ID yaradır (6 simvol) */
+    function genSessionId() {
+        const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+        let id = '';
+        for (let i = 0; i < 6; i++) id += chars[Math.floor(Math.random() * chars.length)];
+        return id;
+    }
+
+    /** Base64 string-i Uint8Array-ə çevirir */
+    function base64ToBytes(b64) {
+        const bin = atob(b64);
+        const arr = new Uint8Array(bin.length);
+        for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+        return arr;
+    }
+
+    /** Uint8Array-i Base64 string-ə çevirir */
+    function bytesToBase64(bytes) {
+        let bin = '';
+        for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+        return btoa(bin);
+    }
+
+    /** Fayl ölçüsünü oxunaqlı formatda göstərir */
+    function formatSize(bytes) {
+        if (bytes < 1024) return bytes + ' B';
+        if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+        return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
+    }
+
+    /** Toast bildirişi göstərir */
+    function showToast(message, type = 'info', duration = 3000) {
+        const container = document.getElementById('toastContainer');
+        const toast = document.createElement('div');
+        toast.className = 'toast ' + type;
+        const icons = { success: 'fa-circle-check', error: 'fa-circle-exclamation', info: 'fa-circle-info' };
+        toast.innerHTML = '<i class="fa-solid ' + (icons[type] || icons.info) + '"></i><span>' + message + '</span>';
+        container.appendChild(toast);
+        setTimeout(() => {
+            toast.classList.add('fade-out');
+            setTimeout(() => toast.remove(), 300);
+        }, duration);
+    }
+
+    /** Ekran keçidi */
+    function showScreen(id) {
+        document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+        document.getElementById(id).classList.add('active');
+    }
+
+    function goToMenu() {
+        resetSend();
+        showScreen('screenMenu');
+    }
+
+    // --- GÖNDƏRƏN TƏRƏF ---
+
+    /** Göndərən modunu başladır */
+    function startSend() {
+        showScreen('screenSend');
+        resetSend();
+    }
+
+    /** Fayl seçildikdə çağırılır */
+    function handleFileSelect(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        // Fayl tipi yoxlaması
+        if (!file.type.startsWith('image/')) {
+            showToast('Zəhmət olmasa şəkil faylı seçin', 'error');
+            event.target.value = '';
+            return;
+        }
+
+        // Fayl ölçüsü yoxlaması
+        if (file.size > CFG.MAX_FILE_BYTES) {
+            showToast('Fayl çox böyükdür. Maksimum ' + formatSize(CFG.MAX_FILE_BYTES), 'error');
+            event.target.value = '';
+            return;
+        }
+
+        // Faylı oxu və prosesə başla
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            const arrayBuffer = e.target.result;
+            const bytes = new Uint8Array(arrayBuffer);
+            const base64 = bytesToBase64(bytes);
+
+            // Hissələrə bölmək (hər biri CHUNK_SIZE simvoldan ibarət base64 hissəsi)
+            sendState.chunks = [];
+            for (let i = 0; i < base64.length; i += CFG.CHUNK_SIZE) {
+                sendState.chunks.push(base64.substring(i, i + CFG.CHUNK_SIZE));
+            }
+            sendState.totalChunks = sendState.chunks.length;
+            sendState.currentChunk = 0;
+            sendState.sessionId = genSessionId();
+            sendState.fileName = file.name;
+            sendState.fileType = file.type;
+            sendState.active = true;
+            sendState.scanning = false;
+            sendState.lastSuccessTime = 0;
+
+            // UI yenilə
+            document.getElementById('sendFileZone').style.display = 'none';
+            document.getElementById('sendActiveZone').style.display = 'block';
+            document.getElementById('sendFileName').textContent = file.name;
+            document.getElementById('sendFileSize').textContent = formatSize(file.size) + ' · ' + sendState.totalChunks + ' hissə';
+
+            // QR kodu yarat
+            initQR();
+            updateSendUI();
+
+            showToast('Fayl hazırdır. Telefon ilə skan edin.', 'success');
+
+            // Sessiya yeniləmə timer-i başlat (dayanma/ləğv etmə mexanizmi)
+            startSessionTimer();
+        };
+        reader.readAsArrayBuffer(file);
+        event.target.value = '';
+    }
+
+    /** QR kod elementini yaradır */
+    function initQR() {
+        const container = document.getElementById('qrcode');
+        container.innerHTML = '';
+        sendState.qrInstance = new QRCode(container, {
+            text: buildChunkPayload(0, 'S'),
+            width: CFG.QR_SIZE,
+            height: CFG.QR_SIZE,
+            colorDark: '#060b14',
+            colorLight: '#ffffff',
+            correctLevel: QRCode.CorrectLevel.L,
+        });
+    }
+
+    /** QR payload-u qurur: SESSION|CHUNK_NUM/TOTAL|STATUS|DATA */
+    function buildChunkPayload(index, status) {
+        const data = (index >= 0 && index < sendState.chunks.length) ? sendState.chunks[index] : '';
+        return sendState.sessionId + '|' + (index + 1) + '/' + sendState.totalChunks + '|' + status + '|' + data;
+    }
+
+    /** QR kodu müəyyən bir hissə ilə yeniləyir */
+    function updateQR(index, status) {
+        if (!sendState.qrInstance) return;
+        const payload = buildChunkPayload(index, status);
+        sendState.qrInstance.clear();
+        sendState.qrInstance.makeCode(payload);
+    }
+
+    /** Göndərən UI-ni yeniləyir */
+    function updateSendUI() {
+        const pct = sendState.totalChunks > 0 ? Math.round((recvState_chunks_count() / sendState.totalChunks) * 100) : 0;
+        // Əslində göndərən tərəfdə qəbul edilən hissələri bilmirik,
+        // buna görə cari hissə nömrəsinə əsasən faizi göstəririk
+        const displayPct = sendState.totalChunks > 0 ? Math.min(100, Math.round(((sendState.currentChunk + 1) / sendState.totalChunks) * 100)) : 0;
+
+        document.getElementById('sendPct').textContent = displayPct + '%';
+        document.getElementById('sendProgressFill').style.width = displayPct + '%';
+        document.getElementById('sendChunkInfo').textContent = (sendState.currentChunk + 1) + ' / ' + sendState.totalChunks + ' hissə';
+
+        const dot = document.getElementById('sendStatusDot');
+        const text = document.getElementById('sendStatusText');
+        const wrapper = document.getElementById('qrWrapper');
+
+        if (sendState.scanning) {
+            dot.className = 'status-dot active';
+            text.textContent = 'Skan edilir — QR kodlar yenilənir...';
+            wrapper.className = 'qr-wrapper scanning';
+        } else {
+            dot.className = 'status-dot paused';
+            text.textContent = 'Skan edilməyi gözləyir...';
+            wrapper.className = 'qr-wrapper paused';
+        }
+    }
+
+    /** Hər 2 saniyədən çox skan olunmayıbsa, seansı dayandırır */
+    function startSessionTimer() {
+        if (sendState.timer) clearInterval(sendState.timer);
+        sendState.timer = setInterval(() => {
+            if (!sendState.active) {
+                clearInterval(sendState.timer);
+                return;
+            }
+            if (sendState.scanning && Date.now() - sendState.lastSuccessTime > CFG.IDLE_DELAY) {
+                sendState.scanning = false;
+                updateQR(sendState.currentChunk, 'P'); // Paused
+                updateSendUI();
+            }
+        }, 500);
+    }
+
+    /** Göndərəni sıfırlayır */
+    function resetSend() {
+        if (sendState.timer) clearInterval(sendState.timer);
+        if (sendState.qrInstance) {
+            const container = document.getElementById('qrcode');
+            container.innerHTML = '';
+            sendState.qrInstance = null;
+        }
+        sendState.active = false;
+        sendState.chunks = [];
+        sendState.totalChunks = 0;
+        sendState.currentChunk = 0;
+        sendState.scanning = false;
+
+        document.getElementById('sendFileZone').style.display = 'block';
+        document.getElementById('sendActiveZone').style.display = 'none';
+    }
+
+    /** Qəbul edilən hissə sayı (göndərən tərəfdəki təxmin) */
+    function recvState_chunks_count() {
+        // Göndərən tərəf qəbulu bilmir, sadəcə cari indeksi qaytarırıq
+        return sendState.currentChunk + 1;
+    }
+
+    // --- QƏBUL EDƏN TƏRƏF (SKANER) ---
+
+    /** Qəbul edən modunu başladır */
+    function startReceive() {
+        recvState.active = true;
+        recvState.chunks = new Map();
+        recvState.totalChunks = 0;
+        recvState.sessionId = '';
+        recvState.fileName = '';
+        recvState.fileType = '';
+        recvState.lastSuccessTime = 0;
+        recvState.completed = false;
+
+        document.getElementById('recvPct').textContent = '0%';
+        document.getElementById('recvProgressFill').style.width = '0%';
+        document.getElementById('recvChunkInfo').textContent = '0 / 0 hissə';
+        document.getElementById('recvStatusText').textContent = 'QR kodu kadrə daxil edin';
+        document.getElementById('scannerLine').style.animationPlayState = 'running';
+
+        document.getElementById('scannerContainer').style.display = 'block';
+
+        // Kamera icazəsi al və başlat
+        startCamera();
+    }
+
+    /** Kamerası başladır */
+    async function startCamera() {
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({
+                video: {
+                    facingMode: 'environment',
+                    width: { ideal: 1280 },
+                    height: { ideal: 720 },
+                },
+                audio: false,
+            });
+            recvState.stream = stream;
+            const video = document.getElementById('scannerVideo');
+            video.srcObject = stream;
+            video.play();
+            // Kamera hazır olduqdan sonra skan döngüsünü başlat
+            video.onloadedmetadata = () => {
+                requestAnimationFrame(scanLoop);
+            };
+        } catch (err) {
+            console.error('Kamera xətası:', err);
+            showToast('Kamera açıla bilmədi. Lütfən icazə verin.', 'error', 4000);
+            stopScanner();
+        }
+    }
+
+    /** Əsas skan döngüsü */
+    function scanLoop() {
+        if (!recvState.active || recvState.completed) return;
+
+        const video = document.getElementById('scannerVideo');
+        const canvas = document.getElementById('scannerCanvas');
+        const ctx = canvas.getContext('2d', { willReadFrequently: true });
+
+        if (video.readyState >= video.HAVE_ENOUGH_DATA) {
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            const code = jsQR(imageData.data, imageData.width, imageData.height, {
+                inversionAttempts: 'dontInvert',
+            });
+
+            if (code && code.data) {
+                processReceivedData(code.data);
+            }
+        }
+
+        recvState.animFrame = requestAnimationFrame(scanLoop);
+    }
+
+    /** Qəbul edilən məlumatı işləyir */
+    function processReceivedData(data) {
+        // Payload formatı: SESSION|CHUNK_NUM/TOTAL|STATUS|BASE64_DATA
+        const parts = data.split('|');
+        if (parts.length < 3) return;
+
+        const sessionId = parts[0];
+        const chunkInfo = parts[1];
+        const status = parts[2];
+        const payload = parts[3] || '';
+
+        // Chunk məlumatını pars et
+        const chunkParts = chunkInfo.split('/');
+        if (chunkParts.length !== 2) return;
+        const chunkNum = parseInt(chunkParts[0], 10);
+        const totalChunks = parseInt(chunkParts[1], 10);
+
+        if (isNaN(chunkNum) || isNaN(totalChunks) || totalChunks <= 0) return;
+
+        // Yeni seans başladıbsa köhnə məlumatları təmizlə
+        if (recvState.sessionId !== sessionId) {
+            recvState.sessionId = sessionId;
+            recvState.chunks = new Map();
+            recvState.totalChunks = totalChunks;
+            recvState.completed = false;
+        }
+
+        // Hissəni saxla (fakir olmayana görə yoxla)
+        if (payload.length > 0 && !recvState.chunks.has(chunkNum)) {
+            recvState.chunks.set(chunkNum, payload);
+            recvState.totalChunks = totalChunks;
+            recvState.lastSuccessTime = Date.now();
+
+            // UI yenilə
+            const received = recvState.chunks.size;
+            const pct = Math.round((received / totalChunks) * 100);
+            document.getElementById('recvPct').textContent = pct + '%';
+            document.getElementById('recvProgressFill').style.width = pct + '%';
+            document.getElementById('recvChunkInfo').textContent = received + ' / ' + totalChunks + ' hissə';
+            document.getElementById('recvStatusText').textContent = 'Məlumat alınır...';
+
+            // Tamamlanma yoxlaması
+            if (received >= totalChunks) {
+                completeReceive();
+            }
+        } else if (recvState.chunks.has(chunkNum)) {
+            // Bu hissə artıq alınıb — hələki skan edildiyini bildir
+            recvState.lastSuccessTime = Date.now();
+        }
+    }
+
+    /** Qəbulu tamamladıqda */
+    function completeReceive() {
+        recvState.completed = true;
+        recvState.active = false;
+
+        // Base64 hissələrini birləşdir
+        let fullBase64 = '';
+        for (let i = 1; i <= recvState.totalChunks; i++) {
+            const chunk = recvState.chunks.get(i);
+            if (!chunk) {
+                showToast('Hissə itib: #' + i + '. Yenidən sınayın.', 'error', 4000);
+                return;
+            }
+            fullBase64 += chunk;
+        }
+
+        // Base64 → binary → Blob
+        let imageBlob;
+        try {
+            const bytes = base64ToBytes(fullBase64);
+            imageBlob = new Blob([bytes], { type: 'image/jpeg' });
+        } catch (err) {
+            showToast('Şəkil bərpa edilə bilmədi. Zəhmət olmasa yenidən sınayın.', 'error', 4000);
+            return;
+        }
+
+        // Kameranı bağla
+        stopCameraStream();
+
+        // Konfeti effekti
+        launchConfetti();
+
+        // Qısa gecikmə sonra şəkili göstər
+        setTimeout(() => {
+            const url = URL.createObjectURL(imageBlob);
+            document.getElementById('viewerImage').src = url;
+            document.getElementById('imageViewer').classList.add('active');
+            document.getElementById('scannerContainer').style.display = 'none';
+        }, 600);
+
+        document.getElementById('recvStatusText').textContent = 'Tamamlandı!';
+    }
+
+    /** Kamera axınını bağlayır */
+    function stopCameraStream() {
+        if (recvState.stream) {
+            recvState.stream.getTracks().forEach(t => t.stop());
+            recvState.stream = null;
+        }
+        if (recvState.animFrame) {
+            cancelAnimationFrame(recvState.animFrame);
+            recvState.animFrame = null;
+        }
+    }
+
+    /** Skaneri dayandırır və əsas menyuya qayıdır */
+    function stopScanner() {
+        recvState.active = false;
+        recvState.completed = false;
+        stopCameraStream();
+        document.getElementById('scannerContainer').style.display = 'none';
+        showScreen('screenMenu');
+    }
+
+    // --- ŞƏKİL GÖSTƏRİCİ ---
+
+    /** Şəkil göstəricisini bağlayır */
+    function closeImageViewer() {
+        document.getElementById('imageViewer').classList.remove('active');
+        // Yadda saxla qalırsa, URL-ni təmizləmək lazımdır
+        setTimeout(() => {
+            const img = document.getElementById('viewerImage');
+            if (img.src.startsWith('blob:')) URL.revokeObjectURL(img.src);
+            img.src = '';
+        }, 500);
+        showScreen('screenMenu');
+    }
+
+    /** Şəkili yadda saxlayır (yükləyir) */
+    function saveImage() {
+        const img = document.getElementById('viewerImage');
+        if (!img.src) return;
+
+        const a = document.createElement('a');
+        a.href = img.src;
+        a.download = 'axtarget_' + Date.now() + '.jpg';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        showToast('Şəkil yadda saxlanıldı', 'success');
+    }
+
+    // --- KONFETİ EFFEKTİ ---
+
+    /** Tamamlanma konfeti animasiyası */
+    function launchConfetti() {
+        const container = document.getElementById('confettiContainer');
+        container.innerHTML = '';
+        const colors = ['#00e5a0', '#00c48c', '#00b4dc', '#ffa502', '#ff6b81', '#a29bfe', '#fff'];
+        const count = 60;
+
+        for (let i = 0; i < count; i++) {
+            const piece = document.createElement('div');
+            piece.className = 'confetti-piece';
+            piece.style.left = Math.random() * 100 + '%';
+            piece.style.top = '-10px';
+            piece.style.background = colors[Math.floor(Math.random() * colors.length)];
+            piece.style.width = (Math.random() * 8 + 6) + 'px';
+            piece.style.height = (Math.random() * 8 + 6) + 'px';
+            piece.style.animationDelay = (Math.random() * 0.8) + 's';
+            piece.style.animationDuration = (Math.random() * 1 + 1.2) + 's';
+            piece.style.borderRadius = Math.random() > 0.5 ? '50%' : '2px';
+            container.appendChild(piece);
+        }
+
+        setTimeout(() => { container.innerHTML = ''; }, 3000);
+    }
+
+    // --- QR KOD YENİLƏMƏ DÖNGÜSÜ ---
+
+    /** Göndərən tərəfdə QR kod döngüsünü idarə edir */
+    function qrUpdateLoop() {
+        if (!sendState.active) {
+            setTimeout(qrUpdateLoop, 500);
+            return;
+        }
+
+        if (sendState.scanning) {
+            // Aktiv skan: sürətli yeniləmə
+            sendState.currentChunk = (sendState.currentChunk + 1) % sendState.totalChunks;
+            updateQR(sendState.currentChunk, 'A');
+            updateSendUI();
+            setTimeout(qrUpdateLoop, CFG.FAST_INTERVAL);
+        } else {
+            // Dayanmış: seans info-nu göstər, lakin yenə də yavaş-yavaş dəyiş
+            updateQR(sendState.currentChunk, 'P');
+            // Çox yavaş dəyiş — hansısa kamera baxsa da tanımasa
+            sendState.currentChunk = (sendState.currentChunk + 1) % sendState.totalChunks;
+            setTimeout(qrUpdateLoop, CFG.SLOW_INTERVAL);
+        }
+    }
+
+    // Döngünü başlat
+    qrUpdateLoop();
+
+    // --- XÜSUSİ KAMERA İZLƏMƏ MƏNTİQİ ---
+    // Bu hissə ən kritik məntiqdir: telefon kamerası ekrana baxırsa
+    // QR kodlar sürətlə dəyişməli, çəkilərsə dayanmalı.
+
+    // Page Visibility API: əgər istifadəçi tab-ı dəyişərsə
+    document.addEventListener('visibilitychange', () => {
+        if (document.hidden && sendState.active) {
+            sendState.scanning = false;
+            updateQR(sendState.currentChunk, 'P');
+            updateSendUI();
+        }
+    });
+
+    // Motion sensor: telefon kamerası ekrana tutulanda telefon hərəkət edir
+    // Bu, "kamera baxır" signalı kimi istifadə oluna bilər
+    let motionTimeout = null;
+    function handleMotion(event) {
+        if (!sendState.active) return;
+        const acc = event.accelerationIncludingGravity;
+        if (!acc) return;
+        const magnitude = Math.sqrt(
+            (acc.x || 0) * (acc.x || 0) +
+            (acc.y || 0) * (acc.y || 0) +
+            (acc.z || 0) * (acc.z || 0)
+        );
+        // Normal telefon tutanda ~9.8, əlavə hərəkət varsa daha çox
+        if (magnitude > 8 && magnitude < 25) {
+            // Telefon ələ tutulur, kamera aktiv ola bilər
+            sendState.scanning = true;
+            sendState.lastSuccessTime = Date.now();
+            updateSendUI();
+        }
+        if (motionTimeout) clearTimeout(motionTimeout);
+        motionTimeout = setTimeout(() => {
+            // Hərəkət dayanıb — amma skan olunmağa davam edərsə, dayanma
+            // Sessiya timer icazə verəcək
+        }, 3000);
+    }
+
+    // DeviceMotion API-ni yoxla (iOS 13+ icazə tələb edir)
+    if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') {
+        // iOS: lazım olsa gələcəkdə icazə istənə bilər
+        // İndi avtomatik yoxlamırıq
+    } else if (typeof DeviceMotionEvent !== 'undefined') {
+        window.addEventListener('devicemotion', handleMotion, { passive: true });
+    }
+
+    // Əlavə: mouse hərəkəti ilə də aktivlik signalı (kompüterdə test üçün)
+    let mouseActiveTimeout = null;
+    document.addEventListener('mousemove', () => {
+        if (!sendState.active) return;
+        // Kompüterdə test: mouse hərəkəti aktiv skanı göstərir
+        // (Gerçək istifadədə bu, telefon tərəfdə işləməyəcək)
+    });
+
+    // --- ƏSAS SİSTEM MƏNTİQİ ---
+    // Əsl "ağıllı mexanizm": Göndərən tərəf bilir ki, hansı hissəni göndərib.
+    // Amma o BİLMİR ki, qəbul edən hansı hissələri aldı.
+    // Buna görə göndərən TÜM hissələri dairəvi şəkildə yenidən göndərir.
+    // Qəbul edən hər yeni hissəni yadda saxlayır, təkrar olanları rədd edir.
+    // Nəticə: kamera baxdığı müddətcə bütün hissələr tədricən toplanır.
+    // Kamera çəkildikdə, QR kod dayanır (status 'P' — paused).
+
+    // --- İNİSİALİZASİYA ---
+    console.log('%c AxtarGet %c Server-siz QR fayl ötürmə sistemi yükləndi ',
+        'background: #00e5a0; color: #060b14; font-weight: bold; padding: 4px 8px; border-radius: 4px 0 0 4px;',
+        'background: #0d1520; color: #e8ecf1; padding: 4px 8px; border-radius: 0 4px 4px 0;'
+    );
+
+    </script>
+</body>
+</html>
