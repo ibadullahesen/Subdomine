@@ -31,7 +31,7 @@
     <div id="scanline"></div>
     <div id="label" class="ui">Window 01</div>
     <div id="count" class="ui">1 Connected</div>
-    <div id="hint" class="ui">Pəncərələri üst-üstə və ya yan-yana qoyun<br>&middot; Hər iki pəncərənin arxa planda da sinxron işlədiyini izləyin &middot;</div>
+    <div id="hint" class="ui">Pəncərələri üst-üstə və ya yan-yana qoyun<br>&middot; Arxa plandakı pəncərənin də tam sinxron işlədiyini izləyin &middot;</div>
     <div class="c c-tl"></div>
     <div class="c c-tr"></div>
     <div class="c c-bl"></div>
@@ -67,8 +67,8 @@
     const CONN_DIST    = 3.5;
     const PARTICLE_N   = 400;
 
-    /* Ekran koordinatlarını 3D fəzaya çevirmək üçün miqyas (Scale) */
-    const PIXEL_TO_3D  = 0.0095; 
+    /* Ekran koordinatlarını 3D fəzaya çevirmək üçün mütləq miqyas */
+    const PIXEL_TO_3D  = 0.0105; 
 
     /* ===========================================
        Pəncərə İdentifikasiyası və Sinxronizasiya
@@ -140,14 +140,14 @@
         });
     }
 
-    // Passiv və bağlanmış pəncərələri təmizlə
+    // Yuxu rejiminə keçən pəncərələrin dərhal silinməməsi üçün müddəti 30 saniyəyə qaldırdıq
     setInterval(() => {
         const now = Date.now();
         Object.keys(remoteWins).forEach(k => {
-            if (k !== winId && now - remoteWins[k].ts > 4000) delete remoteWins[k];
+            if (k !== winId && now - remoteWins[k].ts > 30000) delete remoteWins[k];
         });
         rebuildIndex();
-    }, 1500);
+    }, 5000);
 
     /* ===========================================
        Three.js Sazlamaları
@@ -156,7 +156,7 @@
     scene.fog = new THREE.FogExp2(0x050508, 0.04);
 
     const camera = new THREE.PerspectiveCamera(55, innerWidth / innerHeight, 0.1, 100);
-    camera.position.set(0, 0, 12); 
+    camera.position.set(0, 0, 11); 
 
     const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
     renderer.setSize(innerWidth, innerHeight);
@@ -165,7 +165,7 @@
     renderer.toneMappingExposure = 1.2;
     document.body.insertBefore(renderer.domElement, document.body.firstChild);
 
-    /* Post-Processing (Glow/Bloom Effekti) */
+    /* Post-Processing */
     const composer = new EffectComposer(renderer);
     composer.addPass(new RenderPass(scene, camera));
 
@@ -193,7 +193,7 @@
     scene.add(fillLight);
 
     /* ===========================================
-       Obyektlər (Qlobal Fəzada Sabit Qalan Küreler)
+       Obyektlər (Sabit Küreler)
     =========================================== */
     let curColor = new THREE.Color(PALETTE[0]);
     let tgtColor = new THREE.Color(PALETTE[0]);
@@ -201,6 +201,7 @@
     const spheres = [];
     const sData = [];
 
+    // Obyektləri qlobal 0,0,0 nöqtəsinə tam sabitləmək üçün mütləq koordinat generatoru
     for (let i = 0; i < SPHERE_N; i++) {
         const theta = Math.random() * Math.PI * 2;
         const phi   = Math.acos(2 * Math.random() - 1);
@@ -322,6 +323,7 @@
         bcastWin();
     });
 
+    // Pəncərə bağlananda dərhal digər pəncərələrə xəbər veririk
     window.addEventListener('beforeunload', () => {
         if (channel) {
             channel.postMessage({ t: 'x', id: winId });
@@ -332,10 +334,10 @@
     /* ===========================================
        Animasiya və Portal Hesablaması
     =========================================== */
-    const clock = new THREE.Clock();
-
     function updatePhysicsAndRender() {
-        const t = clock.getElapsedTime();
+        // MÜHÜM: Animasiyalar artıq açılış vaxtından deyil, real dünya saatından (Date.now()) asılıdır.
+        // Bu, fərqli vaxtda açılan pəncərələrin obyektlərini qlobal olaraq eyni nöqtədə birləşdirir!
+        const t = Date.now() * 0.001; 
 
         /* 1. REAL ZAMANLI MÖVQE İZLƏMƏ */
         if (window.screenX !== lastScreenX || window.screenY !== lastScreenY) {
@@ -347,32 +349,27 @@
         }
 
         /* 2. KAMERANIN PORTAL MÖVQEYİNİN DƏQİQ SİNXRONİZASIYASI */
-        // Bütün pəncərələr üçün vahid ekran mərkəz nöqtəsi (virtual sıfır nöqtəsi)
         const screenCenterX = window.screen.availWidth / 2;
         const screenCenterY = window.screen.availHeight / 2;
 
-        // Bu pəncərənin mərkəzi
         const winCenterX = window.screenX + window.innerWidth / 2;
         const winCenterY = window.screenY + window.innerHeight / 2;
 
         const dx = winCenterX - screenCenterX;
         const dy = winCenterY - screenCenterY;
 
-        // 3D fəzada kameranın koordinatları birbaşa pəncərənin ekrandakı yerinə əsasən hesablanır
         const targetCamX = dx * PIXEL_TO_3D;
         const targetCamY = -dy * PIXEL_TO_3D; 
 
-        // Rəvan keçid, pəncərələr üst-üstə gəldikdə dəqiq eyni koordinata oturmalarını təmin edir
         camera.position.x += (targetCamX - camera.position.x) * 0.3;
         camera.position.y += (targetCamY - camera.position.y) * 0.3;
         camera.position.z = 11; 
 
-        // Hər iki pəncərənin eyni istiqamətə (eyni qlobal baxış açısına) baxmasını təmin edirik
         camera.lookAt(camera.position.x, camera.position.y, 0);
 
         /* 3. PARALLAX SİNXRONİZASIYASI */
         if (!hasInput) {
-            autoAng += 0.005;
+            autoAng = t * 0.4;
             gMouse.x = Math.sin(autoAng) * 0.4;
             gMouse.y = Math.cos(autoAng * 0.7) * 0.25;
         }
@@ -383,7 +380,7 @@
         /* Rəng keçidi */
         curColor.lerp(tgtColor, 0.03);
 
-        /* Kürelerin animasiyası */
+        /* Kürelerin animasiyası (Qlobal Zamanla) */
         for (let i = 0; i < SPHERE_N; i++) {
             const s = spheres[i];
             const d = sData[i];
@@ -431,18 +428,18 @@
         updatePhysicsAndRender();
     }
 
-    // Brauzer tabı arxa plana keçdikdə dondurulmanın qarşısını alan ehtiyat Taymer döngüsü
+    // Arxa planda renderin davam etməsi üçün mühüm interval
     setInterval(() => {
         if (document.hidden) {
             updatePhysicsAndRender();
         }
-    }, 1000 / 30); // Arxa planda olarkən saniyədə 30 kadrla yeniləməyə davam edir
+    }, 1000 / 30); 
 
     /* ===========================================
        Başlatma və İlkin Sazlama
     =========================================== */
     bcastWin();
-    setInterval(bcastWin, 250); // Məlumat ötürmə tezliyi artırıldı (daha hamar sinxronizasiya üçün)
+    setInterval(bcastWin, 250); 
     rebuildIndex();
     animate();
 
