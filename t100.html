@@ -31,7 +31,7 @@
     <div id="scanline"></div>
     <div id="label" class="ui">Window 01</div>
     <div id="count" class="ui">1 Connected</div>
-    <div id="hint" class="ui">Bu səhifəni yeni pəncərədə açın və yan-yana qoyun<br>&middot; Pəncərələri hərəkət etdirərək portal effektini izləyin &middot;</div>
+    <div id="hint" class="ui">Pəncərələri üst-üstə və ya yan-yana qoyun<br>&middot; Hər iki pəncərənin arxa planda da sinxron işlədiyini izləyin &middot;</div>
     <div class="c c-tl"></div>
     <div class="c c-tr"></div>
     <div class="c c-bl"></div>
@@ -63,7 +63,7 @@
         new THREE.Color(0xbd00ff),   // Bənövşəyi
     ];
 
-    const SPHERE_N     = 30; // Küre sayı artırıldı ki, pəncərələr arası keçid daha zəngin görüksün
+    const SPHERE_N     = 30; 
     const CONN_DIST    = 3.5;
     const PARTICLE_N   = 400;
 
@@ -140,14 +140,14 @@
         });
     }
 
-    // Passiv pəncərələri təmizlə
+    // Passiv və bağlanmış pəncərələri təmizlə
     setInterval(() => {
         const now = Date.now();
         Object.keys(remoteWins).forEach(k => {
             if (k !== winId && now - remoteWins[k].ts > 4000) delete remoteWins[k];
         });
         rebuildIndex();
-    }, 2000);
+    }, 1500);
 
     /* ===========================================
        Three.js Sazlamaları
@@ -156,7 +156,6 @@
     scene.fog = new THREE.FogExp2(0x050508, 0.04);
 
     const camera = new THREE.PerspectiveCamera(55, innerWidth / innerHeight, 0.1, 100);
-    // Kameranı başlanğıcda mərkəzə qoyuruq, animasiyada ekran koordinatına görə yenilənəcək
     camera.position.set(0, 0, 12); 
 
     const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
@@ -172,9 +171,9 @@
 
     const bloom = new UnrealBloomPass(
         new THREE.Vector2(innerWidth, innerHeight),
-        1.6,   // Güc
-        0.4,   // Radius
-        0.1    // Threshold
+        1.6,   
+        0.4,   
+        0.1    
     );
     composer.addPass(bloom);
 
@@ -202,11 +201,10 @@
     const spheres = [];
     const sData = [];
 
-    // Küreler qlobal mərkəz (0,0,0) ətrafında paylanır
     for (let i = 0; i < SPHERE_N; i++) {
         const theta = Math.random() * Math.PI * 2;
         const phi   = Math.acos(2 * Math.random() - 1);
-        const r     = 1.5 + Math.random() * 4.5; // Klaster radiusu
+        const r     = 1.5 + Math.random() * 4.5; 
 
         const base = new THREE.Vector3(
             r * Math.sin(phi) * Math.cos(theta),
@@ -336,60 +334,56 @@
     =========================================== */
     const clock = new THREE.Clock();
 
-    function animate() {
-        requestAnimationFrame(animate);
+    function updatePhysicsAndRender() {
         const t = clock.getElapsedTime();
 
-        /* 1. REAL ZAMANLI SÜRÜŞDÜRMƏNİ İZLƏMƏK (Drag detection) */
+        /* 1. REAL ZAMANLI MÖVQE İZLƏMƏ */
         if (window.screenX !== lastScreenX || window.screenY !== lastScreenY) {
             lastScreenX = window.screenX;
             lastScreenY = window.screenY;
-            // Mövqe dəyişdikdə digər pəncərələri dərhal xəbərdar et
             bcastWin();
             remoteWins[winId].sx = window.screenX;
             remoteWins[winId].sy = window.screenY;
         }
 
-        /* 2. KAMERANIN PORTAL MÖVQEYİNİN HESABLANMASI */
-        // Ekranın tam fiziki mərkəz nöqtəsini hesablayaq (Məs: 1920x1080 ekran üçün 960 və 540)
+        /* 2. KAMERANIN PORTAL MÖVQEYİNİN DƏQİQ SİNXRONİZASIYASI */
+        // Bütün pəncərələr üçün vahid ekran mərkəz nöqtəsi (virtual sıfır nöqtəsi)
         const screenCenterX = window.screen.availWidth / 2;
         const screenCenterY = window.screen.availHeight / 2;
 
-        // Bu pəncərənin ekran üzərindəki mərkəz nöqtəsi
+        // Bu pəncərənin mərkəzi
         const winCenterX = window.screenX + window.innerWidth / 2;
         const winCenterY = window.screenY + window.innerHeight / 2;
 
-        // Pəncərə mərkəzinin ekran mərkəzindən olan piksel uzaqlığı
         const dx = winCenterX - screenCenterX;
         const dy = winCenterY - screenCenterY;
 
-        // Piksel məsafəsini 3D vahidinə çeviririk və kameranı həmin yerə sürüşdürürük
+        // 3D fəzada kameranın koordinatları birbaşa pəncərənin ekrandakı yerinə əsasən hesablanır
         const targetCamX = dx * PIXEL_TO_3D;
-        const targetCamY = -dy * PIXEL_TO_3D; // Ekran Y aşağı doğru artır, 3D Y isə yuxarı
+        const targetCamY = -dy * PIXEL_TO_3D; 
 
-        // Kameranın hərəkəti rəvan (smooth lerp) olsun ki, pəncərəni dartanda titrəməsin
-        camera.position.x += (targetCamX - camera.position.x) * 0.25;
-        camera.position.y += (targetCamY - camera.position.y) * 0.25;
-        camera.position.z = 11; // Kameranın uzaqlığını sabit saxlayırıq
+        // Rəvan keçid, pəncərələr üst-üstə gəldikdə dəqiq eyni koordinata oturmalarını təmin edir
+        camera.position.x += (targetCamX - camera.position.x) * 0.3;
+        camera.position.y += (targetCamY - camera.position.y) * 0.3;
+        camera.position.z = 11; 
 
-        // Portalı qorumaq üçün kamera həmişə irəliyə (z=0 müstəvisinə parallel) baxmalıdır
+        // Hər iki pəncərənin eyni istiqamətə (eyni qlobal baxış açısına) baxmasını təmin edirik
         camera.lookAt(camera.position.x, camera.position.y, 0);
 
-        /* 3. PARALLAX SİNXRONİZASİYASI */
+        /* 3. PARALLAX SİNXRONİZASIYASI */
         if (!hasInput) {
             autoAng += 0.005;
             gMouse.x = Math.sin(autoAng) * 0.4;
             gMouse.y = Math.cos(autoAng * 0.7) * 0.25;
         }
 
-        // Siçan hərəkətinə görə səhnəni bütövlüklə sürüşdürürük ki, bütün pəncərələrdə sinxron parallaks olsun
         scene.position.x += (gMouse.x * 1.5 - scene.position.x) * 0.05;
         scene.position.y += (gMouse.y * 1.0 - scene.position.y) * 0.05;
 
         /* Rəng keçidi */
         curColor.lerp(tgtColor, 0.03);
 
-        /* Kürelerin hərəkəti (Qlobal mövqelərində rəvan rəqs edirlər) */
+        /* Kürelerin animasiyası */
         for (let i = 0; i < SPHERE_N; i++) {
             const s = spheres[i];
             const d = sData[i];
@@ -407,7 +401,7 @@
         rebuildLines();
         lMat.color.copy(curColor);
 
-        /* Hissəciklərin hərəkəti */
+        /* Hissəciklər */
         const pp = pGeo.attributes.position.array;
         for (let i = 0; i < PARTICLE_N; i++) {
             pp[i*3+1] += pSpd[i];
@@ -421,7 +415,7 @@
         pGeo.attributes.position.needsUpdate = true;
         pMat.color.copy(curColor);
 
-        /* İşıqların rəng sinxronizasiyası */
+        /* İşıqlar */
         keyLight.position.x = camera.position.x + gMouse.x * 4;
         keyLight.position.y = camera.position.y + gMouse.y * 3 + 4;
         rimLight.color.copy(curColor);
@@ -431,15 +425,27 @@
         composer.render();
     }
 
+    // Əsas animasiya döngüsü
+    function animate() {
+        requestAnimationFrame(animate);
+        updatePhysicsAndRender();
+    }
+
+    // Brauzer tabı arxa plana keçdikdə dondurulmanın qarşısını alan ehtiyat Taymer döngüsü
+    setInterval(() => {
+        if (document.hidden) {
+            updatePhysicsAndRender();
+        }
+    }, 1000 / 30); // Arxa planda olarkən saniyədə 30 kadrla yeniləməyə davam edir
+
     /* ===========================================
        Başlatma və İlkin Sazlama
     =========================================== */
     bcastWin();
-    setInterval(bcastWin, 400); // 400ms-dən bir digər pəncərələrə varlığımızı xəbər veririk
+    setInterval(bcastWin, 250); // Məlumat ötürmə tezliyi artırıldı (daha hamar sinxronizasiya üçün)
     rebuildIndex();
     animate();
 
-    // İpucunu 7 saniyə sonra solğunlaşdır
     setTimeout(() => {
         document.getElementById('hint').style.opacity = '0.08';
     }, 7000);
