@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="az">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Multiple Window 3D</title>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        *{margin:0;padding:0;box-sizing:border-box}
+        html,body{width:100%;height:100%;overflow:hidden;background:#000}
+        body{font-family:'Space Mono',monospace}
+        canvas{display:block;position:fixed;top:0;left:0}
+
+        .ui{position:fixed;color:rgba(255,255,255,.5);font-size:10px;letter-spacing:2.5px;text-transform:uppercase;pointer-events:none;z-index:10;transition:color 1.2s ease}
+        #label{top:22px;left:26px;font-weight:700;font-size:11px;letter-spacing:3px}
+        #count{top:22px;right:26px;color:rgba(255,255,255,.18);font-size:9px;letter-spacing:2px}
+        #hint{bottom:26px;left:50%;transform:translateX(-50%);color:rgba(255,255,255,.18);font-size:9px;letter-spacing:1.8px;white-space:nowrap;transition:opacity 2.5s ease}
+
+        .c{position:fixed;width:26px;height:26px;pointer-events:none;z-index:10;transition:border-color 1.2s ease}
+        .c-tl{top:12px;left:12px;border-top:1px solid rgba(255,255,255,.08);border-left:1px solid rgba(255,255,255,.08)}
+        .c-tr{top:12px;right:12px;border-top:1px solid rgba(255,255,255,.08);border-right:1px solid rgba(255,255,255,.08)}
+        .c-bl{bottom:12px;left:12px;border-bottom:1px solid rgba(255,255,255,.08);border-left:1px solid rgba(255,255,255,.08)}
+        .c-br{bottom:12px;right:12px;border-bottom:1px solid rgba(255,255,255,.08);border-right:1px solid rgba(255,255,255,.08)}
+
+        #vig{position:fixed;inset:0;pointer-events:none;z-index:5;background:radial-gradient(ellipse at center,transparent 45%,rgba(0,0,0,.65) 100%)}
+        #scanline{position:fixed;inset:0;pointer-events:none;z-index:6;background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,.03) 2px,rgba(0,0,0,.03) 4px);opacity:.4}
+    </style>
+</head>
+<body>
+    <div id="vig"></div>
+    <div id="scanline"></div>
+    <div id="label" class="ui">Window 01</div>
+    <div id="count" class="ui">1 Connected</div>
+    <div id="hint" class="ui">Eyni səhifəni yeni pəncərədə aç &middot; Siçan ilə hərəkət etdir</div>
+    <div class="c c-tl"></div>
+    <div class="c c-tr"></div>
+    <div class="c c-bl"></div>
+    <div class="c c-br"></div>
+
+    <script type="importmap">
+    {
+        "imports":{
+            "three":"https://unpkg.com/three@0.160.0/build/three.module.js",
+            "three/addons/":"https://unpkg.com/three@0.160.0/examples/jsm/"
+        }
+    }
+    </script>
+
+    <script type="module">
+    import * as THREE from 'three';
+    import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+    import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+    import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+
+    /* ===========================================
+       Rəng Palitrası — hər pəncərəyə bir rəng
+    =========================================== */
+    const PALETTE = [
+        new THREE.Color(0x00ff88),   // Yaşıl (1-ci pəncərə)
+        new THREE.Color(0xff2244),   // Qırmızı (2-ci pəncərə)
+        new THREE.Color(0x00bbff),   // Mavi
+        new THREE.Color(0xffaa00),   // Amber
+        new THREE.Color(0xcc44ff),   // Bənövşəyi
+    ];
+
+    const SPHERE_N     = 22;
+    const CONN_DIST    = 3.0;
+    const PARTICLE_N   = 350;
+
+    /* ===========================================
+       Pəncərə İdentifikasiyası və Sinxronizasiya
+    =========================================== */
+    const winId = (crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2));
+    let channel;
+    try { channel = new BroadcastChannel('mw3d-scene'); } catch(e) { channel = null; }
+
+    const remoteWins = {};
+    let winIdx = 0;
+    let gMouse = { x: 0, y: 0 };
+    let hasInput = false;
+    let autoAng = 0;
+
+    /* Pəncərə məlumatını broadcast et */
+    function bcastWin() {
+        if (!channel) return;
+        channel.postMessage({
+            t: 'w', id: winId,
+            sx: window.screenX, sy: window.screenY,
+            sw: window.innerWidth, sh: window.innerHeight,
+            ts: Date.now()
+        });
+    }
+
+    /* Gələn mesajları oxu */
+    if (channel) {
+        channel.onmessage = (e) => {
+            const d = e.data;
+            if (d.t === 'w') {
+                remoteWins[d.id] = { sx: d.sx, sy: d.sy, sw: d.sw, sh: d.sh, ts: d.ts };
+                rebuildIndex();
+            } else if (d.t === 'm') {
+                hasInput = true;
+                gMouse.x = d.mx;
+                gMouse.y = d.my;
+            } else if (d.t === 'x') {
+                delete remoteWins[d.id];
+                rebuildIndex();
+            }
+        };
+    }
+
+    /* Öz pəncərəmizi də qeyd edək */
+    remoteWins[winId] = { sx: window.screenX, sy: window.screenY, sw: window.innerWidth, sh: window.innerHeight, ts: Date.now() };
+
+    /* Pəncərələri screenX-ə görə sıralayıb indeks tap */
+    function rebuildIndex() {
+        const sorted = Object.entries(remoteWins).sort((a, b) =>
+            a[1].sx - b[1].sx || a[1].sy - b[1].sy || a[0].localeCompare(b[0])
+        );
+        const idx = sorted.findIndex(([id]) => id === winId);
+        if (idx !== -1) winIdx = idx;
+        tgtColor.set(PALETTE[winIdx % PALETTE.length]);
+        refreshUI();
+    }
+
+    /* UI elementlərini rənglə */
+    function refreshUI() {
+        const total = Object.keys(remoteWins).length;
+        const num = String(winIdx + 1).padStart(2, '0');
+        const hex = '#' + tgtColor.getHexString();
+
+        document.getElementById('label').textContent = 'Window ' + num;
+        document.getElementById('label').style.color = hex + 'aa';
+        document.getElementById('count').textContent = total + ' Connected';
+
+        document.querySelectorAll('.c').forEach(el => {
+            el.style.borderColor = hex + '1a';
+        });
+    }
+
+    /* 5 saniyə aktiv olmayan pəncərələri sil */
+    setInterval(() => {
+        const now = Date.now();
+        Object.keys(remoteWins).forEach(k => {
+            if (k !== winId && now - remoteWins[k].ts > 6000) delete remoteWins[k];
+        });
+        rebuildIndex();
+    }, 3000);
+
+    /* ===========================================
+       Three.js — Səhnə, Kamera, Renderer
+    =========================================== */
+    const scene = new THREE.Scene();
+    scene.fog = new THREE.FogExp2(0x000000, 0.055);
+
+    const camera = new THREE.PerspectiveCamera(55, innerWidth / innerHeight, 0.1, 120);
+    camera.position.set(0, 0, 11);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+    renderer.setSize(innerWidth, innerHeight);
+    renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.1;
+    document.body.insertBefore(renderer.domElement, document.body.firstChild);
+
+    /* ===========================================
+       Post-Processing — Bloom
+    =========================================== */
+    const composer = new EffectComposer(renderer);
+    composer.addPass(new RenderPass(scene, camera));
+
+    const bloom = new UnrealBloomPass(
+        new THREE.Vector2(innerWidth, innerHeight),
+        1.4,   // güc
+        0.5,   // radius
+        0.15   // threshold
+    );
+    composer.addPass(bloom);
+
+    /* ===========================================
+       İşıqlandırma
+    =========================================== */
+    scene.add(new THREE.AmbientLight(0x0a0a0a));
+
+    const keyLight = new THREE.PointLight(0xffffff, 2.5, 40);
+    keyLight.position.set(0, 3, 9);
+    scene.add(keyLight);
+
+    const rimLight = new THREE.PointLight(PALETTE[0], 2, 25);
+    rimLight.position.set(-6, -4, 6);
+    scene.add(rimLight);
+
+    const fillLight = new THREE.PointLight(PALETTE[0].clone().multiplyScalar(0.5), 1, 20);
+    fillLight.position.set(5, 2, 4);
+    scene.add(fillLight);
+
+    /* ===========================================
+       Küreler
+    =========================================== */
+    let curColor = new THREE.Color(PALETTE[0]);
+    let tgtColor = new THREE.Color(PALETTE[0]);
+
+    const spheres = [];
+    const sData = [];
+
+    for (let i = 0; i < SPHERE_N; i++) {
+        /* Organik klaster paylaması */
+        const theta = Math.random() * Math.PI * 2;
+        const phi   = Math.acos(2 * Math.random() - 1);
+        const r     = 1.2 + Math.random() * 3.8;
+
+        const base = new THREE.Vector3(
+            r * Math.sin(phi) * Math.cos(theta),
+            r * Math.sin(phi) * Math.sin(theta) * 0.6,
+            r * Math.cos(phi)
+        );
+
+        const sz = 0.12 + Math.random() * 0.38;
+        const geo = new THREE.SphereGeometry(Math.max(0.01, sz), 28, 28);
+        const mat = new THREE.MeshStandardMaterial({
+            color: PALETTE[0],
+            emissive: PALETTE[0],
+            emissiveIntensity: 0.5,
+            metalness: 0.45,
+            roughness: 0.2,
+        });
+
+        const mesh = new THREE.Mesh(geo, mat);
+        mesh.position.copy(base);
+        scene.add(mesh);
+        spheres.push(mesh);
+
+        sData.push({
+            base: base.clone(),
+            spd: 0.25 + Math.random() * 0.7,
+            ph: Math.random() * Math.PI * 2,
+            ax: 0.15 + Math.random() * 0.45,
+            ay: 0.12 + Math.random() * 0.35,
+            az: 0.08 + Math.random() * 0.25,
+            emBase: 0.35 + (sz / 0.5) * 0.35,
+        });
+    }
+
+    /* ===========================================
+       Xətt Bağlantıları
+    =========================================== */
+    const maxLV = SPHERE_N * (SPHERE_N - 1);
+    const lArr = new Float32Array(maxLV * 3);
+    const lGeo = new THREE.BufferGeometry();
+    lGeo.setAttribute('position', new THREE.BufferAttribute(lArr, 3));
+    lGeo.setDrawRange(0, 0);
+
+    const lMat = new THREE.LineBasicMaterial({
+        color: PALETTE[0],
+        transparent: true,
+        opacity: 0.1,
+    });
+    const lineMesh = new THREE.LineSegments(lGeo, lMat);
+    scene.add(lineMesh);
+
+    function rebuildLines() {
+        let n = 0;
+        const a = lGeo.attributes.position.array;
+        for (let i = 0; i < SPHERE_N; i++) {
+            for (let j = i + 1; j < SPHERE_N; j++) {
+                const d = spheres[i].position.distanceTo(spheres[j].position);
+                if (d < CONN_DIST) {
+                    const o = n * 6;
+                    a[o]   = spheres[i].position.x;
+                    a[o+1] = spheres[i].position.y;
+                    a[o+2] = spheres[i].position.z;
+                    a[o+3] = spheres[j].position.x;
+                    a[o+4] = spheres[j].position.y;
+                    a[o+5] = spheres[j].position.z;
+                    n++;
+                }
+            }
+        }
+        lGeo.setDrawRange(0, n * 2);
+        lGeo.attributes.position.needsUpdate = true;
+    }
+
+    /* ===========================================
+       Hissəciklər (Particles)
+    =========================================== */
+    const pGeo = new THREE.BufferGeometry();
+    const pA = new Float32Array(PARTICLE_N * 3);
+    const pSpd = new Float32Array(PARTICLE_N);
+    const pOff = new Float32Array(PARTICLE_N);
+
+    for (let i = 0; i < PARTICLE_N; i++) {
+        pA[i*3]   = (Math.random() - 0.5) * 28;
+        pA[i*3+1] = (Math.random() - 0.5) * 20;
+        pA[i*3+2] = (Math.random() - 0.5) * 16;
+        pSpd[i] = 0.003 + Math.random() * 0.008;
+        pOff[i] = Math.random() * Math.PI * 2;
+    }
+    pGeo.setAttribute('position', new THREE.BufferAttribute(pA, 3));
+
+    const pMat = new THREE.PointsMaterial({
+        color: PALETTE[0],
+        size: 0.025,
+        transparent: true,
+        opacity: 0.3,
+        sizeAttenuation: true,
+    });
+    scene.add(new THREE.Points(pGeo, pMat));
+
+    /* ===========================================
+       Hadisələr
+    =========================================== */
+    window.addEventListener('mousemove', (e) => {
+        const mx = (e.clientX / innerWidth) * 2 - 1;
+        const my = -(e.clientY / innerHeight) * 2 + 1;
+        gMouse.x = mx;
+        gMouse.y = my;
+        hasInput = true;
+        if (channel) channel.postMessage({ t: 'm', mx, my });
+    });
+
+    window.addEventListener('resize', () => {
+        camera.aspect = innerWidth / innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(innerWidth, innerHeight);
+        composer.setSize(innerWidth, innerHeight);
+        bloom.resolution.set(innerWidth, innerHeight);
+        bcastWin();
+    });
+
+    window.addEventListener('beforeunload', () => {
+        if (channel) {
+            channel.postMessage({ t: 'x', id: winId });
+            channel.close();
+        }
+    });
+
+    /* ===========================================
+       Animasiya Döngüsü
+    =========================================== */
+    const clock = new THREE.Clock();
+
+    function animate() {
+        requestAnimationFrame(animate);
+        const t = clock.getElapsedTime();
+
+        /* Siçan inputu yoxdursa avtomatik orbit */
+        if (!hasInput) {
+            autoAng += 0.004;
+            gMouse.x = Math.sin(autoAng) * 0.55;
+            gMouse.y = Math.cos(autoAng * 0.65) * 0.35;
+        }
+
+        /* Rəng keçidi — smooth lerp */
+        curColor.lerp(tgtColor, 0.022);
+
+        /* Küreleri animasiya et */
+        for (let i = 0; i < SPHERE_N; i++) {
+            const s = spheres[i];
+            const d = sData[i];
+
+            /* üzülən hərəkət */
+            s.position.x = d.base.x + Math.sin(t * d.spd + d.ph) * d.ax;
+            s.position.y = d.base.y + Math.cos(t * d.spd * 0.75 + d.ph) * d.ay;
+            s.position.z = d.base.z + Math.sin(t * d.spd * 0.45 + d.ph * 1.4) * d.az;
+
+            /* siçan parallax */
+            s.position.x += gMouse.x * 0.9;
+            s.position.y += gMouse.y * 0.65;
+
+            /* rəng və nəfəs effekti */
+            s.material.color.copy(curColor);
+            s.material.emissive.copy(curColor);
+            s.material.emissiveIntensity = d.emBase + Math.sin(t * 1.8 + d.ph) * 0.18;
+        }
+
+        /* Xətləri yenilə */
+        rebuildLines();
+        lMat.color.copy(curColor);
+
+        /* Hissəcikləri hərəkət etdir */
+        const pp = pGeo.attributes.position.array;
+        for (let i = 0; i < PARTICLE_N; i++) {
+            pp[i*3+1] += pSpd[i];
+            pp[i*3]   += Math.sin(t * 0.3 + pOff[i]) * 0.001;
+            if (pp[i*3+1] > 10) {
+                pp[i*3+1] = -10;
+                pp[i*3]   = (Math.random() - 0.5) * 28;
+                pp[i*3+2] = (Math.random() - 0.5) * 16;
+            }
+        }
+        pGeo.attributes.position.needsUpdate = true;
+        pMat.color.copy(curColor);
+
+        /* Kamera — siçanla parallax */
+        camera.position.x += (gMouse.x * 3.5 - camera.position.x) * 0.035;
+        camera.position.y += (gMouse.y * 2.5 - camera.position.y) * 0.035;
+        camera.lookAt(gMouse.x * 0.6, gMouse.y * 0.4, 0);
+
+        /* İşıqları yenilə */
+        keyLight.position.x = gMouse.x * 6;
+        keyLight.position.y = gMouse.y * 4 + 3;
+        rimLight.color.copy(curColor);
+        fillLight.color.copy(curColor).multiplyScalar(0.4);
+
+        /* Render */
+        composer.render();
+    }
+
+    /* ===========================================
+       Başlatma
+    =========================================== */
+    bcastWin();
+    setInterval(bcastWin, 600);
+    rebuildIndex();
+    animate();
+
+    /* İpucunu 6 saniyə sonra solğunlaşdır */
+    setTimeout(() => {
+        document.getElementById('hint').style.opacity = '0.06';
+    }, 6000);
+
+    </script>
+</body>
+</html>
