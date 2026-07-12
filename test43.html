@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="az">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Neon Toz Zərrəcikləri</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body, html {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #000000;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        canvas {
+            display: block;
+            position: absolute;
+            top: 0;
+            left: 0;
+        }
+
+        #ui {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: rgba(255, 255, 255, 0.8);
+            text-align: center;
+            pointer-events: none;
+            z-index: 10;
+            transition: opacity 1.5s ease;
+        }
+
+        #ui h1 {
+            font-size: 2rem;
+            margin-bottom: 10px;
+            letter-spacing: 2px;
+            color: #00f3ff;
+            text-shadow: 0 0 10px #00f3ff;
+        }
+
+        #ui p {
+            font-size: 1.2rem;
+            color: rgba(255, 255, 255, 0.5);
+        }
+
+        .hidden {
+            opacity: 0 !important;
+        }
+
+        #input-video {
+            position: absolute;
+            top: -9999px;
+            left: -9999px;
+            width: 1px;
+            height: 1px;
+        }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+</head>
+<body>
+
+    <video id="input-video" playsinline></video>
+    <canvas id="output-canvas"></canvas>
+    
+    <div id="ui">
+        <h1>Kameranı Aktivləşdir</h1>
+        <p>Zərrəcikləri idarə etmək üçün kameraya icazə verin...</p>
+    </div>
+
+    <script>
+        const videoElement = document.getElementById('input-video');
+        const canvasElement = document.getElementById('output-canvas');
+        const ctx = canvasElement.getContext('2d');
+        const uiElement = document.getElementById('ui');
+
+        function resizeCanvas() {
+            canvasElement.width = window.innerWidth;
+            canvasElement.height = window.innerHeight;
+        }
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        const PARTICLE_COUNT = 1500;
+        let particles = [];
+        let isPinching = false;
+        let pinchPos = { x: 0, y: 0 };
+        let firstDetection = false;
+        
+        // Əlin nöqtələrini saxlamaq üçün
+        let currentHandLandmarks = null;
+
+        // --- ZƏRRƏCİK KLASI ---
+        class Particle {
+            constructor() {
+                this.reset();
+            }
+
+            reset() {
+                this.x = Math.random() * canvasElement.width;
+                this.y = Math.random() * canvasElement.height;
+                this.baseSize = Math.random() * 2.5 + 0.5;
+                this.size = this.baseSize;
+                this.speedX = (Math.random() - 0.5) * 0.8;
+                this.speedY = (Math.random() - 0.5) * 0.8;
+                this.opacity = Math.random() * 0.6 + 0.2;
+                const r = Math.floor(Math.random() * 50 + 200);
+                const g = Math.floor(Math.random() * 50 + 180);
+                const b = Math.floor(Math.random() * 50 + 150);
+                this.color = `rgba(${r},${g},${b},`;
+                
+                this.isExploding = false;
+                this.explosionVx = 0;
+                this.explosionVy = 0;
+                this.friction = 0.96;
+            }
+
+            update() {
+                if (this.isExploding) {
+                    this.x += this.explosionVx;
+                    this.y += this.explosionVy;
+                    this.explosionVx *= this.friction;
+                    this.explosionVy *= this.friction;
+                    this.size *= 0.98;
+                    
+                    if (Math.abs(this.explosionVx) < 0.1 && Math.abs(this.explosionVy) < 0.1) {
+                        this.isExploding = false;
+                        this.reset();
+                    }
+                } else {
+                    this.x += this.speedX;
+                    this.y += this.speedY;
+                }
+
+                if (isPinching && !this.isExploding) {
+                    const dx = pinchPos.x - this.x;
+                    const dy = pinchPos.y - this.y;
+                    const dist = Math.sqrt(dx * dx + dy * dy);
+                    const maxDist = 250;
+
+                    if (dist < maxDist) {
+                        const force = (1 - dist / maxDist) * 0.08;
+                        this.x += dx * force;
+                        this.y += dy * force;
+                        this.size = this.baseSize + (1 - dist / maxDist) * 3;
+                        this.opacity = Math.min(1, this.opacity + 0.02);
+                    } else {
+                        this.size += (this.baseSize - this.size) * 0.05;
+                        this.opacity += (Math.random() * 0.6 + 0.2 - this.opacity) * 0.05;
+                    }
+                } else if (!this.isExploding) {
+                    this.size += (this.baseSize - this.size) * 0.05;
+                    this.opacity += (Math.random() * 0.6 + 0.2 - this.opacity) * 0.05;
+                }
+
+                if (!this.isExploding) {
+                    if (this.x < -10 || this.x > canvasElement.width + 10 || 
+                        this.y < -10 || this.y > canvasElement.height + 10) {
+                        this.reset();
+                    }
+                }
+            }
+
+            draw() {
+                if (this.size <= 0.1) return;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                ctx.fillStyle = this.color + this.opacity + ")";
+                ctx.fill();
+            }
+
+            explode(ex, ey) {
+                this.isExploding = true;
+                this.x = ex;
+                this.y = ey;
+                const angle = Math.random() * Math.PI * 2;
+                const velocity = Math.random() * 15 + 5;
+                this.explosionVx = Math.cos(angle) * velocity;
+                this.explosionVy = Math.sin(angle) * velocity;
+                this.size = Math.random() * 3 + 1;
+                this.opacity = 1;
+            }
+        }
+
+        for (let i = 0; i < PARTICLE_COUNT; i++) {
+            particles.push(new Particle());
+        }
+
+        // --- NEON SKELET ÇƏKMƏ FUNKSİYASI ---
+        function drawNeonHand(landmarks) {
+            // Əlin xətt bağlantıları (MediaPipe standartı)
+            const connections = [
+                [0, 1], [1, 2], [2, 3], [3, 4],       // Baş barmaq
+                [0, 5], [5, 6], [6, 7], [7, 8],       // Şahəddin
+                [0, 9], [9, 10], [10, 11], [11, 12],  // Ortadakı
+                [0, 13], [13, 14], [14, 15], [15, 16],// Adsız
+                [0, 17], [17, 18], [18, 19], [19, 20] // Çeşidləyici
+            ];
+
+            ctx.strokeStyle = '#00f3ff'; // Neon mavi rəngi
+            ctx.lineWidth = 2;
+            ctx.lineCap = 'round';
+            // Neon parıltı effekti (Glow)
+            ctx.shadowColor = '#00f3ff';
+            ctx.shadowBlur = 15;
+
+            // Xəttləri çək
+            ctx.beginPath();
+            connections.forEach(([start, end]) => {
+                const startPoint = landmarks[start];
+                const endPoint = landmarks[end];
+                
+                // Koordinatları çevir (kamera əks görüntüdür)
+                const sx = (1 - startPoint.x) * canvasElement.width;
+                const sy = startPoint.y * canvasElement.height;
+                const ex = (1 - endPoint.x) * canvasElement.width;
+                const ey = endPoint.y * canvasElement.height;
+
+                ctx.moveTo(sx, sy);
+                ctx.lineTo(ex, ey);
+            });
+            ctx.stroke();
+
+            // Oymaq (Joint) nöqtələrini çək
+            ctx.fillStyle = '#ffffff';
+            ctx.shadowBlur = 20;
+            landmarks.forEach(point => {
+                const px = (1 - point.x) * canvasElement.width;
+                const py = point.y * canvasElement.height;
+                
+                ctx.beginPath();
+                ctx.arc(px, py, 3, 0, Math.PI * 2);
+                ctx.fill();
+            });
+
+            // Parıltını sıfırla (zərrəciklər təsirlənməsin deyə)
+            ctx.shadowBlur = 0;
+        }
+
+        // --- ANİMASİYA DÖVRÜSÜ ---
+        function animate() {
+            // Əsasən tam qara ekran (trailing effenti zəif saxlayırıq ki, partlama izləri qalsın)
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
+            ctx.fillRect(0, 0, canvasElement.width, canvasElement.height);
+
+            // Əvvəlcə zərrəcikləri çək (ön planda olsun deyə)
+            for (let i = 0; i < particles.length; i++) {
+                particles[i].update();
+                particles[i].draw();
+            }
+
+            // Əgər əl varsa, neon skeleti çək
+            if (currentHandLandmarks) {
+                drawNeonHand(currentHandLandmarks);
+            }
+
+            requestAnimationFrame(animate);
+        }
+
+        // --- MEDIAPIPE NƏTİCƏLƏRİ ---
+        function onResults(results) {
+            if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+                const landmarks = results.multiHandLandmarks[0];
+                currentHandLandmarks = landmarks; // Skeleti çəkmək üçün saxla
+                
+                if (!firstDetection) {
+                    firstDetection = true;
+                    uiElement.classList.add('hidden');
+                }
+
+                const thumbTip = landmarks[4];
+                const indexTip = landmarks[8];
+
+                const thumbX = (1 - thumbTip.x) * canvasElement.width;
+                const thumbY = thumbTip.y * canvasElement.height;
+                const indexX = (1 - indexTip.x) * canvasElement.width;
+                const indexY = indexTip.y * canvasElement.height;
+
+                const dx = thumbX - indexX;
+                const dy = thumbY - indexY;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+
+                const pinchThreshold = 60;
+
+                if (distance < pinchThreshold) {
+                    if (!isPinching) {
+                        isPinching = true;
+                    }
+                    pinchPos.x = (thumbX + indexX) / 2;
+                    pinchPos.y = (thumbY + indexY) / 2;
+
+                } else {
+                    if (isPinching) {
+                        triggerExplosion(pinchPos.x, pinchPos.y);
+                        isPinching = false;
+                    }
+                }
+            } else {
+                currentHandLandmarks = null; // əl yoxdursa skeleti sil
+                if (isPinching) {
+                    triggerExplosion(pinchPos.x, pinchPos.y);
+                    isPinching = false;
+                }
+            }
+        }
+
+        // --- PARTLAMA FUNKSİYASI ---
+        function triggerExplosion(x, y) {
+            for (let i = 0; i < particles.length; i++) {
+                const p = particles[i];
+                if (!p.isExploding) {
+                    const dx = p.x - x;
+                    const dy = p.y - y;
+                    const dist = Math.sqrt(dx * dx + dy * dy);
+                    
+                    if (dist < 150) {
+                        p.explode(x, y);
+                    } else {
+                        const force = (1 - dist / 500) * 0.5;
+                        if(force > 0) {
+                            p.speedX -= (dx / dist) * force;
+                            p.speedY -= (dy / dist) * force;
+                        }
+                    }
+                }
+            }
+            
+            // Partlama anında mavi flash effenti
+            ctx.fillStyle = 'rgba(0, 243, 255, 0.15)';
+            ctx.fillRect(0, 0, canvasElement.width, canvasElement.height);
+        }
+
+        // --- QURĞULAR ---
+        const hands = new Hands({
+            locateFile: (file) => {
+                return `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`;
+            }
+        });
+
+        hands.setOptions({
+            maxNumHands: 1,
+            modelComplexity: 1,
+            minDetectionConfidence: 0.7,
+            minTrackingConfidence: 0.5
+        });
+
+        hands.onResults(onResults);
+
+        const camera = new Camera(videoElement, {
+            onFrame: async () => {
+                await hands.send({ image: videoElement });
+            },
+            width: 640,
+            height: 480
+        });
+
+        camera.start().then(() => {
+            console.log("Kamera və əl izləmə başladıldı.");
+        }).catch(err => {
+            uiElement.innerHTML = "<h1 style='color:red;'>Xəta</h1><p>Kameraya qoşulmaq mümkün olmadı. Zəhmət olmasa HTTPS istifadə edin.</p>";
+        });
+
+        animate();
+    </script>
+</body>
+</html>
