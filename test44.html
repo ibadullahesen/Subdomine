@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html lang="az">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>AG</title>
+    <style>
+        *{margin:0;padding:0;box-sizing:border-box}
+        html,body{width:100%;height:100%;overflow:hidden;background:#000;touch-action:none;user-select:none;-webkit-user-select:none}
+        #video{display:none}
+        canvas{display:block;position:fixed;top:0;left:0}
+        #overlay{position:fixed;top:20px;left:50%;transform:translateX(-50%);color:rgba(255,255,255,0.3);font:13px/1 monospace;letter-spacing:3px;z-index:10;pointer-events:none;transition:opacity 2s}
+        #overlay.hide{opacity:0}
+    </style>
+</head>
+<body>
+<div id="overlay">KAMERA YÜKLƏNİR...</div>
+<video id="video" playsinline></video>
+<canvas id="c"></canvas>
+
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+<script>
+(() => {
+    const cvs = document.getElementById('c');
+    const ctx = cvs.getContext('2d');
+    const vid = document.getElementById('video');
+    const info = document.getElementById('overlay');
+    let W, H;
+
+    function resize() { W = cvs.width = innerWidth; H = cvs.height = innerHeight; }
+    addEventListener('resize', () => { resize(); buildAll(); });
+    resize();
+
+    const TAU = Math.PI * 2;
+    const lerp = (a, b, t) => a + (b - a) * t;
+    const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+    const dst = (x1, y1, x2, y2) => Math.hypot(x1 - x2, y1 - y2);
+    const rnd = (a, b) => a + Math.random() * (b - a);
+
+    /* ══════════ ƏL İZLƏMƏ ══════════ */
+    let handOk = false, mx = W/2, my = H/2, px = mx, py = my;
+    let fCount = 0, sRaw = 'NONE', handLM = null;
+    let fGlows = [];
+    let explodeCD = 0;
+
+    function countFingers(lm) {
+        let n = 0;
+        const ta = Math.atan2(lm[4].y-lm[3].y, lm[4].x-lm[3].x) -
+                   Math.atan2(lm[3].y-lm[2].y, lm[3].x-lm[2].x);
+        if (Math.abs(ta) > 0.4) n++;
+        for (const [tip, pip] of [[8,6],[12,10],[16,14],[20,18]])
+            if (lm[tip].y < lm[pip].y - 0.02) n++;
+        return n;
+    }
+
+    const mpH = new Hands({
+        locateFile: f => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${f}`
+    });
+    mpH.setOptions({ maxNumHands:1, modelComplexity:1, minDetectionConfidence:0.7, minTrackingConfidence:0.6 });
+    mpH.onResults(r => {
+        if (r.multiHandLandmarks && r.multiHandLandmarks.length) {
+            const lm = r.multiHandLandmarks[0];
+            handLM = lm; handOk = true;
+            info.classList.add('hide');
+            rawX = (1-lm[8].x)*W; rawY = lm[8].y*H;
+            px = mx; py = my;
+            mx = lerp(mx, rawX, 0.45); my = lerp(my, rawY, 0.45);
+            fCount = countFingers(lm);
+            fGlows = [4,8,12,16,20].map(id => ({
+                x:(1-lm[id].x)*W, y:lm[id].y*H,
+                on: id===4 ? Math.abs(Math.atan2(lm[4].y-lm[3].y,lm[4].x-lm[3].x)-Math.atan2(lm[3].y-lm[2].y,lm[3].x-lm[2].x))>0.4 : lm[id].y<lm[id-2].y-0.02
+            }));
+            sRaw = fCount<=1 ? 'POINT' : fCount>=4 ? 'FIST' : 'OPEN';
+        } else {
+            handOk = false; handLM = null; fGlows = [];
+            sRaw = 'NONE'; fCount = 0;
+        }
+    });
+
+    const cam = new Camera(vid, {
+        onFrame: async () => { await mpH.send({image:vid}); },
+        width:1280, height:720
+    });
+    cam.start().then(() => { info.textContent=''; info.classList.add('hide'); })
+        .catch(() => { info.textContent='KAMERA AÇILMADI'; });
+
+    /* ══════════ ULDUZ HİSSƏCİKLƏRİ ══════════ */
+    let starP = [];
+    let starR = 0; // ulduz radiusu
+    const STAR_N = 2200;
+    let starState = 0; // 0=yığılıb, 1=partlamış
+
+    function buildAll() {
+        starP = [];
+        const cx = W/2, cy = H/2;
+        starR = Math.min(W, H) * 0.22;
+
+        for (let i = 0; i < STAR_N; i++) {
+            const t = i / STAR_N;
+
+            // Ulduz forması: 5 nöqtəli ulduz
+            let r, angle;
+            const armIdx = Math.floor(t * 5);
+            const armT = (t * 5) % 1;
+
+            if (armT < 0.5) {
+                // Xarici nöqtədən iç nöqtəyə
+                const lt = armT / 0.5;
+                const outerAngle = armIdx * (TAU / 5) - Math.PI / 2;
+                const innerAngle = (armIdx + 0.5) * (TAU / 5) - Math.PI / 2;
+                angle = lerp(outerAngle, innerAngle, lt);
+                r = lerp(starR, starR * 0.38, lt);
+            } else {
+                // İç nöqtədən növbəti xarici nöqtəyə
+                const lt = (armT - 0.5) / 0.5;
+                const innerAngle = (armIdx + 0.5) * (TAU / 5) - Math.PI / 2;
+                const outerAngle = (armIdx + 1) * (TAU / 5) - Math.PI / 2;
+                angle = lerp(innerAngle, outerAngle, lt);
+                r = lerp(starR * 0.38, starR, lt);
+            }
+
+            // Səthdəki səpilmə
+            const fillT = Math.pow(Math.random(), 0.5);
+            r *= fillT;
+
+            // Daxili struktur: mərkəzdən radial xətlər
+            const hasLine = Math.random() < 0.15;
+            if (hasLine) {
+                const lineAngle = Math.floor(Math.random() * 5) * (TAU / 5) - Math.PI / 2;
+                angle = lerp(angle, lineAngle, 0.7);
+                r = rnd(5, starR * 0.8);
+            }
+
+            // Kontur hissəcikləri
+            const isEdge = Math.random() < 0.12;
+            if (isEdge) {
+                const edgeArm = Math.floor(Math.random() * 5);
+                const edgeSide = Math.random() > 0.5;
+                const outerA = edgeArm * (TAU/5) - Math.PI/2;
+                const innerA = (edgeArm + 0.5) * (TAU/5) - Math.PI/2;
+                const nextOuterA = (edgeArm+1) * (TAU/5) - Math.PI/2;
+                if (edgeSide) {
+                    angle = lerp(outerA, innerA, Math.random());
+                    r = lerp(starR, starR*0.38, Math.random());
+                } else {
+                    angle = lerp(innerA, nextOuterA, Math.random());
+                    r = lerp(starR*0.38, starR, Math.random());
+                }
+            }
+
+            const sx = cx + Math.cos(angle) * r;
+            const sy = cy + Math.sin(angle) * r;
+
+            // Partlama istiqaməti
+            const eAng = angle + rnd(-0.15, 0.15);
+            const eDist = rnd(1.5, 5);
+
+            starP.push({
+                hx: sx, hy: sy,
+                x: cx, y: cy,
+                vx: 0, vy: 0,
+                a: 0,
+                sz: isEdge ? rnd(1.5, 3.5) : rnd(0.8, 2.5),
+                eVx: Math.cos(eAng) * eDist,
+                eVy: Math.sin(eAng) * eDist,
+                phase: rnd(0, TAU),
+                fr: rnd(0.012, 0.035),
+                delay: dst(sx, sy, cx, cy) * 0.008 + rnd(0, 5),
+                edge: isEdge,
+                hue: rnd(-20, 20),
+                inner: r < starR * 0.2
+            });
+        }
+    }
+    buildAll();
+
+    /* ══════════ SPARKLAR ══════════ */
+    let sparks = [];
+    function addSpark(x, y, big) {
+        if (sparks.length > 400) return;
+        const n = big ? rnd(4, 8) : 1;
+        for (let i = 0; i < n; i++) {
+            const a = rnd(0, TAU);
+            const sp = big ? rnd(2, 7) : rnd(0.5, 2);
+            sparks.push({
+                x, y, vx: Math.cos(a)*sp, vy: Math.sin(a)*sp,
+                life: 1, decay: rnd(0.01, big ? 0.04 : 0.05),
+                sz: rnd(0.4, big ? 3.5 : 1.2),
+                big
+            });
+        }
+    }
+
+    /* ══════════ HALQA TOZU ══════════ */
+    let ringP = [];
+    const RING_N = 400;
+    function buildRings() {
+        ringP = [];
+        for (let i = 0; i < RING_N; i++) {
+            const a = (i/RING_N) * TAU * 5 + rnd(-0.3,0.3);
+            const r = rnd(15, Math.min(W,H)*0.35);
+            ringP.push({
+                ang: a, rad: r,
+                spd: rnd(0.005, 0.025) * (Math.random()>0.5?1:-1),
+                wSpd: rnd(0.01, 0.04), wAmp: rnd(2, 8), wPh: rnd(0,TAU),
+                x: W/2, y: H/2, a: 0,
+                sz: rnd(0.4, 2), scattered: false, scVx:0, scVy:0
+            });
+        }
+    }
+    buildRings();
+
+    /* ══════════ SKELET ══════════ */
+    const CONNS = [[0,1],[1,2],[2,3],[3,4],[0,5],[5,6],[6,7],[7,8],[5,9],[9,10],[10,11],[11,12],[9,13],[13,14],[14,15],[15,16],[13,17],[17,18],[18,19],[19,20],[0,17]];
+    function drawSkel() {
+        if (!handLM) return;
+        const l = handLM;
+        ctx.strokeStyle = 'rgba(255,255,255,0.06)';
+        ctx.lineWidth = 1;
+        for (const [a,b] of CONNS) {
+            ctx.beginPath();
+            ctx.moveTo((1-l[a].x)*W, l[a].y*H);
+            ctx.lineTo((1-l[b].x)*W, l[b].y*H);
+            ctx.stroke();
+        }
+        for (let i=0;i<21;i++) {
+            const x=(1-l[i].x)*W, y=l[i].y*H;
+            ctx.fillStyle = [4,8,12,16,20].includes(i)?'rgba(255,255,255,0.15)':'rgba(255,255,255,0.04)';
+            ctx.beginPath(); ctx.arc(x,y,[4,8,12,16,20].includes(i)?3:1.5,0,TAU); ctx.fill();
+        }
+    }
+
+    /* ══════════ ANİMASİYA ══════════ */
+    let frame = 0, rawX = W/2, rawY = H/2;
+    const sm = { star:0, ring:0, point:0, fist:0 };
+    let prevS = 'NONE';
+    const GR = 140;
+
+    function tick() {
+        requestAnimationFrame(tick);
+        frame++;
+        if (explodeCD > 0) explodeCD--;
+
+        // Vəziyyət dəyişikliyi → partlama
+        if (prevS !== sRaw) {
+            if (sRaw === 'OPEN' && (prevS === 'FIST' || prevS === 'NONE' || prevS === 'POINT')) {
+                explodeCD = 30;
+            }
+            prevS = sRaw;
+        }
+
+        // Yumşaq keçid
+        const ts = 0.055;
+        sm.star += ((sRaw==='OPEN'||sRaw==='POINT') ? 1 : 0 - sm.star) * ts;
+        sm.ring += (sRaw==='FIST' ? 1 : 0 - sm.ring) * ts;
+        sm.point += (sRaw==='POINT' ? 1 : 0 - sm.point) * ts * 0.6;
+        sm.fist += ((sRaw==='FIST' && fCount>=4) ? 1 : 0 - sm.fist) * ts;
+
+        const cx = W/2, cy = H/2;
+        const exploding = explodeCD > 0;
+
+        ctx.fillStyle = '#000';
+        ctx.fillRect(0, 0, W, H);
+        drawSkel();
+
+        /* ─── ULDUZ ─── */
+        const starAlpha = clamp(1 - sm.ring * 0.95, 0, 1);
+
+        for (let i = 0; i < starP.length; i++) {
+            const p = starP[i];
+            let tx = p.hx, ty = p.hy;
+            let ta = starAlpha;
+
+            // Partlama effecti
+            if (exploding) {
+                const progress = 1 - explodeCD / 30;
+                const d = dst(p.hx, p.hy, cx, cy);
+                const maxD = starR * 1.1;
+                const delayScale = clamp((progress * 2 - p.delay * 0.05), 0, 1);
+                if (delayScale > 0) {
+                    tx = p.hx + p.eVx * delayScale * maxD * 0.5;
+                    ty = p.hy + p.eVy * delayScale * maxD * 0.5;
+                    ta = starAlpha * (1 - delayScale * 0.6);
+                    if (delayScale > 0.3 && Math.random() < 0.15) {
+                        addSpark(p.x, p.y, false);
+                    }
+                }
+            }
+
+            // İşarə barmağı effecti
+            if (sm.point > 0.01) {
+                const d = dst(mx, my, p.hx, p.hy);
+                if (d < GR) {
+                    const f = 1 - d / GR;
+                    const ff = f * f * f * 100 * sm.point;
+                    tx += ((p.hx - mx) / Math.max(1, d)) * ff;
+                    ty += ((p.hy - my) / Math.max(1, d)) * ff;
+                    ta = Math.max(ta, f * f * sm.point * 0.9);
+                    if (f > 0.5 && Math.random() < f * 0.2) addSpark(p.x, p.y, false);
+                    if (f > 0.8 && Math.random() < 0.08) addSpark(p.x, p.y, true);
+                }
+            }
+
+            // Yığılma: mərkəzə çəkilmə
+            if (sm.ring > 0.01) {
+                const pullStrength = sm.ring * sm.ring;
+                tx = lerp(tx, cx, pullStrength * 0.98);
+                ty = lerp(ty, cy, pullStrength * 0.98);
+            }
+
+            // Fizika
+            const spring = 0.04 + (1 - starAlpha) * 0.02;
+            p.vx += (tx - p.x) * spring;
+            p.vy += (ty - p.y) * spring;
+            p.vx *= 0.86;
+            p.vy *= 0.86;
+            p.x += p.vx;
+            p.y += p.vy;
+
+            // Mikro-titrəmə
+            p.x += Math.sin(frame * p.fr + p.phase) * 0.12;
+            p.y += Math.cos(frame * p.fr * 0.8 + p.phase + 1) * 0.12;
+
+            p.a = lerp(p.a, ta, 0.1);
+
+            if (p.a > 0.005) {
+                const lum = 210 + p.hue * 1.5;
+                ctx.globalAlpha = clamp(p.a, 0, 1);
+                ctx.fillStyle = `rgb(${clamp(lum+20,0,255)},${clamp(lum+12,0,255)},${clamp(lum,0,255)})`;
+                if (p.edge || p.sz > 2.5) {
+                    ctx.beginPath();
+                    ctx.arc(p.x, p.y, Math.max(0.3, p.sz), 0, TAU);
+                    ctx.fill();
+                } else {
+                    ctx.fillRect(p.x - p.sz*0.5, p.y - p.sz*0.5, p.sz, p.sz);
+                }
+            }
+        }
+
+        /* ─── HALQA TOZU (additive) ─── */
+        ctx.globalCompositeOperation = 'lighter';
+
+        for (const p of ringP) {
+            p.ang += p.spd;
+            const wOff = Math.sin(frame * p.wSpd + p.wPh) * p.wAmp;
+            let bx = cx + Math.cos(p.ang) * (p.rad + wOff);
+            let by = cy + Math.sin(p.ang) * (p.rad + wOff);
+
+            if (sm.fist > 0.01) {
+                bx = lerp(bx, cx, sm.fist * 0.93);
+                by = lerp(by, cy, sm.fist * 0.93);
+            }
+
+            if (p.scattered) {
+                p.scVx *= 0.965; p.scVy *= 0.965;
+                bx = p.x + p.scVx; by = p.y + p.scVy;
+                if (dst(bx, by, cx, cy) > Math.min(W,H)*0.6) {
+                    p.scattered = false; p.scVx = 0; p.scVy = 0;
+                }
+            }
+
+            let glow = 0;
+            if (sm.point > 0.01 && !p.scattered) {
+                const d = dst(mx, my, bx, by);
+                if (d < GR) {
+                    const f = 1 - d/GR;
+                    glow = f*f * sm.point;
+                    const push = f*f*f * 110 * sm.point;
+                    const dx = bx-mx, dy = by-my, dn = Math.max(1,d);
+                    bx += (dx/dn)*push; by += (dy/dn)*push;
+                    if (f > 0.65 && sm.point > 0.4) {
+                        p.scattered = true;
+                        p.scVx = (dx/dn)*rnd(3,7); p.scVy = (dy/dn)*rnd(3,7);
+                        addSpark(p.x, p.y, true);
+                    } else if (Math.random() < glow*0.25) addSpark(p.x, p.y, false);
+                }
+            }
+
+            p.x = lerp(p.x, bx, 0.08);
+            p.y = lerp(p.y, by, 0.08);
+
+            let ta = 0;
+            if (sm.dust > 0.01 && !p.scattered) ta = sm.ring * (0.2 + Math.abs(Math.sin(p.ang*2+frame*0.01))*0.45);
+            if (p.scattered) ta = 0.35;
+            ta = Math.max(ta, glow);
+            p.a = lerp(p.a, ta, 0.1);
+
+            if (p.a > 0.005) {
+                ctx.globalAlpha = clamp(p.a, 0, 1);
+                ctx.fillStyle = '#fff';
+                ctx.beginPath(); ctx.arc(p.x, p.y, Math.max(0.3, p.sz), 0, TAU); ctx.fill();
+            }
+        }
+
+        /* ─── SPARKLAR ─── */
+        for (let i = sparks.length-1; i >= 0; i--) {
+            const s = sparks[i];
+            s.x += s.vx; s.y += s.vy;
+            s.vx *= 0.955; s.vy *= 0.955;
+            s.vy += 0.02; // minimal cazibə
+            s.life -= s.decay;
+            if (s.life <= 0) { sparks.splice(i,1); continue; }
+            const ll = s.life * s.life;
+            ctx.globalAlpha = ll;
+            if (s.big) {
+                // Böyük spark: xətti
+                ctx.strokeStyle = '#fff';
+                ctx.lineWidth = Math.max(0.3, s.sz * s.life);
+                ctx.beginPath();
+                ctx.moveTo(s.x, s.y);
+                ctx.lineTo(s.x - s.vx*3, s.y - s.vy*3);
+                ctx.stroke();
+            } else {
+                ctx.fillStyle = '#fff';
+                ctx.beginPath(); ctx.arc(s.x, s.y, Math.max(0.2, s.sz*s.life), 0, TAU); ctx.fill();
+            }
+        }
+
+        /* ─── İŞARƏ BARMAĞI ŞÜALANMA ─── */
+        if (sm.point > 0.01) {
+            const pulse = 1 + Math.sin(frame*0.09)*0.18;
+            const r = GR * pulse;
+            const g1 = ctx.createRadialGradient(mx,my,0,mx,my,r);
+            g1.addColorStop(0, `rgba(255,255,255,${0.1*sm.point*pulse})`);
+            g1.addColorStop(0.25, `rgba(255,255,255,${0.04*sm.point})`);
+            g1.addColorStop(0.6, `rgba(255,255,255,${0.01*sm.point})`);
+            g1.addColorStop(1, 'rgba(255,255,255,0)');
+            ctx.globalAlpha = 1; ctx.fillStyle = g1;
+            ctx.beginPath(); ctx.arc(mx,my,r,0,TAU); ctx.fill();
+
+            const g2 = ctx.createRadialGradient(mx,my,0,mx,my,12);
+            g2.addColorStop(0, `rgba(255,255,255,${0.35*sm.point})`);
+            g2.addColorStop(1, 'rgba(255,255,255,0)');
+            ctx.fillStyle = g2;
+            ctx.beginPath(); ctx.arc(mx,my,12,0,TAU); ctx.fill();
+        }
+
+        /* ─── AÇIQ BARMAQ UÇLARI ─── */
+        if (handOk && sRaw !== 'FIST') {
+            for (const fg of fGlows) {
+                if (!fg.on) continue;
+                const g = ctx.createRadialGradient(fg.x,fg.y,0,fg.x,fg.y,20);
+                g.addColorStop(0, 'rgba(255,255,255,0.05)');
+                g.addColorStop(1, 'rgba(255,255,255,0)');
+                ctx.globalAlpha = 1; ctx.fillStyle = g;
+                ctx.beginPath(); ctx.arc(fg.x,fg.y,20,0,TAU); ctx.fill();
+            }
+        }
+
+        /* ─── YUMRUQ MƏRKƏZ ŞÜALANMASI ─── */
+        if (sm.fist > 0.02) {
+            const pulse = 1 + Math.sin(frame*0.05)*0.4;
+            const int = sm.fist*sm.fist*0.18*pulse;
+            const r = 45*pulse;
+            const g = ctx.createRadialGradient(cx,cy,0,cx,cy,r);
+            g.addColorStop(0, `rgba(255,255,255,${int})`);
+            g.addColorStop(0.4, `rgba(255,255,255,${int*0.25})`);
+            g.addColorStop(1, 'rgba(255,255,255,0)');
+            ctx.globalAlpha = 1; ctx.fillStyle = g;
+            ctx.beginPath(); ctx.arc(cx,cy,r,0,TAU); ctx.fill();
+        }
+
+        /* ─── PARTLAMA FLASH ─── */
+        if (exploding && explodeCD > 15) {
+            const flashA = (explodeCD - 15) / 15 * 0.15;
+            ctx.globalAlpha = flashA;
+            ctx.fillStyle = '#fff';
+            ctx.fillRect(0, 0, W, H);
+        }
+
+        /* ─── ULDUZ MƏRKƏZ PARILDAMASI ─── */
+        if (sm.star > 0.3 && !exploding) {
+            const pulse = Math.sin(frame * 0.03) * 0.5 + 0.5;
+            const int = sm.star * pulse * 0.08;
+            const g = ctx.createRadialGradient(cx,cy,0,cx,cy,starR*0.3);
+            g.addColorStop(0, `rgba(255,255,255,${int})`);
+            g.addColorStop(1, 'rgba(255,255,255,0)');
+            ctx.globalAlpha = 1; ctx.fillStyle = g;
+            ctx.beginPath(); ctx.arc(cx,cy,starR*0.3,0,TAU); ctx.fill();
+
+            // 5 şüa
+            ctx.strokeStyle = `rgba(255,255,255,${int * 0.5})`;
+            ctx.lineWidth = 1;
+            for (let i = 0; i < 5; i++) {
+                const a = i * (TAU/5) - Math.PI/2;
+                const len = starR * 0.6 * pulse;
+                ctx.beginPath();
+                ctx.moveTo(cx, cy);
+                ctx.lineTo(cx + Math.cos(a)*len, cy + Math.sin(a)*len);
+                ctx.stroke();
+            }
+        }
+
+        /* ─── AMBIENT TOZ ─── */
+        for (let i = 0; i < 30; i++) {
+            const ax = (Math.sin(frame*0.0018+i*7.3)*0.5+0.5)*W;
+            const ay = (Math.cos(frame*0.0013+i*4.1)*0.5+0.5)*H;
+            ctx.globalAlpha = 0.015 + Math.sin(frame*0.008+i)*0.008;
+            ctx.fillStyle = '#fff';
+            ctx.beginPath(); ctx.arc(ax, ay, rnd(0.3,1.2), 0, TAU); ctx.fill();
+        }
+
+        ctx.globalCompositeOperation = 'source-over';
+        ctx.globalAlpha = 1;
+        px = mx; py = my;
+    }
+
+    tick();
+})();
+</script>
+</body>
+</html>
