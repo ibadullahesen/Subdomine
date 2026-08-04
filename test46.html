@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html lang="az">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Particle Text Effect</title>
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            background-color: #000;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-family: 'Courier New', Courier, monospace;
+        }
+
+        canvas {
+            display: block;
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+        }
+
+        #ui-layer {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 2;
+            display: flex;
+            align-items: center;
+            pointer-events: none; /* Let clicks pass through to canvas if needed, though we listen on document */
+        }
+
+        #hidden-input {
+            position: absolute;
+            opacity: 0;
+            top: -1000px; /* Hide off-screen but keep it focusable on mobile */
+        }
+
+        /* We don't actually draw the text with HTML, we draw it with particles. 
+           But we need a cursor effect. */
+        #cursor {
+            width: 20px;
+            height: 120px; /* Approximate height of text */
+            background-color: white;
+            animation: blink 1s step-end infinite;
+            margin-left: 5px;
+            box-shadow: 0 0 10px white, 0 0 20px white;
+            border-radius: 2px;
+        }
+
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0; }
+        }
+        
+        /* Mobile adjustments */
+        @media (max-width: 768px) {
+            #cursor {
+                height: 80px;
+                width: 15px;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <canvas id="canvas"></canvas>
+    <div id="ui-layer">
+        <div id="cursor"></div>
+    </div>
+    
+    <!-- Hidden input for mobile keyboard support -->
+    <input type="text" id="hidden-input" maxlength="10" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d', { willReadFrequently: true });
+        
+        let width, height;
+        let particles = [];
+        const totalParticles = 10000;
+        let text = "";
+        const maxTextLength = 10;
+        
+        // Color transition variables
+        let hue = 0;
+        let targetHue = 0;
+        let colorTransitionSpeed = 0.5; // Speed of hue change
+        // Neon colors: Purple (280), Blue (220), Red (0), Pink (320), Cyan (180)
+        const neonHues = [0, 180, 220, 280, 320]; 
+        
+        // Wave-like color transition state
+        let waveOrigin = { x: 0, y: 0 };
+        let waveRadius = 0;
+        let isWaveActive = false;
+        let currentWaveHue = 0;
+        let maxWaveRadius = 0;
+
+        // Particle configuration
+        const friction = 0.85;
+        const ease = 0.05;
+
+        // Mouse interaction (optional, but requested random wave origin can use it, or random points)
+        let mouse = { x: -1000, y: -1000 };
+
+        function resize() {
+            width = canvas.width = window.innerWidth;
+            height = canvas.height = window.innerHeight;
+            maxWaveRadius = Math.sqrt(width * width + height * height);
+            
+            // Re-evaluate text positions when resized
+            if (text !== "") {
+                createTextParticles();
+            }
+        }
+
+        window.addEventListener('resize', resize);
+
+        class Particle {
+            constructor() {
+                // Initial placement: top or bottom region
+                this.x = Math.random() * width;
+                const isTop = Math.random() > 0.5;
+                if (isTop) {
+                    this.y = Math.random() * (height * 0.2); // Top 20%
+                } else {
+                    this.y = height - Math.random() * (height * 0.2); // Bottom 20%
+                }
+
+                // Initial floating velocities
+                this.vx = (Math.random() - 0.5) * 2;
+                this.vy = (Math.random() - 0.5) * 2;
+
+                // Base color setup
+                this.hue = neonHues[Math.floor(Math.random() * neonHues.length)];
+                this.color = `hsl(${this.hue}, 100%, 60%)`;
+                
+                this.radius = Math.random() * 1.5 + 0.5;
+                
+                // State: "free" (floating) or "text" (forming a letter)
+                this.state = 'free';
+                
+                // Target position for text forming
+                this.destX = this.x;
+                this.destY = this.y;
+                
+                // Store base original floating boundaries to keep them at top/bottom when free
+                this.baseYRegion = isTop ? 'top' : 'bottom';
+            }
+
+            update() {
+                // Color Wave Logic
+                if (isWaveActive) {
+                    const dx = this.x - waveOrigin.x;
+                    const dy = this.y - waveOrigin.y;
+                    const distance = Math.sqrt(dx * dx + dy * dy);
+                    
+                    // If the expanding wave reaches this particle
+                    if (distance <= waveRadius && distance > waveRadius - 250) {
+                        // Smoothly transition hue towards currentWaveHue
+                        // To avoid snapping, we interpolate
+                        let hueDiff = currentWaveHue - this.hue;
+                        // Normalize diff to -180 to 180 for shortest path
+                        hueDiff = ((hueDiff + 540) % 360) - 180; 
+                        
+                        this.hue += hueDiff * 0.3;
+                        // Keep hue in 0-360 range
+                        this.hue = (this.hue + 360) % 360; 
+                    }
+                }
+
+                // Update final color string with some glow effect
+                this.color = `hsl(${this.hue}, 100%, ${60 + Math.random()*20}%)`;
+
+                if (this.state === 'text') {
+                    // Move towards destination (text coordinate)
+                    let dx = this.destX - this.x;
+                    let dy = this.destY - this.y;
+                    let distance = Math.sqrt(dx * dx + dy * dy);
+                    
+                    // Dynamic force based on distance
+                    let force = distance * 0.01;
+                    let angle = Math.atan2(dy, dx);
+                    
+                    this.vx += force * Math.cos(angle);
+                    this.vy += force * Math.sin(angle);
+                    
+                    this.vx *= friction;
+                    this.vy *= friction;
+                    
+                    this.x += this.vx;
+                    this.y += this.vy;
+
+                    // Add slight jitter when in place
+                    if (distance < 2) {
+                        this.x += (Math.random() - 0.5) * 1;
+                        this.y += (Math.random() - 0.5) * 1;
+                    }
+
+                } else {
+                    // Free floating state
+                    this.x += this.vx;
+                    this.y += this.vy;
+
+                    // Add slight random wandering
+                    this.vx += (Math.random() - 0.5) * 0.2;
+                    this.vy += (Math.random() - 0.5) * 0.2;
+                    
+                    // Cap velocity
+                    const maxSpeed = 1.5;
+                    let speed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
+                    if (speed > maxSpeed) {
+                        this.vx = (this.vx / speed) * maxSpeed;
+                        this.vy = (this.vy / speed) * maxSpeed;
+                    }
+
+                    // Bounce off sides
+                    if (this.x < 0 || this.x > width) this.vx *= -1;
+                    
+                    // Keep in upper or lower bounds based on their origin
+                    if (this.baseYRegion === 'top') {
+                        if (this.y > height * 0.3) { // Push back up if it goes too low
+                            this.vy -= 0.1;
+                        }
+                        if (this.y < 0) this.vy *= -1;
+                    } else {
+                        if (this.y < height * 0.7) { // Push back down if it goes too high
+                            this.vy += 0.1;
+                        }
+                        if (this.y > height) this.vy *= -1;
+                    }
+                }
+            }
+
+            draw() {
+                ctx.fillStyle = this.color;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+
+        function init() {
+            resize();
+            particles = [];
+            for (let i = 0; i < totalParticles; i++) {
+                particles.push(new Particle());
+            }
+            // Start color wave interval
+            startColorWave();
+            animate();
+        }
+
+        function startColorWave() {
+            if (isWaveActive) return; // Wait for current wave to finish
+            
+            isWaveActive = true;
+            waveRadius = 0;
+            // Pick a random origin for the color wave
+            waveOrigin.x = Math.random() * width;
+            waveOrigin.y = Math.random() * height;
+            // Pick a random neon hue for the new wave
+            currentWaveHue = neonHues[Math.floor(Math.random() * neonHues.length)];
+        }
+
+        function createTextParticles() {
+            if (text === "") {
+                // Release all particles
+                particles.forEach(p => p.state = 'free');
+                updateCursorPosition(0); // Move cursor back to center
+                return;
+            }
+
+            // Draw text to an off-screen canvas to read pixel data
+            const offCanvas = document.createElement('canvas');
+            const offCtx = offCanvas.getContext('2d', { willReadFrequently: true });
+            offCanvas.width = width;
+            offCanvas.height = height;
+
+            // İlkin olaraq böyük ölçü ilə başlayırıq
+            let fontSize = 400; 
+            offCtx.font = `bold ${fontSize}px "Courier New", Courier, monospace`;
+            let textMetrics = offCtx.measureText(text);
+
+            // Dinamik ölçüləndirmə: Yazının genişliyi ekranın 90%-dən böyük olmasın
+            const maxWidth = width * 0.9;
+            if (textMetrics.width > maxWidth) {
+                // Ölçünü ekrana uyğun mütənasib şəkildə kiçildiririk
+                fontSize = fontSize * (maxWidth / textMetrics.width);
+                offCtx.font = `bold ${fontSize}px "Courier New", Courier, monospace`;
+                textMetrics = offCtx.measureText(text); // Yeni ölçü ilə bir daha ölçürük
+            }
+
+            offCtx.fillStyle = 'white';
+            offCtx.textAlign = 'center';
+            offCtx.textBaseline = 'middle';
+            
+            // Draw text in center
+            offCtx.fillText(text, width / 2, height / 2);
+
+            // İmleci həm kənara çəkirik, həm də ölçüsünü yeni hərfin ölçüsünə uyğunlaşdırırıq
+            updateCursorPosition(textMetrics.width, fontSize);
+
+            // Get pixel data
+            const imgData = offCtx.getImageData(0, 0, width, height).data;
+            let textCoordinates = [];
+
+            // Scan pixels and store coordinates of non-transparent ones
+            const step = 2; // Yüksək dəqiqlik üçün kiçik addım
+
+            for (let y = 0; y < height; y += step) {
+                for (let x = 0; x < width; x += step) {
+                    const index = (y * width + x) * 4;
+                    const alpha = imgData[index + 3];
+                    if (alpha > 128) {
+                        textCoordinates.push({ x, y });
+                    }
+                }
+            }
+
+            // HƏR HƏRF ÜÇÜN DƏQİQ 1000 ZƏRRƏCİK
+            let requiredParticles = text.length * 1000;
+            
+            let sampledCoordinates = [];
+            if (textCoordinates.length > 0) {
+                // Əvvəlcə koordinatları qarışdırırıq
+                textCoordinates.sort(() => Math.random() - 0.5);
+                
+                // Lazım olan tam sayı qədər koordinat seçirik (çatışmazsa təkrarlanır)
+                for (let i = 0; i < requiredParticles; i++) {
+                    sampledCoordinates.push(textCoordinates[i % textCoordinates.length]);
+                }
+            }
+
+            // Reset all particles to free first
+            particles.forEach(p => p.state = 'free');
+
+            // Randomly shuffle coordinates to create organic assembly
+            sampledCoordinates.sort(() => Math.random() - 0.5);
+
+            // Assign coordinates to free particles
+            for (let i = 0; i < requiredParticles; i++) {
+                if (i >= totalParticles) break; // Maksimum 10,000 limiti
+                
+                let p = particles[i];
+                p.state = 'text';
+                p.destX = sampledCoordinates[i].x;
+                p.destY = sampledCoordinates[i].y;
+            }
+        }
+
+        function updateCursorPosition(textWidth, fontSize) {
+            const cursor = document.getElementById('cursor');
+            
+            // İmlecin uzunluğunu dinamik fonta görə ayarla, əgər font yoxdursa standart ölçü
+            const cursorHeight = fontSize ? fontSize * 0.7 : (window.innerWidth < 768 ? 80 : 150);
+            cursor.style.height = `${cursorHeight}px`;
+
+            // Center is 50%, offset by half text width plus a little padding
+            if (text === "") {
+                cursor.style.transform = `translateX(0px)`;
+            } else {
+                cursor.style.transform = `translateX(${textWidth / 2 + 10}px)`;
+            }
+        }
+
+        const hiddenInput = document.getElementById('hidden-input');
+
+        // Focus hidden input on any click/touch so mobile keyboard opens
+        document.addEventListener('click', () => {
+            hiddenInput.focus();
+        });
+        document.addEventListener('touchstart', () => {
+            hiddenInput.focus();
+        });
+
+        document.addEventListener('keydown', (e) => {
+            // Keep hidden input focused when typing anywhere on screen
+            if (document.activeElement !== hiddenInput) {
+                hiddenInput.focus();
+            }
+        });
+
+        // Sync hidden input for mobile devices and desktop (prevents double typing)
+        hiddenInput.addEventListener('input', (e) => {
+            let val = e.target.value;
+            if (val.length > maxTextLength) {
+                val = val.slice(0, maxTextLength);
+                hiddenInput.value = val;
+            }
+            text = val;
+            createTextParticles();
+        });
+
+        function animate() {
+            // Slight trail effect
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.2)'; 
+            ctx.fillRect(0, 0, width, height);
+
+            // Manage color wave expansion
+            if (isWaveActive) {
+                waveRadius += 40; // Expansion speed
+                if (waveRadius > maxWaveRadius + 300) {
+                    isWaveActive = false; // Wave finished
+                    // Start next wave quickly
+                    setTimeout(startColorWave, Math.random() * 1000 + 200);
+                }
+            }
+
+            // Update and draw particles
+            particles.forEach(p => {
+                p.update();
+                p.draw();
+            });
+
+            requestAnimationFrame(animate);
+        }
+
+        // Initialize on load
+        window.onload = () => {
+            init();
+            // Automatically focus input to show cursor active and ready
+            hiddenInput.focus();
+        };
+
+    </script>
+</body>
+</html>
