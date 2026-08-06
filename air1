@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="az">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AxtarGet Air Mouse</title>
+    <style>
+        body {
+            margin: 0;
+            background-color: #000;
+            color: #00ff41;
+            font-family: monospace;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            overflow: hidden;
+            user-select: none;
+        }
+        .header {
+            text-align: center;
+            padding: 15px;
+            background: #0a1f0d;
+            font-size: 16px;
+            border-bottom: 1px solid #00ff41;
+        }
+        #touchpad {
+            flex: 1;
+            background: #050505;
+            border: 2px dashed #0a6b1f;
+            margin: 15px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            padding: 20px;
+            color: #0a6b1f;
+            font-size: 18px;
+        }
+        .scroll-area {
+            background: #0a1f0d;
+            padding: 15px;
+            text-align: center;
+            margin: 0 15px 15px 15px;
+            border-radius: 8px;
+            font-weight: bold;
+            border: 1px solid #00ff41;
+        }
+        .buttons-container {
+            display: flex;
+            gap: 15px;
+            padding: 0 15px 20px 15px;
+        }
+        .btn {
+            flex: 1;
+            padding: 22px;
+            font-size: 18px;
+            font-weight: bold;
+            border: 1px solid #00ff41;
+            border-radius: 8px;
+            color: #00ff41;
+            background-color: #050505;
+            cursor: pointer;
+        }
+        .btn:active {
+            background-color: #00ff41;
+            color: #000;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="header">AxtarGet Controller v1.4</div>
+
+    <!-- Touchpad və ya Hava Mausu sahəsi -->
+    <div id="touchpad">
+        Telefonu havada hərəkət etdir və ya<br>barmağınla buranı sürüşdür
+    </div>
+
+    <!-- Scroll Paneli -->
+    <div class="scroll-area" id="scrollArea">↕ Scroll Etmək Üçün Sürüşdür</div>
+
+    <!-- Klik Düymələri -->
+    <div class="buttons-container">
+        <button class="btn" id="leftBtn">SOL KLİK</button>
+        <button class="btn" id="rightBtn">SAĞ KLİK</button>
+    </div>
+
+    <script>
+        // Python serverinə WebSocket bağlantısı (Host IP-si avtomatik götürülür)
+        const wsProtocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
+        const ws = new WebSocket(wsProtocol + window.location.hostname + ':8765');
+
+        ws.onopen = () => console.log("AxtarGet Serverinə bağlandı!");
+
+        // 1. Gyroscope (Hava Mausu - Telefonun əyilməsi)
+        window.addEventListener('deviceorientation', (event) => {
+            let beta = event.beta;   // Önə-arxaya
+            let gamma = event.gamma; // Sola-sağa
+
+            if (ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({ type: 'move', x: gamma, y: beta }));
+            }
+        });
+
+        // 2. Touchpad ilə barmaq hərəkəti (Alternativ olaraq)
+        let lastX = 0, lastY = 0;
+        const touchpad = document.getElementById('touchpad');
+
+        touchpad.addEventListener('touchstart', (e) => {
+            lastX = e.touches[0].clientX;
+            lastY = e.touches[0].clientY;
+        });
+
+        touchpad.addEventListener('touchmove', (e) => {
+            let currentX = e.touches[0].clientX;
+            let currentY = e.touches[0].clientY;
+            let deltaX = currentX - lastX;
+            let deltaY = currentY - lastY;
+
+            if (ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({ type: 'touch_move', x: deltaX, y: deltaY }));
+            }
+
+            lastX = currentX;
+            lastY = currentY;
+        });
+
+        // 3. Sol Klik
+        document.getElementById('leftBtn').addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            ws.send(JSON.stringify({ type: 'click', button: 'left' }));
+        });
+
+        // 4. Sağ Klik
+        document.getElementById('rightBtn').addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            ws.send(JSON.stringify({ type: 'click', button: 'right' }));
+        });
+
+        // 5. Scroll (Sürüşdürmə)
+        let startY = 0;
+        const scrollArea = document.getElementById('scrollArea');
+        
+        scrollArea.addEventListener('touchstart', (e) => {
+            startY = e.touches[0].clientY;
+        });
+
+        scrollArea.addEventListener('touchmove', (e) => {
+            let currentY = e.touches[0].clientY;
+            let diff = startY - currentY;
+            
+            if (Math.abs(diff) > 5) {
+                if (ws.readyState === WebSocket.OPEN) {
+                    ws.send(JSON.stringify({ type: 'scroll', amount: diff }));
+                }
+                startY = currentY;
+            }
+        });
+    </script>
+</body>
+</html>
