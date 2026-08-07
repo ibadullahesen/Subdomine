@@ -3,22 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Invisibility Cloak</title>
-    <!-- Tailwind CSS for styling -->
+    <title>Invisibility Cloak - Effect</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- MediaPipe Hands & Camera Utils -->
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
 </head>
 <body class="bg-black m-0 overflow-hidden w-screen h-screen flex items-center justify-center">
 
-    <!-- Video Element (Hidden, used for processing) -->
     <video id="input_video" class="hidden" autoplay playsinline></video>
-
-    <!-- Canvas for rendering the invisibility effect -->
     <canvas id="output_canvas" class="absolute inset-0 w-full h-full object-cover -scale-x-100"></canvas>
-
-    <!-- Hidden canvas to capture background snapshot -->
     <canvas id="bg_canvas" class="hidden"></canvas>
 
     <script>
@@ -32,8 +25,8 @@
         let isInvisible = false;
         let wasTouching = false;
         let bgImage = null;
+        let effectProgress = 0.0; // Şəffaflıq/keçid səviyyəsi (0-dan 1-ə)
 
-        // Canvas ölçülərini tənzimləyirik
         function setupCanvas(video) {
             outputCanvas.width = video.videoWidth;
             outputCanvas.height = video.videoHeight;
@@ -41,14 +34,12 @@
             bgCanvas.height = video.videoHeight;
         }
 
-        // Arxa fonu ilk 2 saniyədə avtomatik çəkirik
         function captureBackground() {
             if (!backgroundCaptured && videoElement.videoWidth > 0) {
                 setupCanvas(videoElement);
                 bgCtx.drawImage(videoElement, 0, 0, bgCanvas.width, bgCanvas.height);
                 bgImage = bgCtx.getImageData(0, 0, bgCanvas.width, bgCanvas.height);
                 backgroundCaptured = true;
-                console.log("Arxa fon yadda saxlanıldı!");
             }
         }
 
@@ -60,7 +51,6 @@
             canvasCtx.save();
             canvasCtx.clearRect(0, 0, outputCanvas.width, outputCanvas.height);
 
-            // Əgər arxa fon hələ çəkilməyibsə, sadəcə kameranı göstər
             if (!backgroundCaptured || !bgImage) {
                 canvasCtx.drawImage(results.image, 0, 0, outputCanvas.width, outputCanvas.height);
                 canvasCtx.restore();
@@ -69,45 +59,50 @@
 
             let isTouchingNow = false;
 
-            // Əl koordinatlarını yoxlayırıq
             if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
                 const landmarks = results.multiHandLandmarks[0];
-                const thumbTip = landmarks[4];  // Baş barmaq ucu
-                const indexTip = landmarks[8];  // İşarə barmaq ucu
+                const x1 = landmarks[4].x * outputCanvas.width;
+                const y1 = landmarks[4].y * outputCanvas.height;
+                const x2 = landmarks[8].x * outputCanvas.width;
+                const y2 = landmarks[8].y * outputCanvas.height;
 
-                // Piksel koordinatlarına çeviririk
-                const x1 = thumbTip.x * outputCanvas.width;
-                const y1 = thumbTip.y * outputCanvas.height;
-                const x2 = indexTip.x * outputCanvas.width;
-                const y2 = indexTip.y * outputCanvas.height;
-
-                // İki barmaq arasındakı məsafə
-                const distance = Math.hypot(x2 - x1, y2 - y1);
-
-                // Əgər məsafə kifayət qədər kiçikdirsə (toxunursa)
-                if (distance < 40) {
+                if (Math.hypot(x2 - x1, y2 - y1) < 40) {
                     isTouchingNow = true;
                 }
             }
 
-            // Toggle məntiqi: Barmaqlar toxunub ayrıldığı an vəziyyət dəyişir
+            // Toggle məntiqi
             if (wasTouching && !isTouchingNow) {
                 isInvisible = !isInvisible;
             }
             wasTouching = isTouchingNow;
 
+            // Keçid effektinin yumşaq artması və ya azalması (Animate transition)
             if (isInvisible) {
-                // Görünməz rejimdəyiksə, kadra arxa fonu qoyuruq
-                canvasCtx.putImageData(bgImage, 0, 0);
+                if (effectProgress < 1.0) effectProgress += 0.08; // Yavaş-yavaş yox olur
             } else {
-                // Normal rejimdə canlı kameranı göstəririk
-                canvasCtx.drawImage(results.image, 0, 0, outputCanvas.width, outputCanvas.height);
+                if (effectProgress > 0.0) effectProgress -= 0.08; // Yavaş-yavaş geri qayıdır
+            }
+
+            // 1. Əvvəlcə canlı kameranı çəkirik
+            canvasCtx.drawImage(results.image, 0, 0, outputCanvas.width, outputCanvas.height);
+
+            // 2. Əgər keçid başlayıbsa, arxa fonu üzərinə müəyyən şəffaflıqla (alpha) qatırıq ki, şəffaf/kibertapanca effekti yaransın
+            if (effectProgress > 0) {
+                // Arxa fonu çəkirik
+                canvasCtx.save();
+                canvasCtx.globalAlpha = effectProgress; // Şəffaflıq dərəcəsi
+                canvasCtx.putImageData(bgImage, 0, 0);
+                
+                // Yoxolma anında xüsusi vizual "hologram / parıltı" effekti əlavə etmək üçün rəng filtri
+                canvasCtx.fillStyle = `rgba(0, 255, 255, ${effectProgress * 0.15})`; 
+                canvasCtx.fillRect(0, 0, outputCanvas.width, outputCanvas.height);
+                canvasCtx.restore();
             }
 
             canvasCtx.restore();
         }
 
-        // MediaPipe Hands quraşdırılması
         const hands = new Hands({
             locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
         });
@@ -121,7 +116,6 @@
 
         hands.onResults(onResults);
 
-        // Kameranı işə salırıq
         const camera = new Camera(videoElement, {
             onFrame: async () => {
                 await hands.send({ image: videoElement });
