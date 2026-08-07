@@ -1,312 +1,136 @@
 <!DOCTYPE html>
-<html lang="az">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Görünməzlik Effekti</title>
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        
-        body {
-            width: 100%;
-            height: 100vh;
-            overflow: hidden;
-            background: #000;
-            font-family: Arial, sans-serif;
-        }
-        
-        canvas {
-            display: block;
-            width: 100%;
-            height: 100%;
-        }
-        
-        #debug {
-            position: fixed;
-            top: 10px;
-            left: 10px;
-            color: #0f0;
-            font-size: 13px;
-            background: rgba(0, 0, 0, 0.9);
-            padding: 12px;
-            border-radius: 5px;
-            border: 2px solid #0f0;
-            font-family: monospace;
-            max-width: 320px;
-            z-index: 1000;
-            line-height: 1.6;
-        }
-        
-        .ok { color: #0f0; }
-        .warn { color: #ff0; }
-        .err { color: #f00; }
-    </style>
+    <title>Invisibility Cloak</title>
+    <!-- Tailwind CSS for styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- MediaPipe Hands & Camera Utils -->
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
 </head>
-<body>
-    <canvas id="canvas"></canvas>
-    <div id="debug">
-        <div id="status" class="warn">⏳ Başlıyır...</div>
-        <div id="camera" class="warn">📷 Kamera...</div>
-        <div id="background" class="warn">📸 Fon...</div>
-        <div id="hand" class="err">✋ EL: GÖRÜNMÜYÜr</div>
-        <div id="pinch" class="err">✊ Piçləmə: YOX</div>
-        <div id="invisible" class="err">👁️ Normal</div>
-    </div>
+<body class="bg-black m-0 overflow-hidden w-screen h-screen flex items-center justify-center">
+
+    <!-- Video Element (Hidden, used for processing) -->
+    <video id="input_video" class="hidden" autoplay playsinline></video>
+
+    <!-- Canvas for rendering the invisibility effect -->
+    <canvas id="output_canvas" class="absolute inset-0 w-full h-full object-cover -scale-x-100"></canvas>
+
+    <!-- Hidden canvas to capture background snapshot -->
+    <canvas id="bg_canvas" class="hidden"></canvas>
 
     <script>
-        const canvas = document.getElementById('canvas');
-        const ctx = canvas.getContext('2d', { willReadFrequently: true });
-        
-        const statusEl = document.getElementById('status');
-        const cameraEl = document.getElementById('camera');
-        const backgroundEl = document.getElementById('background');
-        const handEl = document.getElementById('hand');
-        const pinchEl = document.getElementById('pinch');
-        const invisibleEl = document.getElementById('invisible');
-        
-        // Canvas ölçüləri
-        canvas.width = window.innerWidth;
-        canvas.height = window.innerHeight;
-        
-        // State
-        let videoElement = null;
-        let backgroundImageData = null;
-        let isInvisible = false;
-        let isPinching = false;
-        let wasPinching = false;
+        const videoElement = document.getElementById('input_video');
+        const outputCanvas = document.getElementById('output_canvas');
+        const canvasCtx = outputCanvas.getContext('2d');
+        const bgCanvas = document.getElementById('bg_canvas');
+        const bgCtx = bgCanvas.getContext('2d');
+
         let backgroundCaptured = false;
-        let captureStartTime = null;
-        let animationFrameId = null;
-        let lastPinchTime = 0;
-        let frameCount = 0;
-        
-        function log(type, msg) {
-            console.log(`[${type}] ${msg}`);
+        let isInvisible = false;
+        let wasTouching = false;
+        let bgImage = null;
+
+        // Canvas ölçülərini tənzimləyirik
+        function setupCanvas(video) {
+            outputCanvas.width = video.videoWidth;
+            outputCanvas.height = video.videoHeight;
+            bgCanvas.width = video.videoWidth;
+            bgCanvas.height = video.videoHeight;
         }
-        
-        // Kamera quraşdırması
-        async function setupCamera() {
-            try {
-                cameraEl.textContent = '📷 Kamera açılır...';
-                cameraEl.className = 'warn';
-                
-                videoElement = document.createElement('video');
-                videoElement.autoplay = true;
-                videoElement.playsInline = true;
-                videoElement.muted = true;
-                
-                const stream = await navigator.mediaDevices.getUserMedia({
-                    video: { facingMode: 'user' },
-                    audio: false
-                });
-                
-                videoElement.srcObject = stream;
-                
-                return new Promise((resolve) => {
-                    videoElement.onloadedmetadata = () => {
-                        cameraEl.textContent = '📷 Kamera ✓';
-                        cameraEl.className = 'ok';
-                        captureStartTime = Date.now();
-                        log('CAMERA', 'Hazır');
-                        resolve();
-                    };
-                });
-            } catch (error) {
-                cameraEl.textContent = '❌ ' + error.message;
-                cameraEl.className = 'err';
-                log('CAMERA', 'Xəta: ' + error.message);
-                throw error;
-            }
-        }
-        
-        // Dəri tonu pikselləri say
-        function countSkinPixels() {
-            try {
-                const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-                const data = imageData.data;
-                let skinCount = 0;
-                
-                for (let i = 0; i < data.length; i += 4) {
-                    const r = data[i];
-                    const g = data[i + 1];
-                    const b = data[i + 2];
-                    
-                    // Dəri tonu: qırmızı > yeşil > mavi
-                    if (r > 95 && g > 60 && b > 40 &&
-                        r > b && r > g &&
-                        Math.abs(r - g) > 15) {
-                        skinCount++;
-                    }
-                }
-                return skinCount;
-            } catch (e) {
-                log('SKIN', 'Xəta: ' + e.message);
-                return 0;
-            }
-        }
-        
-        // Arxa fon yadda saxlama
+
+        // Arxa fonu ilk 2 saniyədə avtomatik çəkirik
         function captureBackground() {
+            if (!backgroundCaptured && videoElement.videoWidth > 0) {
+                setupCanvas(videoElement);
+                bgCtx.drawImage(videoElement, 0, 0, bgCanvas.width, bgCanvas.height);
+                bgImage = bgCtx.getImageData(0, 0, bgCanvas.width, bgCanvas.height);
+                backgroundCaptured = true;
+                console.log("Arxa fon yadda saxlanıldı!");
+            }
+        }
+
+        function onResults(results) {
             if (!backgroundCaptured) {
-                try {
-                    backgroundImageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-                    backgroundCaptured = true;
-                    backgroundEl.textContent = '📸 Fon ✓';
-                    backgroundEl.className = 'ok';
-                    log('BACKGROUND', 'Yadda saxlandı');
-                } catch (e) {
-                    log('BACKGROUND', 'Xəta: ' + e.message);
+                captureBackground();
+            }
+
+            canvasCtx.save();
+            canvasCtx.clearRect(0, 0, outputCanvas.width, outputCanvas.height);
+
+            // Əgər arxa fon hələ çəkilməyibsə, sadəcə kameranı göstər
+            if (!backgroundCaptured || !bgImage) {
+                canvasCtx.drawImage(results.image, 0, 0, outputCanvas.width, outputCanvas.height);
+                canvasCtx.restore();
+                return;
+            }
+
+            let isTouchingNow = false;
+
+            // Əl koordinatlarını yoxlayırıq
+            if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+                const landmarks = results.multiHandLandmarks[0];
+                const thumbTip = landmarks[4];  // Baş barmaq ucu
+                const indexTip = landmarks[8];  // İşarə barmaq ucu
+
+                // Piksel koordinatlarına çeviririk
+                const x1 = thumbTip.x * outputCanvas.width;
+                const y1 = thumbTip.y * outputCanvas.height;
+                const x2 = indexTip.x * outputCanvas.width;
+                const y2 = indexTip.y * outputCanvas.height;
+
+                // İki barmaq arasındakı məsafə
+                const distance = Math.hypot(x2 - x1, y2 - y1);
+
+                // Əgər məsafə kifayət qədər kiçikdirsə (toxunursa)
+                if (distance < 40) {
+                    isTouchingNow = true;
                 }
             }
-        }
-        
-        // Görünməzlik effekti
-        function applyInvisibilityEffect() {
-            if (!backgroundCaptured || !backgroundImageData) return;
-            
-            try {
-                const currentImageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-                const current = currentImageData.data;
-                const background = backgroundImageData.data;
-                
-                for (let i = 0; i < current.length; i += 4) {
-                    const r = current[i];
-                    const g = current[i + 1];
-                    const b = current[i + 2];
-                    
-                    // Dəri tonu
-                    if (r > 95 && g > 60 && b > 40 &&
-                        r > b && r > g &&
-                        Math.abs(r - g) > 15) {
-                        
-                        current[i] = background[i];
-                        current[i + 1] = background[i + 1];
-                        current[i + 2] = background[i + 2];
-                    }
-                }
-                
-                ctx.putImageData(currentImageData, 0, 0);
-            } catch (e) {
-                log('EFFECT', 'Xəta: ' + e.message);
-            }
-        }
-        
-        // Əsas animasiya döngüsü
-        function animate() {
-            animationFrameId = requestAnimationFrame(animate);
-            frameCount++;
-            
-            if (!videoElement || videoElement.readyState !== 4) return;
-            
-            // Video çərçəvəsini kanvasa çək (əks - ayna effekti)
-            ctx.scale(-1, 1);
-            ctx.drawImage(videoElement, -canvas.width, 0, canvas.width, canvas.height);
-            ctx.scale(-1, 1);
-            
-            // Status güncəllə
-            statusEl.textContent = '🎬 İşləyir';
-            statusEl.className = 'ok';
-            
-            // Arxa fon yadda saxlama (ilk 2 saniyə)
-            if (!backgroundCaptured && captureStartTime) {
-                const elapsed = Date.now() - captureStartTime;
-                if (elapsed < 2000) {
-                    captureBackground();
-                }
-            }
-            
-            // Dəri pikselləri say
-            const skinPixels = countSkinPixels();
-            
-            // El aşkar etmə (1000 pikseldən çox dəri varsa)
-            const handDetected = skinPixels > 1000;
-            
-            if (handDetected) {
-                handEl.textContent = '✋ EL: AYAQDA (' + skinPixels + ')';
-                handEl.className = 'ok';
-            } else {
-                handEl.textContent = '✋ EL: YOX (' + skinPixels + ')';
-                handEl.className = 'err';
-            }
-            
-            // Piçləmə aşkar etmə (dəri pikselləri arası çok dar)
-            wasPinching = isPinching;
-            
-            // Piçləmə: 3000-8000 piksel arası = əl toplanıb
-            isPinching = skinPixels > 3000 && skinPixels < 8000;
-            
-            if (isPinching) {
-                pinchEl.textContent = '✊ PİÇLƏMƏ! (' + skinPixels + ')';
-                pinchEl.className = 'ok';
-            } else {
-                pinchEl.textContent = '✊ Piçləmə: YOX';
-                pinchEl.className = 'err';
-            }
-            
-            // Toggle
-            const now = Date.now();
-            if (isPinching && !wasPinching && (now - lastPinchTime) > 500) {
+
+            // Toggle məntiqi: Barmaqlar toxunub ayrıldığı an vəziyyət dəyişir
+            if (wasTouching && !isTouchingNow) {
                 isInvisible = !isInvisible;
-                lastPinchTime = now;
-                log('TOGGLE', isInvisible ? 'GÖRÜNMƏZ' : 'GÖRÜNƏN');
             }
-            
-            // Görünməzlik effekti tətbiq et
-            if (isInvisible && backgroundCaptured) {
-                applyInvisibilityEffect();
-            }
-            
-            // Status güncəllə
+            wasTouching = isTouchingNow;
+
             if (isInvisible) {
-                invisibleEl.textContent = '👻 GÖRÜNMƏZ!';
-                invisibleEl.className = 'ok';
+                // Görünməz rejimdəyiksə, kadra arxa fonu qoyuruq
+                canvasCtx.putImageData(bgImage, 0, 0);
             } else {
-                invisibleEl.textContent = '👁️ GÖRÜNƏN';
-                invisibleEl.className = 'err';
+                // Normal rejimdə canlı kameranı göstəririk
+                canvasCtx.drawImage(results.image, 0, 0, outputCanvas.width, outputCanvas.height);
             }
+
+            canvasCtx.restore();
         }
-        
-        // Başlat
-        async function start() {
-            try {
-                await setupCamera();
-                
-                // Biraz gözlə sonra animasyon başlat
-                setTimeout(() => {
-                    animate();
-                }, 100);
-            } catch (error) {
-                statusEl.textContent = '❌ ' + error.message;
-                statusEl.className = 'err';
-            }
-        }
-        
-        // Pencərə ölçüsü dəyişdiyində
-        window.addEventListener('resize', () => {
-            canvas.width = window.innerWidth;
-            canvas.height = window.innerHeight;
+
+        // MediaPipe Hands quraşdırılması
+        const hands = new Hands({
+            locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
         });
-        
-        // Səhifə bağlananda
-        window.addEventListener('beforeunload', () => {
-            if (videoElement && videoElement.srcObject) {
-                videoElement.srcObject.getTracks().forEach(track => track.stop());
-            }
-            if (animationFrameId) {
-                cancelAnimationFrame(animationFrameId);
-            }
+
+        hands.setOptions({
+            maxNumHands: 1,
+            modelComplexity: 1,
+            minDetectionConfidence: 0.7,
+            minTrackingConfidence: 0.7
         });
-        
-        // Başlat
-        if (document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', start);
-        } else {
-            start();
-        }
+
+        hands.onResults(onResults);
+
+        // Kameranı işə salırıq
+        const camera = new Camera(videoElement, {
+            onFrame: async () => {
+                await hands.send({ image: videoElement });
+            },
+            width: 1280,
+            height: 720
+        });
+
+        camera.start();
     </script>
 </body>
 </html>
