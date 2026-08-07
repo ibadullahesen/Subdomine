@@ -52,6 +52,8 @@
                 maskCanvas.height = video.videoHeight;
                 distortionCanvas.width = video.videoWidth;
                 distortionCanvas.height = video.videoHeight;
+                maskCtx.imageSmoothingEnabled = true;
+                maskCtx.imageSmoothingQuality = 'high';
             }
         }
 
@@ -117,9 +119,12 @@
 
             // 2. VACIB: segmentationMask xam piksel massivi (.data) DEYİL,
             // canvas üzərinə çəkilə bilən bir bitmap mənbəyidir (MediaPipe rəsmi sənədləri belə göstərir).
-            // Ona görə əvvəlcə onu gizli mask_canvas-a çəkib, sonra getImageData ilə real dəyərləri alırıq.
+            // Model nəticəsi aşağı rezolyusiyada olduğu üçün böyük canvas-a çəkiləndə kənarlar
+            // "pilləli/mozaik" görünür - bunu aradan qaldırmaq üçün blur filtri ilə çəkirik.
             maskCtx.clearRect(0, 0, width, height);
+            maskCtx.filter = 'blur(12px)';
             maskCtx.drawImage(latestSegmentationResults.segmentationMask, 0, 0, width, height);
+            maskCtx.filter = 'none';
             const maskImageData = maskCtx.getImageData(0, 0, width, height);
             const maskData = maskImageData.data; // RGBA - R kanalını maska dəyəri kimi istifadə edəcəyik
 
@@ -167,7 +172,8 @@
             applyEdgeSmoothing(maskData, width, height);
         }
 
-        // Kənarları hamarlaşdır və şüşənin kənarında zəif işıq refleksi yarat
+        // Kənarlarda zəif işıq refleksi yarat - sərt threshold yox, davamlı (smooth) formula
+        // istifadə edirik ki, blokvari/mozaik keçidlər olmasın
         function applyEdgeSmoothing(maskData, width, height) {
             const imageData = canvasCtx.getImageData(0, 0, width, height);
             const data = imageData.data;
@@ -175,15 +181,17 @@
             for (let y = 1; y < height - 1; y++) {
                 for (let x = 1; x < width - 1; x++) {
                     const i = y * width + x;
-                    const pixelIndex4 = i * 4;
-                    const m = maskData[pixelIndex4] / 255;
+                    const pixelIndex = i * 4;
+                    const m = maskData[pixelIndex] / 255;
 
-                    // Yalnız silüetin sərhəd bölgəsi (nə tam insan, nə tam fon)
-                    if (m > 0.08 && m < 0.85) {
-                        const pixelIndex = i * 4;
-                        data[pixelIndex]     = Math.min(255, data[pixelIndex]     + 20);
-                        data[pixelIndex + 1] = Math.min(255, data[pixelIndex + 1] + 20);
-                        data[pixelIndex + 2] = Math.min(255, data[pixelIndex + 2] + 30);
+                    // m*(1-m) yalnız m ≈ 0.5 olan yerdə (yəni əsl silüet sərhəddində) pik verir
+                    // və hər iki tərəfə doğru yumşaq şəkildə sıfıra enir - buna görə heç bir sərt kənar yaranmır
+                    const edgeGlow = m * (1 - m) * 4; // 0..1 aralığında, kənarda maksimum
+
+                    if (edgeGlow > 0.01) {
+                        data[pixelIndex]     = Math.min(255, data[pixelIndex]     + edgeGlow * 22);
+                        data[pixelIndex + 1] = Math.min(255, data[pixelIndex + 1] + edgeGlow * 22);
+                        data[pixelIndex + 2] = Math.min(255, data[pixelIndex + 2] + edgeGlow * 32);
                     }
                 }
             }
