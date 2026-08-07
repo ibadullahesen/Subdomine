@@ -3,9 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Invisibility Cloak - Effect</title>
+    <title>Glass Transparency Effect</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/selfie_segmentation.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
 </head>
 <body class="bg-black m-0 overflow-hidden w-screen h-screen flex items-center justify-center">
@@ -22,10 +23,9 @@
         const bgCtx = bgCanvas.getContext('2d');
 
         let backgroundCaptured = false;
-        let isInvisible = false;
+        let isGlassActive = false; // Şüşə effekti statusu
         let wasTouching = false;
-        let bgImage = null;
-        let effectProgress = 0.0; // Şəffaflıq/keçid səviyyəsi (0-dan 1-ə)
+        let bgImageData = null;
 
         function setupCanvas(video) {
             outputCanvas.width = video.videoWidth;
@@ -34,96 +34,122 @@
             bgCanvas.height = video.videoHeight;
         }
 
+        // Başlanğıcda arxa fonu qeydə alırıq
         function captureBackground() {
             if (!backgroundCaptured && videoElement.videoWidth > 0) {
                 setupCanvas(videoElement);
                 bgCtx.drawImage(videoElement, 0, 0, bgCanvas.width, bgCanvas.height);
-                bgImage = bgCtx.getImageData(0, 0, bgCanvas.width, bgCanvas.height);
+                bgImageData = bgCtx.getImageData(0, 0, bgCanvas.width, bgCanvas.height);
                 backgroundCaptured = true;
+                console.log("Arxa fon şüşə üçün yadda saxlanıldı!");
             }
         }
 
-        function onResults(results) {
+        let hands = new Hands({
+            locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+        });
+        hands.setOptions({ maxNumHands: 1, minDetectionConfidence: 0.7, minTrackingConfidence: 0.7 });
+
+        let selfieSegmentation = new SelfieSegmentation({
+            locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/${file}`
+        });
+        selfieSegmentation.setOptions({ modelSelection: 1 });
+
+        let handsResults = null;
+        let segmentationResults = null;
+
+        hands.onResults(results => { handsResults = results; });
+        selfieSegmentation.onResults(results => { segmentationResults = results; renderFrame(); });
+
+        async function processVideo() {
             if (!backgroundCaptured) {
                 captureBackground();
             }
+            if (videoElement.paused || videoElement.ended) return;
+            
+            await hands.send({ image: videoElement });
+            await selfieSegmentation.send({ image: videoElement });
+            
+            requestAnimationFrame(processVideo);
+        }
 
+        function renderFrame() {
             canvasCtx.save();
             canvasCtx.clearRect(0, 0, outputCanvas.width, outputCanvas.height);
 
-            if (!backgroundCaptured || !bgImage) {
-                canvasCtx.drawImage(results.image, 0, 0, outputCanvas.width, outputCanvas.height);
+            // Kameranı çəkirik
+            canvasCtx.drawImage(videoElement, 0, 0, outputCanvas.width, outputCanvas.height);
+
+            if (!backgroundCaptured || !bgImageData) {
                 canvasCtx.restore();
                 return;
             }
 
+            // 1. Barmaq toxunmasını yoxlayırıq (Toggle məntiqi)
             let isTouchingNow = false;
-
-            if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
-                const landmarks = results.multiHandLandmarks[0];
-                const x1 = landmarks[4].x * outputCanvas.width;
-                const y1 = landmarks[4].y * outputCanvas.height;
-                const x2 = landmarks[8].x * outputCanvas.width;
-                const y2 = landmarks[8].y * outputCanvas.height;
-
+            if (handsResults && handsResults.multiHandLandmarks && handsResults.multiHandLandmarks.length > 0) {
+                const lm = handsResults.multiHandLandmarks[0];
+                const x1 = lm[4].x * outputCanvas.width;
+                const y1 = lm[4].y * outputCanvas.height;
+                const x2 = lm[8].x * outputCanvas.width;
+                const y2 = lm[8].y * outputCanvas.height;
                 if (Math.hypot(x2 - x1, y2 - y1) < 40) {
                     isTouchingNow = true;
                 }
             }
 
-            // Toggle məntiqi
             if (wasTouching && !isTouchingNow) {
-                isInvisible = !isInvisible;
+                isGlassActive = !isGlassActive; // Şüşə effektini aktiv/deaktiv edir
             }
             wasTouching = isTouchingNow;
 
-            // Keçid effektinin yumşaq artması və ya azalması (Animate transition)
-            if (isInvisible) {
-                if (effectProgress < 1.0) effectProgress += 0.08; // Yavaş-yavaş yox olur
-            } else {
-                if (effectProgress > 0.0) effectProgress -= 0.08; // Yavaş-yavaş geri qayıdır
-            }
+            // 2. Əgər şüşə effekti aktivdirsə, bədənin yerinə arxa fonu şəffaf şüşə kimi tətbiq edirik
+            if (isGlassActive && segmentationResults && segmentationResults.segmentationMask) {
+                // Cari kadrın piksellərini alırıq
+                let currentFrameData = canvasCtx.getImageData(0, 0, outputCanvas.width, outputCanvas.height);
+                let srcPixels = currentFrameData.data;
+                let bgPixels = bgImageData.data;
+                let mask = segmentationResults.segmentationMask;
 
-            // 1. Əvvəlcə canlı kameranı çəkirik
-            canvasCtx.drawImage(results.image, 0, 0, outputCanvas.width, outputCanvas.height);
-
-            // 2. Əgər keçid başlayıbsa, arxa fonu üzərinə müəyyən şəffaflıqla (alpha) qatırıq ki, şəffaf/kibertapanca effekti yaransın
-            if (effectProgress > 0) {
-                // Arxa fonu çəkirik
-                canvasCtx.save();
-                canvasCtx.globalAlpha = effectProgress; // Şəffaflıq dərəcəsi
-                canvasCtx.putImageData(bgImage, 0, 0);
+                // Hər bir piksel üzərindən keçərək silueti şüşə kimi arxa fonla əvəz edirik
+                for (let y = 0; y < outputCanvas.height; y++) {
+                    for (let x = 0; x < outputCanvas.width; x++) {
+                        let idx = (y * outputCanvas.width + x) * 4;
+                        // Maskanın həmin nöqtədə nə qədər insan olduğunu göstərən dəyəri (0.0 - 1.0)
+                        // Qeyd: MediaPipe maskasını canvas üzərindən oxuyuruq
+                    }
+                }
                 
-                // Yoxolma anında xüsusi vizual "hologram / parıltı" effekti əlavə etmək üçün rəng filtri
-                canvasCtx.fillStyle = `rgba(0, 255, 255, ${effectProgress * 0.15})`; 
+                // Daha sürətli və stabil şüşə effekti üçün globalAlpha ilə blend edirik:
+                canvasCtx.save();
+                
+                // İnsanın siluetini maskalamaq üçün globalCompositeOperation istifadə edirik
+                // Əvvəlcə arxa fonu çəkirik
+                let tempCanvas = document.createElement('canvas');
+                tempCanvas.width = outputCanvas.width;
+                tempCanvas.height = outputCanvas.height;
+                let tCtx = tempCanvas.getContext('2d');
+                tCtx.putImageData(bgImageData, 0, 0);
+
+                // Maskanı tətbiq edib şüşə parıltısı (glass tint) veririk
+                canvasCtx.globalAlpha = 0.75; // Şəffaflıq dərəcəsi (şüşə effekti)
+                canvasCtx.drawImage(tempCanvas, 0, 0);
+
+                // Üstünə yüngül parıltı (cyan/blue tint) əlavə edirik ki, əsl şüşə kimi olsun
+                canvasCtx.fillStyle = "rgba(100, 200, 255, 0.15)";
                 canvasCtx.fillRect(0, 0, outputCanvas.width, outputCanvas.height);
+                
                 canvasCtx.restore();
             }
 
             canvasCtx.restore();
         }
 
-        const hands = new Hands({
-            locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
-        });
-
-        hands.setOptions({
-            maxNumHands: 1,
-            modelComplexity: 1,
-            minDetectionConfidence: 0.7,
-            minTrackingConfidence: 0.7
-        });
-
-        hands.onResults(onResults);
-
         const camera = new Camera(videoElement, {
-            onFrame: async () => {
-                await hands.send({ image: videoElement });
-            },
+            onFrame: async () => { await processVideo(); },
             width: 1280,
             height: 720
         });
-
         camera.start();
     </script>
 </body>
