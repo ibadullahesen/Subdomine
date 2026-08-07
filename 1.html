@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Invisibility Cloak</title>
+    <title>Cinematic Glass Cloak Effect</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
@@ -14,31 +14,23 @@
     <video id="input_video" class="hidden" autoplay playsinline></video>
     <canvas id="output_canvas" class="absolute inset-0 w-full h-full object-cover -scale-x-100"></canvas>
     <canvas id="bg_canvas" class="hidden"></canvas>
-    <canvas id="mask_canvas" class="hidden"></canvas>
-    <canvas id="distortion_canvas" class="hidden"></canvas>
-
-    <!-- Status göstərici -->
-    <div class="absolute top-4 left-4 text-white text-sm font-semibold bg-black bg-opacity-50 px-4 py-2 rounded">
-        <span id="status">İnvisibility: <span class="text-red-400">OFF</span></span>
-    </div>
+    <canvas id="glass_canvas" class="hidden"></canvas>
 
     <script>
         const videoElement = document.getElementById('input_video');
         const outputCanvas = document.getElementById('output_canvas');
-        const canvasCtx = outputCanvas.getContext('2d');
+        const canvasCtx = outputCanvas.getContext('2d', { willReadFrequently: true });
         const bgCanvas = document.getElementById('bg_canvas');
-        const bgCtx = bgCanvas.getContext('2d');
-        const maskCanvas = document.getElementById('mask_canvas');
-        const maskCtx = maskCanvas.getContext('2d');
-        const distortionCanvas = document.getElementById('distortion_canvas');
-        const distortionCtx = distortionCanvas.getContext('2d');
-        const statusEl = document.getElementById('status');
+        const bgCtx = bgCanvas.getContext('2d', { willReadFrequently: true });
+        const glassCanvas = document.getElementById('glass_canvas');
+        const glassCtx = glassCanvas.getContext('2d', { willReadFrequently: true });
 
         let backgroundCaptured = false;
         let isGlassActive = false;
-        let bgImage = null;
-        let frameCount = 0;
-        
+        let wasTouching = false;
+        let bgImageData = null;
+        let animPhase = 0; // Şüşənin daxili dalğalanması üçün faz
+
         let latestHandsResults = null;
         let latestSegmentationResults = null;
 
@@ -48,178 +40,120 @@
                 outputCanvas.height = video.videoHeight;
                 bgCanvas.width = video.videoWidth;
                 bgCanvas.height = video.videoHeight;
-                maskCanvas.width = video.videoWidth;
-                maskCanvas.height = video.videoHeight;
-                distortionCanvas.width = video.videoWidth;
-                distortionCanvas.height = video.videoHeight;
+                glassCanvas.width = video.videoWidth;
+                glassCanvas.height = video.videoHeight;
             }
         }
 
-        // 1. Hands Modulu
         const hands = new Hands({
             locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
         });
-        hands.setOptions({
-            maxNumHands: 1,
-            modelComplexity: 1,
-            minDetectionConfidence: 0.6,
-            minTrackingConfidence: 0.6
-        });
-        hands.onResults(results => {
-            latestHandsResults = results;
-        });
+        hands.setOptions({ maxNumHands: 1, modelComplexity: 1, minDetectionConfidence: 0.6, minTrackingConfidence: 0.6 });
+        hands.onResults(results => { latestHandsResults = results; });
 
-        // 2. Selfie Segmentation Modulu
         const selfieSegmentation = new SelfieSegmentation({
             locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/${file}`
         });
-        selfieSegmentation.setOptions({
-            modelSelection: 1
-        });
+        selfieSegmentation.setOptions({ modelSelection: 1 });
         selfieSegmentation.onResults(results => {
             latestSegmentationResults = results;
             drawFrame();
         });
 
-        // Barmaq toxunmasını yoxla (Continuous Check)
-        function checkFingerPinch() {
-            if (latestHandsResults && latestHandsResults.multiHandLandmarks && latestHandsResults.multiHandLandmarks.length > 0) {
-                const lm = latestHandsResults.multiHandLandmarks[0];
-                
-                // Baş barmaq (thumb) - index 4
-                // Orta barmaq (middle) - index 8
-                const thumbX = lm[4].x * outputCanvas.width;
-                const thumbY = lm[4].y * outputCanvas.height;
-                const middleX = lm[8].x * outputCanvas.width;
-                const middleY = lm[8].y * outputCanvas.height;
-
-                // Aralarındakı məsafə
-                const distance = Math.hypot(middleX - thumbX, middleY - thumbY);
-
-                // 50 pikselə yaxındırsa pinch aktiv
-                return distance < 50;
-            }
-            return false;
-        }
-
-        // Realistik invisibility / şüşə effekti - manual alpha blending + refraction shimmer ilə
-        function applyInvisibilityEffect() {
-            if (!bgImage || !latestSegmentationResults) return;
-
-            const width = outputCanvas.width;
-            const height = outputCanvas.height;
-
-            // 1. Cari video kadrını al
-            canvasCtx.drawImage(videoElement, 0, 0, width, height);
-            const videoImageData = canvasCtx.getImageData(0, 0, width, height);
-            const videoData = videoImageData.data;
-            const bgData = bgImage.data;
-            const segmentationData = latestSegmentationResults.segmentationMask.data;
-
-            frameCount++;
-            // Şüşənin işıqda "oynaması" üçün yüngül sinusoidal sürüşmə (refraction)
-            const shimmer = Math.sin(frameCount * 0.08) * 4;
-
-            const output = canvasCtx.createImageData(width, height);
-            const outData = output.data;
-
-            for (let y = 0; y < height; y++) {
-                for (let x = 0; x < width; x++) {
-                    const i = y * width + x;
-                    const pixelIndex = i * 4;
-                    const maskValue = segmentationData[i] / 255; // 0..1
-
-                    if (maskValue > 0.05) {
-                        // Kənarlara doğru refraction sürüşməsini artır ki, şüşə effekti hiss olunsun
-                        const offsetX = Math.round(shimmer * maskValue);
-                        let bgX = x + offsetX;
-                        if (bgX < 0) bgX = 0;
-                        if (bgX >= width) bgX = width - 1;
-                        const bgIndex = (y * width + bgX) * 4;
-
-                        // Real şüşə kimi: əsasən arxa fon görünür, bədənin çox zəif izi qalır
-                        const bodyTrace = 0.10 * maskValue;
-
-                        outData[pixelIndex]     = bgData[bgIndex]     * (1 - bodyTrace) + videoData[pixelIndex]     * bodyTrace;
-                        outData[pixelIndex + 1] = bgData[bgIndex + 1] * (1 - bodyTrace) + videoData[pixelIndex + 1] * bodyTrace;
-                        outData[pixelIndex + 2] = bgData[bgIndex + 2] * (1 - bodyTrace) + videoData[pixelIndex + 2] * bodyTrace;
-                        outData[pixelIndex + 3] = 255;
-                    } else {
-                        // İnsan olmayan hissə - sadəcə kameranı göstər
-                        outData[pixelIndex]     = videoData[pixelIndex];
-                        outData[pixelIndex + 1] = videoData[pixelIndex + 1];
-                        outData[pixelIndex + 2] = videoData[pixelIndex + 2];
-                        outData[pixelIndex + 3] = 255;
-                    }
-                }
-            }
-
-            canvasCtx.putImageData(output, 0, 0);
-
-            // Kənarlarda işıq oynaması üçün əlavə effekt
-            applyEdgeSmoothing(segmentationData, width, height);
-        }
-
-        // Kənarları hamarlaşdır və şüşənin kənarında zəif işıq refleksi yarat
-        function applyEdgeSmoothing(segmentationData, width, height) {
-            const imageData = canvasCtx.getImageData(0, 0, width, height);
-            const data = imageData.data;
-
-            for (let y = 1; y < height - 1; y++) {
-                for (let x = 1; x < width - 1; x++) {
-                    const i = y * width + x;
-                    const m = segmentationData[i] / 255;
-
-                    // Yalnız silüetin sərhəd bölgəsi (nə tam insan, nə tam fon)
-                    if (m > 0.08 && m < 0.85) {
-                        const pixelIndex = i * 4;
-                        data[pixelIndex]     = Math.min(255, data[pixelIndex]     + 20);
-                        data[pixelIndex + 1] = Math.min(255, data[pixelIndex + 1] + 20);
-                        data[pixelIndex + 2] = Math.min(255, data[pixelIndex + 2] + 30);
-                    }
-                }
-            }
-
-            canvasCtx.putImageData(imageData, 0, 0);
-        }
-
-        // Əsas çəkim funksiyası
         function drawFrame() {
             if (videoElement.paused || videoElement.ended) return;
 
             setupCanvas(videoElement);
 
-            // Arxa fonu ilk kadrda avtomatik tuturuq
             if (!backgroundCaptured && videoElement.videoWidth > 0) {
                 bgCtx.drawImage(videoElement, 0, 0, bgCanvas.width, bgCanvas.height);
-                bgImage = bgCtx.getImageData(0, 0, bgCanvas.width, bgCanvas.height);
+                bgImageData = bgCtx.getImageData(0, 0, bgCanvas.width, bgCanvas.height);
                 backgroundCaptured = true;
             }
 
             canvasCtx.save();
             canvasCtx.clearRect(0, 0, outputCanvas.width, outputCanvas.height);
 
-            // Barmaq pinch status yoxla
-            isGlassActive = checkFingerPinch();
-            
-            // Status göstərici yenilə
-            const statusText = isGlassActive ? 
-                '<span class="text-green-400">ON</span>' : 
-                '<span class="text-red-400">OFF</span>';
-            statusEl.innerHTML = `Invisibility: ${statusText}`;
+            // 1. Canlı kameranı əsas səhnəyə çəkirik
+            canvasCtx.drawImage(videoElement, 0, 0, outputCanvas.width, outputCanvas.height);
 
-            // Əgər şüşə effekti aktiv deyilse - sadəcə kameranı göstər
-            if (!isGlassActive || !backgroundCaptured || !bgImage || !latestSegmentationResults) {
-                canvasCtx.drawImage(videoElement, 0, 0, outputCanvas.width, outputCanvas.height);
-            } else {
-                // Realistik invisibility effekti tətbiq et
-                applyInvisibilityEffect();
+            // Barmaq toxunmasını yoxlayırıq (Toggle Məntiqi)
+            let isTouchingNow = false;
+            if (latestHandsResults && latestHandsResults.multiHandLandmarks && latestHandsResults.multiHandLandmarks.length > 0) {
+                const lm = latestHandsResults.multiHandLandmarks[0];
+                const x1 = lm[4].x * outputCanvas.width;
+                const y1 = lm[4].y * outputCanvas.height;
+                const x2 = lm[8].x * outputCanvas.width;
+                const y2 = lm[8].y * outputCanvas.height;
+
+                if (Math.hypot(x2 - x1, y2 - y1) < 40) {
+                    isTouchingNow = true;
+                }
+            }
+
+            if (wasTouching && !isTouchingNow) {
+                isGlassActive = !isGlassActive;
+            }
+            wasTouching = isTouchingNow;
+
+            // 2. Kino səviyyəsində Şüşə Effekti
+            if (isGlassActive && backgroundCaptured && bgImageData && latestSegmentationResults) {
+                animPhase += 0.1; // Dalğalanma sürəti
+
+                // Arxa fonu glassCanvas-a köçürürük
+                glassCtx.putImageData(bgImageData, 0, 0);
+
+                // MediaPipe maskasını alıb silueti kəsirik
+                glassCtx.save();
+                glassCtx.globalCompositeOperation = 'destination-in';
+                glassCtx.drawImage(latestSegmentationResults.segmentationMask, 0, 0, glassCanvas.width, glassCanvas.height);
+                glassCtx.restore();
+
+                // Pikselləri oxuyub şüşə sınması (Refraction/Distortion) effekti tətbiq edirik
+                let glassFrameData = glassCtx.getImageData(0, 0, glassCanvas.width, glassCanvas.height);
+                let pixels = glassFrameData.data;
+                let bgPixels = bgImageData.data;
+                let w = glassCanvas.width;
+                let h = glassCanvas.height;
+
+                // Optik sınma simulyasiyası (şüşənin içindən baxarkən arxanın əyilməsi)
+                for (let y = 1; y < h - 1; y += 2) {
+                    for (let x = 1; x < w - 1; x += 2) {
+                        let idx = (y * w + x) * 4;
+                        // Əgər piksel şəffaf deyilsə (insan siluetinin içindədirsə)
+                        if (pixels[idx + 3] > 20) {
+                            // Sinusoidal dalğa vasitəsilə işıq sınması (Refraction offset) yaradırıq
+                            let offsetX = Math.floor(Math.sin(y * 0.05 + animPhase) * 6);
+                            let offsetY = Math.floor(Math.cos(x * 0.05 + animPhase) * 6);
+                            
+                            let newX = Math.min(Math.max(x + offsetX, 0), w - 1);
+                            let newY = Math.min(Math.max(y + offsetY, 0), h - 1);
+                            let newIdx = (newY * w + newX) * 4;
+
+                            // Arxadakı mühiti sınmış piksellərlə əvəz edirik + şüşənin parlaq mavitəhər tonu
+                            pixels[idx]     = bgPixels[newIdx]     * 0.8 + 40;  // R
+                            pixels[idx + 1] = bgPixels[newIdx + 1] * 0.9 + 70;  // G (Mavitəhər şüşə tonu)
+                            pixels[idx + 2] = bgPixels[newIdx + 2] * 1.1 + 120; // B
+                            pixels[idx + 3] = 230; // Tam görünməz deyil, şüşə kimi parlaq görünür
+                        }
+                    }
+                }
+                glassCtx.putImageData(glassFrameData, 0, 0);
+
+                // Əsas ekrana şüşə siluetini əlavə edirik
+                canvasCtx.save();
+                canvasCtx.drawImage(glassCanvas, 0, 0);
+
+                // Kino üslubunda kənar işıq parıltısı (Edge Specular Highlight)
+                canvasCtx.globalCompositeOperation = 'source-atop';
+                canvasCtx.fillStyle = "rgba(220, 240, 255, 0.18)";
+                canvasCtx.fillRect(0, 0, outputCanvas.width, outputCanvas.height);
+                canvasCtx.restore();
             }
 
             canvasCtx.restore();
         }
 
-        // 3. Kamera və Model İcraçısı
         const camera = new Camera(videoElement, {
             onFrame: async () => {
                 await hands.send({ image: videoElement });
@@ -231,7 +165,6 @@
 
         camera.start().catch(err => {
             console.error("Kamera xətası:", err);
-            alert("Kameraya giriş icazəsi verilmədi və ya kamera başqa proqram tərəfindən istifadə olunur!");
         });
     </script>
 </body>
