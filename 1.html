@@ -88,29 +88,68 @@
                 // 1. Əvvəlcə arxa fonu çəkirik
                 canvasCtx.putImageData(bgImage, 0, 0);
 
-                // 2. Şüşə / Şəffaf siluet effekti (Şəffaflıq daha da artırıldı: 0.45 -> 0.2)
+                // 2. Şüşə / Şəffaf siluet effekti (Daha da şəffaf edilib: 0.1)
                 canvasCtx.save();
-                canvasCtx.globalAlpha = 0.2; 
+                canvasCtx.globalAlpha = 0.1; 
                 canvasCtx.drawImage(videoElement, 0, 0, outputCanvas.width, outputCanvas.height);
                 
                 // Şüşənin parıltı rəngi
-                canvasCtx.fillStyle = "rgba(120, 200, 255, 0.1)";
+                canvasCtx.fillStyle = "rgba(120, 200, 255, 0.05)";
                 canvasCtx.fillRect(0, 0, outputCanvas.width, outputCanvas.height);
                 canvasCtx.restore();
 
-                // 3. Yaşıl nazik xətli kvadrat (Görünməz/şəffaf olduğunuz zaman ətrafınızda görünəcək)
-                canvasCtx.save();
-                canvasCtx.strokeStyle = "#00FF00";
-                canvasCtx.lineWidth = 2; // Nazik xətt
-                
-                // Ekranın mərkəzində və ya təxmini bədən ölçülərinə uyğun çərçivə
-                const boxWidth = outputCanvas.width * 0.4;
-                const boxHeight = outputCanvas.height * 0.7;
-                const boxX = (outputCanvas.width - boxWidth) / 2;
-                const boxY = (outputCanvas.height - boxHeight) / 2;
-                
-                canvasCtx.strokeRect(boxX, boxY, boxWidth, boxHeight);
-                canvasCtx.restore();
+                // 3. Sizi izləyən yaşıl nazik xətli kvadrat (Bədənin olduğu koordinatlara görə dinamik hesablanır)
+                if (latestSegmentationResults.segmentationMask) {
+                    canvasCtx.save();
+                    
+                    // Maskanı analiz edərək sizin (bədənin) yerinizi tapırıq
+                    const mask = latestSegmentationResults.segmentationMask;
+                    const width = mask.width;
+                    const height = mask.height;
+                    const canvasW = outputCanvas.width;
+                    const canvasH = outputCanvas.height;
+
+                    let minX = width, minY = height, maxX = 0, maxY = 0;
+                    let hasBody = false;
+
+                    // Maskanın piksel datalarından istifadə edərək sərhədləri tapırıq
+                    // Qeyd: Mediapipe maskası Canvas üzərindən oxunur
+                    const tempCanvas = document.createElement('canvas');
+                    tempCanvas.width = width;
+                    tempCanvas.height = height;
+                    const tempCtx = tempCanvas.getContext('2d');
+                    tempCtx.drawImage(mask, 0, 0);
+                    const imgData = tempCtx.getImageData(0, 0, width, height).data;
+
+                    for (let y = 0; y < height; y++) {
+                        for (let x = 0; x < width; x++) {
+                            const alphaIdx = (y * width + x) * 4 + 3;
+                            if (imgData[alphaIdx] > 50) { // Əgər bu pikseldə insan varsa
+                                if (x < minX) minX = x;
+                                if (x > maxX) maxX = x;
+                                if (y < minY) minY = y;
+                                if (y > maxY) maxY = y;
+                                hasBody = true;
+                            }
+                        }
+                    }
+
+                    if (hasBody && maxX > minX && maxY > minY) {
+                        // Koordinatları ekran ölçülərinə uyğunlaşdırırıq
+                        const scaleX = canvasW / width;
+                        const scaleY = canvasH / height;
+
+                        const boxX = minX * scaleX - 20; // Bir az kənar boşluq ilə
+                        const boxY = minY * scaleY - 20;
+                        const boxW = (maxX - minX) * scaleX + 40;
+                        const boxH = (maxY - minY) * scaleY + 40;
+
+                        canvasCtx.strokeStyle = "#00FF00";
+                        canvasCtx.lineWidth = 2; // Nazik yaşıl xətt
+                        canvasCtx.strokeRect(boxX, boxY, boxW, boxH);
+                    }
+                    canvasCtx.restore();
+                }
             }
 
             // Barmaq toxunmasını yoxlayırıq (Toggle)
