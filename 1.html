@@ -102,57 +102,84 @@
             return false;
         }
 
-        // Realistik invisibility effekti - shimmer efekti ilə
+        // Realistik invisibility / şüşə effekti - manual alpha blending + refraction shimmer ilə
         function applyInvisibilityEffect() {
             if (!bgImage || !latestSegmentationResults) return;
 
-            // 1. Arxa fonu yerləşdir
-            canvasCtx.putImageData(bgImage, 0, 0);
+            const width = outputCanvas.width;
+            const height = outputCanvas.height;
 
-            // 2. Segmentasiya maskası əldə et (yalnız insanın silueti)
-            const segmentationData = latestSegmentationResults.segmentationMask.data;
-            
-            // 3. Distortion effekti (shimmer) yarat
-            frameCount++;
-            const shimmering = Math.sin(frameCount * 0.05) * 2;
-            
-            // 4. Kamera görüntüsünü məskinə ilə birlikdə köçür
-            const videoImageData = canvasCtx.getImageData(0, 0, outputCanvas.width, outputCanvas.height);
+            // 1. Cari video kadrını al
+            canvasCtx.drawImage(videoElement, 0, 0, width, height);
+            const videoImageData = canvasCtx.getImageData(0, 0, width, height);
             const videoData = videoImageData.data;
-            
-            // 5. Segmentasiya əsasında kamera qatını tətbiq et
-            for (let i = 0; i < segmentationData.length; i++) {
-                if (segmentationData[i] > 128) { // İnsan bədəni
-                    // Arxa fonu göstər (invisibility)
-                    // Əvəzində şəffaflıq və shimmer effekti əlavə et
+            const bgData = bgImage.data;
+            const segmentationData = latestSegmentationResults.segmentationMask.data;
+
+            frameCount++;
+            // Şüşənin işıqda "oynaması" üçün yüngül sinusoidal sürüşmə (refraction)
+            const shimmer = Math.sin(frameCount * 0.08) * 4;
+
+            const output = canvasCtx.createImageData(width, height);
+            const outData = output.data;
+
+            for (let y = 0; y < height; y++) {
+                for (let x = 0; x < width; x++) {
+                    const i = y * width + x;
                     const pixelIndex = i * 4;
-                    
-                    // Kamera qatını çox şəffaf göstər
-                    videoData[pixelIndex + 3] = 15 + Math.random() * 10 + shimmering; // Alpha channel (çox şəffaf)
+                    const maskValue = segmentationData[i] / 255; // 0..1
+
+                    if (maskValue > 0.05) {
+                        // Kənarlara doğru refraction sürüşməsini artır ki, şüşə effekti hiss olunsun
+                        const offsetX = Math.round(shimmer * maskValue);
+                        let bgX = x + offsetX;
+                        if (bgX < 0) bgX = 0;
+                        if (bgX >= width) bgX = width - 1;
+                        const bgIndex = (y * width + bgX) * 4;
+
+                        // Real şüşə kimi: əsasən arxa fon görünür, bədənin çox zəif izi qalır
+                        const bodyTrace = 0.10 * maskValue;
+
+                        outData[pixelIndex]     = bgData[bgIndex]     * (1 - bodyTrace) + videoData[pixelIndex]     * bodyTrace;
+                        outData[pixelIndex + 1] = bgData[bgIndex + 1] * (1 - bodyTrace) + videoData[pixelIndex + 1] * bodyTrace;
+                        outData[pixelIndex + 2] = bgData[bgIndex + 2] * (1 - bodyTrace) + videoData[pixelIndex + 2] * bodyTrace;
+                        outData[pixelIndex + 3] = 255;
+                    } else {
+                        // İnsan olmayan hissə - sadəcə kameranı göstər
+                        outData[pixelIndex]     = videoData[pixelIndex];
+                        outData[pixelIndex + 1] = videoData[pixelIndex + 1];
+                        outData[pixelIndex + 2] = videoData[pixelIndex + 2];
+                        outData[pixelIndex + 3] = 255;
+                    }
                 }
             }
-            
-            canvasCtx.putImageData(videoImageData, 0, 0);
 
-            // 6. Incəlik üçün blur effekti cəmləşdir
-            applyEdgeSmoothing();
+            canvasCtx.putImageData(output, 0, 0);
+
+            // Kənarlarda işıq oynaması üçün əlavə effekt
+            applyEdgeSmoothing(segmentationData, width, height);
         }
 
-        // Kənarları hamarlaşdır (Edge smoothing)
-        function applyEdgeSmoothing() {
-            const imageData = canvasCtx.getImageData(0, 0, outputCanvas.width, outputCanvas.height);
+        // Kənarları hamarlaşdır və şüşənin kənarında zəif işıq refleksi yarat
+        function applyEdgeSmoothing(segmentationData, width, height) {
+            const imageData = canvasCtx.getImageData(0, 0, width, height);
             const data = imageData.data;
-            
-            // Sadə blur filtri - kənarları hamarlaşdır
-            for (let i = 0; i < data.length; i += 4) {
-                if (data[i + 3] < 50 && data[i + 3] > 5) {
-                    // Şəffaf piksellərə az qədər rəng əlavə et
-                    data[i] = Math.max(0, data[i] - 10);
-                    data[i + 1] = Math.max(0, data[i + 1] - 10);
-                    data[i + 2] = Math.max(0, data[i + 2] - 10);
+
+            for (let y = 1; y < height - 1; y++) {
+                for (let x = 1; x < width - 1; x++) {
+                    const i = y * width + x;
+                    const m = segmentationData[i] / 255;
+
+                    // Yalnız silüetin sərhəd bölgəsi (nə tam insan, nə tam fon)
+                    if (m > 0.08 && m < 0.85) {
+                        const pixelIndex = i * 4;
+                        data[pixelIndex]     = Math.min(255, data[pixelIndex]     + 20);
+                        data[pixelIndex + 1] = Math.min(255, data[pixelIndex + 1] + 20);
+                        data[pixelIndex + 2] = Math.min(255, data[pixelIndex + 2] + 30);
+                    }
                 }
             }
-            
+
             canvasCtx.putImageData(imageData, 0, 0);
         }
 
