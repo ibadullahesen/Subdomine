@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Invisibility Cloak</title>
+    <title>Invisibility Cloak with Water Ripple</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
@@ -29,6 +29,9 @@
         
         let latestHandsResults = null;
         let latestSegmentationResults = null;
+
+        // Su dalğası effektləri üçün massiv
+        let ripples = [];
 
         function setupCanvas(video) {
             if (outputCanvas.width !== video.videoWidth || outputCanvas.height !== video.videoHeight) {
@@ -112,8 +115,6 @@
                     let minX = width, minY = height, maxX = 0, maxY = 0;
                     let hasBody = false;
 
-                    // Maskanın piksel datalarından istifadə edərək sərhədləri tapırıq
-                    // Qeyd: Mediapipe maskası Canvas üzərindən oxunur
                     const tempCanvas = document.createElement('canvas');
                     tempCanvas.width = width;
                     tempCanvas.height = height;
@@ -124,7 +125,7 @@
                     for (let y = 0; y < height; y++) {
                         for (let x = 0; x < width; x++) {
                             const alphaIdx = (y * width + x) * 4 + 3;
-                            if (imgData[alphaIdx] > 50) { // Əgər bu pikseldə insan varsa
+                            if (imgData[alphaIdx] > 50) { 
                                 if (x < minX) minX = x;
                                 if (x > maxX) maxX = x;
                                 if (y < minY) minY = y;
@@ -135,24 +136,52 @@
                     }
 
                     if (hasBody && maxX > minX && maxY > minY) {
-                        // Koordinatları ekran ölçülərinə uyğunlaşdırırıq
                         const scaleX = canvasW / width;
                         const scaleY = canvasH / height;
 
-                        const boxX = minX * scaleX - 20; // Bir az kənar boşluq ilə
+                        const boxX = minX * scaleX - 20; 
                         const boxY = minY * scaleY - 20;
                         const boxW = (maxX - minX) * scaleX + 40;
                         const boxH = (maxY - minY) * scaleY + 40;
 
                         canvasCtx.strokeStyle = "#00FF00";
-                        canvasCtx.lineWidth = 2; // Nazik yaşıl xətt
+                        canvasCtx.lineWidth = 2; 
                         canvasCtx.strokeRect(boxX, boxY, boxW, boxH);
                     }
                     canvasCtx.restore();
                 }
             }
 
-            // Barmaq toxunmasını yoxlayırıq (Toggle)
+            // Su dalğalarını çək və yenilə (Ripple Effect)
+            for (let i = ripples.length - 1; i >= 0; i--) {
+                let r = ripples[i];
+                r.radius += r.speed;
+                r.alpha -= 0.02;
+
+                if (r.alpha <= 0) {
+                    ripples.splice(i, 1);
+                    continue;
+                }
+
+                canvasCtx.save();
+                canvasCtx.beginPath();
+                canvasCtx.arc(r.x, r.y, r.radius, 0, Math.PI * 2);
+                canvasCtx.strokeStyle = `rgba(100, 200, 255, ${r.alpha})`;
+                canvasCtx.lineWidth = 3;
+                canvasCtx.stroke();
+                
+                // İkinci daxili dalğa (daha realsu effekti üçün)
+                if (r.radius > 15) {
+                    canvasCtx.beginPath();
+                    canvasCtx.arc(r.x, r.y, r.radius - 15, 0, Math.PI * 2);
+                    canvasCtx.strokeStyle = `rgba(255, 255, 255, ${r.alpha * 0.5})`;
+                    canvasCtx.lineWidth = 1.5;
+                    canvasCtx.stroke();
+                }
+                canvasCtx.restore();
+            }
+
+            // Barmaq toxunmasını yoxlayırıq (Toggle + Su Dalğası)
             let isTouchingNow = false;
             if (latestHandsResults && latestHandsResults.multiHandLandmarks && latestHandsResults.multiHandLandmarks.length > 0) {
                 const lm = latestHandsResults.multiHandLandmarks[0];
@@ -163,6 +192,21 @@
 
                 if (Math.hypot(x2 - x1, y2 - y1) < 40) {
                     isTouchingNow = true;
+                    
+                    // Əgər yeni toxunma başlayıbsa, toxunma nöqtəsində su dalğası yaradırıq
+                    if (!wasTouching) {
+                        const centerX = (x1 + x2) / 2;
+                        const centerY = (y1 + y2) / 2;
+                        
+                        // Dalğa əlavə edirik
+                        ripples.push({
+                            x: centerX,
+                            y: centerY,
+                            radius: 5,
+                            speed: 4,
+                            alpha: 1.0
+                        });
+                    }
                 }
             }
 
