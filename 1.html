@@ -30,6 +30,9 @@
         let latestHandsResults = null;
         let latestSegmentationResults = null;
 
+        // Səlis keçid (animasiya) üçün cari şəffaflıq dəyəri
+        let currentAlpha = 0.0; 
+
         function setupCanvas(video) {
             if (outputCanvas.width !== video.videoWidth || outputCanvas.height !== video.videoHeight) {
                 outputCanvas.width = video.videoWidth;
@@ -78,31 +81,34 @@
                 backgroundCaptured = true;
             }
 
+            // Animasiya üçün şəffaflığı tədricən hədəfə doğru yaxınlaşdırırıq (Lerp metodu)
+            const targetAlpha = isGlassActive ? 0.1 : 1.0;
+            currentAlpha += (targetAlpha - currentAlpha) * 0.08; // 0.08 sürətdir, artırıb azalda bilərsiniz
+
             canvasCtx.save();
             canvasCtx.clearRect(0, 0, outputCanvas.width, outputCanvas.height);
 
-            // Əgər şüşə effekti aktiv deyilse və ya arxa fon yoxdursa - sadəcə kameranı göstər
-            if (!isGlassActive || !backgroundCaptured || !bgImage || !latestSegmentationResults) {
+            // Əgər arxa fon yoxdursa və ya tamamilə kameradayıqsa - sadəcə kameranı göstər
+            if (!backgroundCaptured || !bgImage || !latestSegmentationResults) {
                 canvasCtx.drawImage(videoElement, 0, 0, outputCanvas.width, outputCanvas.height);
             } else {
-                // 1. Əvvəlcə arxa fonu çəkirik
+                // 1. Həmişə arxa fonu çəkirik əsas altlıq kimi
                 canvasCtx.putImageData(bgImage, 0, 0);
 
-                // 2. Şüşə / Şəffaf siluet effekti (Daha da şəffaf edilib: 0.1)
+                // 2. Səlis keçidli şəffaf siluet effekti (currentAlpha ilə idarə olunur)
                 canvasCtx.save();
-                canvasCtx.globalAlpha = 0.1; 
+                canvasCtx.globalAlpha = currentAlpha;  
                 canvasCtx.drawImage(videoElement, 0, 0, outputCanvas.width, outputCanvas.height);
                 
-                // Şüşənin parıltı rəngi
-                canvasCtx.fillStyle = "rgba(120, 200, 255, 0.05)";
+                // Şüşənin parıltı rəngi də şəffaflığa uyğun adaptiv olur
+                canvasCtx.fillStyle = `rgba(120, 200, 255, ${0.05 * (isGlassActive ? 1 : 0)})`;
                 canvasCtx.fillRect(0, 0, outputCanvas.width, outputCanvas.height);
                 canvasCtx.restore();
 
-                // 3. Sizi izləyən yaşıl nazik xətli kvadrat (Bədənin olduğu koordinatlara görə dinamik hesablanır)
-                if (latestSegmentationResults.segmentationMask) {
+                // 3. Sizi izləyən yaşıl nazik xətli kvadrat (yalnız şüşə aktiv olanda və ya keçid zamanı görünə bilər)
+                if (latestSegmentationResults.segmentationMask && currentAlpha < 0.9) {
                     canvasCtx.save();
                     
-                    // Maskanı analiz edərək sizin (bədənin) yerinizi tapırıq
                     const mask = latestSegmentationResults.segmentationMask;
                     const width = mask.width;
                     const height = mask.height;
@@ -112,8 +118,6 @@
                     let minX = width, minY = height, maxX = 0, maxY = 0;
                     let hasBody = false;
 
-                    // Maskanın piksel datalarından istifadə edərək sərhədləri tapırıq
-                    // Qeyd: Mediapipe maskası Canvas üzərindən oxunur
                     const tempCanvas = document.createElement('canvas');
                     tempCanvas.width = width;
                     tempCanvas.height = height;
@@ -124,7 +128,7 @@
                     for (let y = 0; y < height; y++) {
                         for (let x = 0; x < width; x++) {
                             const alphaIdx = (y * width + x) * 4 + 3;
-                            if (imgData[alphaIdx] > 50) { // Əgər bu pikseldə insan varsa
+                            if (imgData[alphaIdx] > 50) {
                                 if (x < minX) minX = x;
                                 if (x > maxX) maxX = x;
                                 if (y < minY) minY = y;
@@ -135,17 +139,16 @@
                     }
 
                     if (hasBody && maxX > minX && maxY > minY) {
-                        // Koordinatları ekran ölçülərinə uyğunlaşdırırıq
                         const scaleX = canvasW / width;
                         const scaleY = canvasH / height;
 
-                        const boxX = minX * scaleX - 20; // Bir az kənar boşluq ilə
+                        const boxX = minX * scaleX - 20; 
                         const boxY = minY * scaleY - 20;
                         const boxW = (maxX - minX) * scaleX + 40;
                         const boxH = (maxY - minY) * scaleY + 40;
 
                         canvasCtx.strokeStyle = "#00FF00";
-                        canvasCtx.lineWidth = 2; // Nazik yaşıl xətt
+                        canvasCtx.lineWidth = 2;
                         canvasCtx.strokeRect(boxX, boxY, boxW, boxH);
                     }
                     canvasCtx.restore();
