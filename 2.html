@@ -31,7 +31,7 @@
     width: 640px;
     height: 640px;
     transform-style: preserve-3d;
-    transform: translateZ(-320px) rotateX(0deg) rotateY(0deg);
+    transform: scale(1.15) translateZ(-320px) rotateX(0deg) rotateY(0deg);
     transition: transform 0.05s linear;
   }
 
@@ -109,22 +109,27 @@
     backdrop-filter:blur(6px);
   }
 
+  /* ---------- ENABLE BUTTON (icon only, no text) ---------- */
   #enableBtn {
     position:fixed;
     top:50%; left:50%;
     transform:translate(-50%,-50%);
     z-index:30;
-    padding:14px 28px;
-    font-size:15px;
-    font-weight:600;
+    width:64px;
+    height:64px;
+    padding:0;
     color:#111;
     background:#fff6e1;
     border:none;
-    border-radius:30px;
+    border-radius:50%;
     cursor:pointer;
     box-shadow:0 0 20px rgba(255,225,170,0.5);
+    display:flex;
+    align-items:center;
+    justify-content:center;
   }
-  #enableBtn:active { transform:translate(-50%,-50%) scale(0.97); }
+  #enableBtn svg { width:26px; height:26px; }
+  #enableBtn:active { transform:translate(-50%,-50%) scale(0.95); }
 </style>
 </head>
 <body>
@@ -145,8 +150,13 @@
     <div id="faceDot"></div>
   </div>
 
-  <div id="status">Kameraya icazə vermək üçün düyməyə basın</div>
-  <button id="enableBtn">Baş izləməni başlat 🎥</button>
+  <div id="status" style="display:none"></div>
+  <button id="enableBtn" aria-label="Kameranı aktivləşdir">
+    <svg viewBox="0 0 24 24" fill="none" stroke="#111" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M23 7l-7 5 7 5V7z"></path>
+      <rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect>
+    </svg>
+  </button>
 
 <script type="module">
   const scene   = document.getElementById('scene');
@@ -178,7 +188,7 @@
 
     scene.style.perspectiveOrigin = `${originX}% ${originY}%`;
     room.style.transform =
-      `translate3d(${shiftX}px, ${shiftY}px, -320px) rotateX(${rotX}deg) rotateY(${rotY}deg)`;
+      `scale(1.15) translate3d(${shiftX}px, ${shiftY}px, -320px) rotateX(${rotX}deg) rotateY(${rotY}deg)`;
 
     requestAnimationFrame(applyTransform);
   }
