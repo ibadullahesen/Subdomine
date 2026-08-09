@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="az">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>3D Wireframe Otaq — Baş İzləmə</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  html, body {
+    width:100%; height:100%;
+    background:#000;
+    overflow:hidden;
+    font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  }
+
+  /* ---------- SCENE / PERSPECTIVE ---------- */
+  .scene {
+    position:fixed;
+    inset:0;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    perspective: 900px;
+    perspective-origin: 50% 50%;
+    background:#000;
+    transition: perspective-origin 0.05s linear;
+  }
+
+  .room {
+    position:relative;
+    width: 640px;
+    height: 640px;
+    transform-style: preserve-3d;
+    transform: translateZ(-320px) rotateX(0deg) rotateY(0deg);
+    transition: transform 0.05s linear;
+  }
+
+  .wall {
+    position:absolute;
+    top:50%; left:50%;
+    width:640px;
+    height:640px;
+    margin:-320px 0 0 -320px;
+    background-color:#000;
+    background-image:
+      linear-gradient(to right, rgba(255,246,225,0.55) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(255,246,225,0.55) 1px, transparent 1px);
+    background-size: 40px 40px;
+    box-shadow: inset 0 0 0 3px rgba(255,246,225,0.9);
+    filter: drop-shadow(0 0 6px rgba(255,225,170,0.55)) drop-shadow(0 0 14px rgba(255,200,130,0.25));
+  }
+
+  .back   { transform: translateZ(-320px); }
+  .left   { transform: rotateY(90deg)  translateZ(-320px); }
+  .right  { transform: rotateY(-90deg) translateZ(-320px); }
+  .top    { transform: rotateX(90deg)  translateZ(-320px); }
+  .bottom { transform: rotateX(-90deg) translateZ(-320px); }
+
+  /* soft vignette like the recording */
+  .vignette {
+    position:fixed; inset:0;
+    pointer-events:none;
+    background: radial-gradient(ellipse at center, transparent 45%, rgba(0,0,0,0.55) 100%);
+    z-index:5;
+  }
+
+  /* ---------- WEBCAM PREVIEW (top-left, like the reel) ---------- */
+  #webcamWrap {
+    position:fixed;
+    top:20px; left:20px;
+    width:150px;
+    height:110px;
+    border-radius:8px;
+    overflow:hidden;
+    border:2px solid rgba(255,255,255,0.35);
+    box-shadow:0 4px 18px rgba(0,0,0,0.6);
+    z-index:20;
+    background:#111;
+    display:none; /* kamera görüntüsü gizlədilib, izləmə arxa planda davam edir */
+  }
+  #webcam {
+    width:100%; height:100%;
+    object-fit:cover;
+    transform:scaleX(-1); /* mirror, like a selfie cam */
+  }
+  #faceDot {
+    position:absolute;
+    width:8px; height:8px;
+    border-radius:50%;
+    background:#5CFF9E;
+    box-shadow:0 0 6px #5CFF9E;
+    transform:translate(-50%,-50%);
+    display:none;
+  }
+
+  /* ---------- STATUS TEXT ---------- */
+  #status {
+    position:fixed;
+    bottom:22px; left:50%;
+    transform:translateX(-50%);
+    color:rgba(255,255,255,0.65);
+    font-size:13px;
+    letter-spacing:0.3px;
+    z-index:20;
+    text-align:center;
+    padding:8px 16px;
+    background:rgba(255,255,255,0.06);
+    border-radius:20px;
+    backdrop-filter:blur(6px);
+  }
+
+  #enableBtn {
+    position:fixed;
+    top:50%; left:50%;
+    transform:translate(-50%,-50%);
+    z-index:30;
+    padding:14px 28px;
+    font-size:15px;
+    font-weight:600;
+    color:#111;
+    background:#fff6e1;
+    border:none;
+    border-radius:30px;
+    cursor:pointer;
+    box-shadow:0 0 20px rgba(255,225,170,0.5);
+  }
+  #enableBtn:active { transform:translate(-50%,-50%) scale(0.97); }
+</style>
+</head>
+<body>
+
+  <div class="scene" id="scene">
+    <div class="room" id="room">
+      <div class="wall back"></div>
+      <div class="wall left"></div>
+      <div class="wall right"></div>
+      <div class="wall top"></div>
+      <div class="wall bottom"></div>
+    </div>
+  </div>
+  <div class="vignette"></div>
+
+  <div id="webcamWrap">
+    <video id="webcam" autoplay muted playsinline></video>
+    <div id="faceDot"></div>
+  </div>
+
+  <div id="status">Kameraya icazə vermək üçün düyməyə basın</div>
+  <button id="enableBtn">Baş izləməni başlat 🎥</button>
+
+<script type="module">
+  const scene   = document.getElementById('scene');
+  const room    = document.getElementById('room');
+  const video   = document.getElementById('webcam');
+  const status  = document.getElementById('status');
+  const btn     = document.getElementById('enableBtn');
+  const faceDot = document.getElementById('faceDot');
+
+  // current + target smoothed head offsets, range roughly -1..1
+  let targetX = 0, targetY = 0;
+  let curX = 0, curY = 0;
+
+  const MAX_ROTATE = 16;      // deg
+  const MAX_ORIGIN_SHIFT = 32; // % shift of perspective-origin
+  const MAX_ROOM_SHIFT = 40;   // px translate for extra parallax
+
+  function applyTransform() {
+    // smoothing (lerp)
+    curX += (targetX - curX) * 0.08;
+    curY += (targetY - curY) * 0.08;
+
+    const rotY =  curX * MAX_ROTATE;
+    const rotX = -curY * MAX_ROTATE;
+    const originX = 50 - curX * MAX_ORIGIN_SHIFT;
+    const originY = 50 - curY * MAX_ORIGIN_SHIFT;
+    const shiftX = -curX * MAX_ROOM_SHIFT;
+    const shiftY = -curY * MAX_ROOM_SHIFT;
+
+    scene.style.perspectiveOrigin = `${originX}% ${originY}%`;
+    room.style.transform =
+      `translate3d(${shiftX}px, ${shiftY}px, -320px) rotateX(${rotX}deg) rotateY(${rotY}deg)`;
+
+    requestAnimationFrame(applyTransform);
+  }
+  requestAnimationFrame(applyTransform);
+
+  // ---------- fallback: mouse / touch control ----------
+  let usingFace = false;
+  window.addEventListener('mousemove', (e) => {
+    if (usingFace) return;
+    targetX = -(e.clientX / window.innerWidth - 0.5) * 2;
+    targetY = (e.clientY / window.innerHeight - 0.5) * 2;
+  });
+
+  // ---------- face tracking via MediaPipe Tasks Vision ----------
+  async function startFaceTracking() {
+    status.textContent = 'Kamera açılır...';
+    let stream;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({
+        video: { width: 320, height: 240, facingMode: 'user' },
+        audio: false
+      });
+    } catch (err) {
+      status.textContent = 'Kameraya icazə verilmədi — siçanla idarə olunur';
+      return;
+    }
+    video.srcObject = stream;
+    await video.play();
+
+    try {
+      status.textContent = 'Üz izləmə modeli yüklənir...';
+      const { FaceDetector, FilesetResolver } = await import(
+        'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/vision_bundle.mjs'
+      );
+      const vision = await FilesetResolver.forVisionTasks(
+        'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm'
+      );
+      const modelUrl =
+        'https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_short_range/float16/1/blaze_face_short_range.tflite';
+
+      let faceDetector;
+      try {
+        faceDetector = await FaceDetector.createFromOptions(vision, {
+          baseOptions: { modelAssetPath: modelUrl, delegate: 'GPU' },
+          runningMode: 'VIDEO'
+        });
+      } catch (gpuErr) {
+        // some browsers/GPUs fail here — retry on CPU
+        console.warn('GPU delegate failed, retrying on CPU', gpuErr);
+        faceDetector = await FaceDetector.createFromOptions(vision, {
+          baseOptions: { modelAssetPath: modelUrl, delegate: 'CPU' },
+          runningMode: 'VIDEO'
+        });
+      }
+
+      usingFace = true;
+      status.textContent = 'Baş izlənir — başınızı tərpədin';
+      faceDot.style.display = 'block';
+
+      let lastTime = -1;
+      function detectLoop() {
+        const now = performance.now();
+        if (video.readyState >= 2 && now !== lastTime) {
+          lastTime = now;
+          const result = faceDetector.detectForVideo(video, now);
+          if (result.detections && result.detections.length > 0) {
+            const box = result.detections[0].boundingBox;
+            // center of face, normalized to -1..1 (video is mirrored visually,
+            // but underlying frame coords are not, so we mirror x manually)
+            const cx = (box.originX + box.width / 2) / video.videoWidth;
+            const cy = (box.originY + box.height / 2) / video.videoHeight;
+            const nx = -(0.5 - cx) * 2;  // inverted: user moves right -> view shifts left
+            const ny = (cy - 0.5) * 2;
+            targetX = Math.max(-1, Math.min(1, nx));
+            targetY = Math.max(-1, Math.min(1, ny));
+
+            faceDot.style.display = 'block';
+            faceDot.style.left = ((1 - cx) * 100) + '%';
+            faceDot.style.top  = (cy * 100) + '%';
+          }
+        }
+        requestAnimationFrame(detectLoop);
+      }
+      detectLoop();
+    } catch (err) {
+      console.error(err);
+      status.textContent = 'Model yüklənmədi: ' + (err && err.message ? err.message : err) + ' — siçanla idarə olunur';
+    }
+  }
+
+  btn.addEventListener('click', () => {
+    btn.remove();
+    startFaceTracking();
+  });
+</script>
+</body>
+</html>
