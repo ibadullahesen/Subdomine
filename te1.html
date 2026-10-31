@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="az">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
+<title>Qılınc Sürüsü</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{width:100%;height:100%;overflow:hidden;background:#000}
+  canvas#c{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none;cursor:none}
+  #v{position:fixed;left:0;top:0;width:2px;height:2px;opacity:0;pointer-events:none}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<video id="v" playsinline muted></video>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/CopyShader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/LuminosityHighPassShader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/EffectComposer.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/RenderPass.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/ShaderPass.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/UnrealBloomPass.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4.1675469240/hands.js" crossorigin="anonymous"></script>
+<script>
+(() => {
+'use strict';
+const N = 600;
+const MODE = {RING:0, STREAM:1, SPHERE:2, RAIN:3};
+const MODE_NAMES = ['HALQA','AXIN','KÜRƏ','YAĞIŞ'];
+const $ = s => document.querySelector(s);
+
+/* ---------- renderer / scene ---------- */
+const canvas = $('#c');
+const renderer = new THREE.WebGLRenderer({canvas, antialias:false, powerPreference:'high-performance'});
+renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5));
+renderer.setClearColor(0x000000);
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 100);
+camera.position.set(0,0,10);
+const HALF_H = Math.tan(THREE.MathUtils.degToRad(25))*10;
+
+const composer = new THREE.EffectComposer(renderer);
+composer.addPass(new THREE.RenderPass(scene, camera));
+const bloom = new THREE.UnrealBloomPass(new THREE.Vector2(512,512), 0.55, 0.45, 0.28);
+composer.addPass(bloom);
+
+/* ---------- sword geometry ---------- */
+function buildSword(){
+  const pos=[], col=[];
+  const tri=(a,b,c,ca,cb,cc)=>{pos.push(...a,...b,...c); col.push(ca,ca,ca,cb,cb,cb,cc,cc,cc);};
+  const quad=(a,b,c,d,ca,cb,cc,cd)=>{tri(a,b,c,ca,cb,cc); tri(a,c,d,ca,cc,cd);};
+  const prof=[[0.10,0.018,0.008,0.30],[0.50,0.026,0.010,0.45],[0.80,0.022,0.008,0.62],[1.0,0,0,0.9]];
+  const ring=(y,w,t)=>[[w,y,0],[0,y,t],[-w,y,0],[0,y,-t]];
+  for(let k=0;k<prof.length-1;k++){
+    const a=prof[k], b=prof[k+1], ra=ring(a[0],a[1],a[2]), rb=ring(b[0],b[1],b[2]);
+    for(let j=0;j<4;j++){ const j2=(j+1)%4; quad(ra[j],ra[j2],rb[j2],rb[j],a[3],a[3],b[3],b[3]); }
+  }
+  const box=(cx,cy,cz,hx,hy,hz,c)=>{
+    const v=[]; for(let i=0;i<8;i++) v.push([cx+(i&1?hx:-hx), cy+(i&2?hy:-hy), cz+(i&4?hz:-hz)]);
+    [[0,1,3,2],[4,5,7,6],[0,1,5,4],[2,3,7,6],[0,2,6,4],[1,3,7,5]].forEach(f=>quad(v[f[0]],v[f[1]],v[f[2]],v[f[3]],c,c,c,c));
+  };
+  box(0,0.115,0, 0.12,0.012,0.012, 0.75);   // cross-guard
+  box(0,-0.02,0, 0.012,0.12,0.012, 0.35);    // handle
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos,3));
+  g.setAttribute('color', new THREE.Float32BufferAttribute(col,3));
+  g.translate(0,-0.45,0);
+  return g;
+}
+function buildTrail(){
+  const pos=[], col=[];
+  const w=0.018;
+  [[1,0],[0,1]].forEach(([x,z])=>{
+    pos.push(-w*x,-0.6,-w*z, w*x,-0.6,w*z, 0,-1.6,0);
+    col.push(.35,.35,.35, .35,.35,.35, 0,0,0);
+  });
+  const g=new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos,3));
+  g.setAttribute('color', new THREE.Float32BufferAttribute(col,3));
+  return g;
+}
+const mkMat = op => new THREE.MeshBasicMaterial({vertexColors:true, transparent:true, opacity:op, blending:THREE.AdditiveBlending, depthWrite:false, side:THREE.DoubleSide});
+const swords = new THREE.InstancedMesh(buildSword(), mkMat(1), N);
+const trails = new THREE.InstancedMesh(buildTrail(), mkMat(.55), N);
+[swords, trails].forEach(m=>{ m.frustumCulled=false; m.instanceMatrix.setUsage(THREE.DynamicDrawUsage); scene.add(m); });
+{
+  const c = new THREE.Color();
+  for(let i=0;i<N;i++){
+    if(Math.random()<0.62) c.setHSL(0.33+Math.random()*0.035, 1, 0.46+Math.random()*0.07);
+    else c.setHSL(0.11+Math.random()*0.04, 1, 0.5+Math.random()*0.07);
+    swords.setColorAt(i,c); trails.setColorAt(i,c);
+  }
+}
+
+/* magic circles (shown in rain mode) */
+const circles = new THREE.Group();
+const circleMats = [];
+[[3.6,.05],[3.1,.025],[2.3,.04],[1.5,.025]].forEach(([r,w])=>{
+  const m = new THREE.MeshBasicMaterial({color:0xfff0b8, transparent:true, opacity:0, blending:THREE.AdditiveBlending, depthWrite:false, side:THREE.DoubleSide});
+  circles.add(new THREE.Mesh(new THREE.RingGeometry(r-w,r,160), m)); circleMats.push(m);
+});
+{ // tick marks on outer ring
+  const m = new THREE.MeshBasicMaterial({color:0xffe28a, transparent:true, opacity:0, blending:THREE.AdditiveBlending, depthWrite:false});
+  for(let i=0;i<48;i++){
+    const t=new THREE.Mesh(new THREE.PlaneGeometry(.04, i%4===0?.3:.14), m);
+    const a=i/48*Math.PI*2; t.position.set(Math.cos(a)*2.7, Math.sin(a)*2.7, 0); t.rotation.z=a+Math.PI/2; circles.add(t);
+  }
+  circleMats.push(m);
+}
+circles.position.set(-1.5, HALF_H*0.92, -4); circles.rotation.x = -1.15;
+scene.add(circles);
+
+/* ---------- state ---------- */
+const UP = new THREE.Vector3(0,1,0);
+const P = [], Q = [], VEL = [];
+const seed = [], ph = new Float32Array(N), rnd = new Float32Array(N), fib = [], rain = [], rainV = new Float32Array(N);
+for(let i=0;i<N;i++){
+  P.push(new THREE.Vector3((Math.random()-.5)*6,(Math.random()-.5)*6,(Math.random()-.5)*2));
+  Q.push(new THREE.Quaternion()); VEL.push(new THREE.Vector3());
+  seed.push(new THREE.Vector3(Math.random()*2-1, Math.random()*2-1, Math.random()*2-1));
+  ph[i] = Math.random()*Math.PI*2; rnd[i] = Math.random();
+  const y = 1 - (i+.5)/N*2, r = Math.sqrt(1-y*y), a = i*2.399963;
+  fib.push(new THREE.Vector3(Math.cos(a)*r, y, Math.sin(a)*r));
+  rain.push(new THREE.Vector3((Math.random()-.5)*34, -7+Math.random()*15, -12+Math.random()*16));
+  rainV[i] = 4 + Math.random()*5;
+}
+let mode = MODE.RING, trailCur = .25, scaleCur = 1;
+const anchor = new THREE.Vector3(0,-.6,0), anchorT = new THREE.Vector3(0,-.6,0);
+const tip = new THREE.Vector3(0,0,0), tipT = new THREE.Vector3(0,0,0);
+let handScale = 1, handScaleT = 1;
+const hist = [], anchorV = new THREE.Vector3(), tipV = new THREE.Vector3();
+function damp(cur, tgt, vel, w, dt){ // critically damped spring (smooth, no jitter)
+  const x=w*dt, e=1/(1+x+.48*x*x+.235*x*x*x);
+  for(const ax of ['x','y','z']){
+    const ch=cur[ax]-tgt[ax], tmpv=(vel[ax]+w*ch)*dt;
+    vel[ax]=(vel[ax]-w*tmpv)*e; cur[ax]=tgt[ax]+(ch+tmpv)*e;
+  }
+}
+function sampleHist(t, out){
+  if(!hist.length) return out.copy(tip);
+  if(t <= hist[0].t) return out.copy(hist[0].p);
+  let lo=0, hi=hist.length-1;
+  while(hi-lo>1){ const m=(lo+hi)>>1; if(hist[m].t<=t) lo=m; else hi=m; }
+  const a=hist[lo], b=hist[hi], k=(t-a.t)/Math.max(1e-4,b.t-a.t);
+  return out.lerpVectors(a.p, b.p, Math.min(1,Math.max(0,k)));
+}
+
+/* ---------- mode switching ---------- */
+function setMode(m){ mode=m; }
+addEventListener('keydown',e=>{ if(e.key>='1'&&e.key<='4') setMode(+e.key-1); });
+
+/* pointer fallback */
+let camOn = false;
+function ptrToWorld(x,y,out){
+  const nx = x/innerWidth*2-1, ny = -(y/innerHeight*2-1);
+  out.set(nx*HALF_H*camera.aspect, ny*HALF_H, 0);
+}
+addEventListener('pointermove',e=>{
+  if(camOn) return;
+  ptrToWorld(e.clientX, e.clientY, anchorT); anchorT.y -= 1.2; tipT.copy(anchorT); tipT.y += 1.2;
+});
+
+/* ---------- gesture recognition ---------- */
+const d3=(a,b)=>Math.hypot(a.x-b.x, a.y-b.y, (a.z-b.z)*.5);
+function classify(lm, prev){
+  const w=lm[0];
+  const ext=(t,m)=>d3(lm[t],w) > d3(lm[m],w)*1.55;
+  const i=ext(8,5), m=ext(12,9), r=ext(16,13), p=ext(20,17);
+  if(i&&m&&r&&p) return MODE.RING;
+  if(i&&p&&!m&&!r) return MODE.RAIN;
+  if(i&&!m&&!r&&!p) return MODE.STREAM;
+  if(!i&&!m&&!r&&!p) return MODE.SPHERE;
+  return prev;
+}
+let cand=-1, candN=0;
+function onHands(res){
+  if(!res.multiHandLandmarks || !res.multiHandLandmarks.length) return;
+  const lm = res.multiHandLandmarks[0];
+  const c = classify(lm, mode);
+  if(c===cand) candN++; else {cand=c; candN=1;}
+  if(candN>=3) setMode(c);
+  // mirrored mapping
+  const px = (1-lm[9].x)*2-1, py = (1-lm[9].y)*2-1;
+  anchorT.set(px*HALF_H*camera.aspect*1.05, py*HALF_H*1.05, 0);
+  const tx = (1-lm[8].x)*2-1, ty = (1-lm[8].y)*2-1;
+  tipT.set(tx*HALF_H*camera.aspect*1.05, ty*HALF_H*1.05, 0);
+  const sz = Math.hypot(lm[0].x-lm[9].x, lm[0].y-lm[9].y);
+  handScaleT = Math.min(1.5, Math.max(.7, sz/.17));
+}
+
+/* ---------- camera (auto-start) ---------- */
+async function startCamera(){
+  if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || typeof Hands==='undefined') return;
+  try{
+    const v=$('#v');
+    v.srcObject = await navigator.mediaDevices.getUserMedia({video:{width:480,height:360,frameRate:{ideal:30},facingMode:'user'}, audio:false});
+    await v.play();
+    const hands = new Hands({locateFile:f=>`https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4.1675469240/${f}`});
+    hands.setOptions({maxNumHands:1, modelComplexity:0, minDetectionConfidence:.6, minTrackingConfidence:.5});
+    hands.onResults(onHands);
+    await hands.initialize();
+    camOn = true;
+    let busy=false;
+    const pump=()=>{
+      if(!busy && v.readyState>=2){ busy=true; hands.send({image:v}).catch(()=>{}).finally(()=>{busy=false;}); }
+      if(v.requestVideoFrameCallback) v.requestVideoFrameCallback(pump); else setTimeout(pump,16);
+    };
+    pump();
+  }catch(err){ /* camera unavailable: mouse mode stays active */ }
+}
+startCamera();
+
+/* ---------- main loop ---------- */
+function resize(){
+  const w=innerWidth, h=innerHeight;
+  renderer.setSize(w,h,false); composer.setSize(w,h);
+  bloom.resolution.set(w,h);
+  camera.aspect=w/h; camera.updateProjectionMatrix();
+}
+addEventListener('resize',resize); resize();
+
+const dummy = new THREE.Object3D(), tp = new THREE.Vector3(), dir = new THREE.Vector3(), tq = new THREE.Quaternion();
+const va = new THREE.Vector3(), vb = new THREE.Vector3(), ctr = new THREE.Vector3(), axis = new THREE.Vector3(), tmp = new THREE.Vector3();
+const clock = new THREE.Clock();
+
+function frame(){
+  requestAnimationFrame(frame);
+  const dt = Math.min(clock.getDelta(), 1/30), t = clock.elapsedTime;
+  const sm = 1-Math.exp(-dt*9);
+  damp(anchor, anchorT, anchorV, 11, dt); damp(tip, tipT, tipV, 16, dt);
+  handScale += (handScaleT-handScale)*sm;
+  hist.push({t, p:tip.clone()});
+  while(hist.length>2 && hist[0].t < t-3) hist.shift();
+
+  const om = [5.5,9.5,5.5,6.5][mode], zeta = mode===MODE.STREAM ? .7 : .85;
+  const kq = 1-Math.exp(-dt*12);
+  const scT = [0.6,0.65,0.68,1.25][mode]*(mode===3?1:handScale*.9+.1);
+  const trT = [0.15,0.8,0.25,3.0][mode];
+  trailCur += (trT-trailCur)*(1-Math.exp(-dt*3));
+  scaleCur += (scT-scaleCur)*(1-Math.exp(-dt*4));
+
+  ctr.set(anchor.x, anchor.y+1.7*handScale, 0);
+  const wob = Math.sin(t*.7)*.25;
+  axis.set(Math.sin(t*.4)*.55, Math.cos(t*.3)*.35+wob*.2, 1).normalize();
+
+  for(let i=0;i<N;i++){
+    const sd=seed[i], f=i/N;
+    let sc = scaleCur*(.8+rnd[i]*.45);
+    if(mode===MODE.RING){
+      const R = 2.1*handScale*(1+.04*Math.sin(t*2+ph[i]));
+      const a = f*Math.PI*2*7.0 + t*.18;
+      const rr = R*(.52+.48*Math.sqrt(rnd[i]));
+      const aa = (i*2.399963)+t*.12;
+      tp.set(ctr.x+Math.cos(aa)*rr, ctr.y+Math.sin(aa)*rr, sd.z*.35);
+      dir.set(Math.cos(aa), Math.sin(aa), sd.x*.25).normalize();
+    }else if(mode===MODE.STREAM){
+      const lag = .04 + Math.pow(f,.9)*1.7 + sd.z*.03;
+      sampleHist(t-lag, va);
+      sampleHist(t-lag+.09, vb);
+      const spread = .18 + lag*.5;
+      tp.copy(va);
+      tp.x += sd.x*spread + Math.sin(t*1.6+ph[i])*.12*(1+lag);
+      tp.y += sd.y*spread*.7 + Math.cos(t*1.3+ph[i])*.1*(1+lag);
+      tp.z += sd.z*spread*.8;
+      tmp.subVectors(vb, va);
+      const len = tmp.length(), w = Math.min(1, len/.12);
+      dir.set(Math.cos(ph[i]+t*.4), Math.sin(ph[i]+t*.5)*.5, .1);
+      if(len>1e-5) dir.multiplyScalar(1-w).addScaledVector(tmp.normalize(), w);
+      dir.normalize();
+      sc *= 1.05 - f*.3;
+    }else if(mode===MODE.SPHERE){
+      const R = 1.75*handScale;
+      tp.copy(fib[i]).applyAxisAngle(axis, t*1.25).multiplyScalar(R).add(ctr);
+      tmp.copy(tp).sub(ctr);
+      dir.crossVectors(axis, tmp);
+      if(dir.lengthSq()<1e-6) dir.set(1,0,0);
+      dir.normalize();
+    }else{
+      const r = rain[i];
+      r.y += rainV[i]*dt;
+      if(r.y>7.5){ r.y=-7.5; r.x=(Math.random()-.5)*34; r.z=-12+Math.random()*16; }
+      tp.copy(r);
+      dir.set(Math.sin(ph[i]+t)*.03, 1, 0).normalize();
+    }
+    {
+      const w = om*(.85+.3*rnd[i]), vv = VEL[i], pp = P[i];
+      vv.x += ((tp.x-pp.x)*w*w - vv.x*2*zeta*w)*dt;
+      vv.y += ((tp.y-pp.y)*w*w - vv.y*2*zeta*w)*dt;
+      vv.z += ((tp.z-pp.z)*w*w - vv.z*2*zeta*w)*dt;
+      pp.x += vv.x*dt; pp.y += vv.y*dt; pp.z += vv.z*dt;
+      if(mode===MODE.STREAM){
+        const sp = vv.length();
+        if(sp>.6){ tmp.copy(vv).divideScalar(sp); dir.lerp(tmp, Math.min(.85,(sp-.6)/3)).normalize(); }
+      }
+    }
+    tq.setFromUnitVectors(UP, dir);
+    Q[i].slerp(tq, kq);
+    dummy.position.copy(P[i]); dummy.quaternion.copy(Q[i]);
+    dummy.scale.setScalar(sc); dummy.updateMatrix(); swords.setMatrixAt(i, dummy.matrix);
+    dummy.scale.set(sc, sc*trailCur, sc); dummy.updateMatrix(); trails.setMatrixAt(i, dummy.matrix);
+  }
+  swords.instanceMatrix.needsUpdate = trails.instanceMatrix.needsUpdate = true;
+
+  const on = mode===MODE.RAIN ? 1 : 0;
+  circleMats.forEach((m,i)=>{ const target = on*(i===3?.7:i===4?.9:.85); m.opacity += (target-m.opacity)*(1-Math.exp(-dt*3)); });
+  circles.rotation.z += dt*.25;
+  circles.children.forEach((c,i)=>{ if(i<4) c.rotation.z += dt*(i%2?-.3:.2); });
+
+  composer.render();
+}
+frame();
+})();
+</script>
+</body>
+</html>
