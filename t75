@@ -1,0 +1,688 @@
+<!DOCTYPE html>
+<html lang="az">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AxtarGet</title>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+    <style>
+        :root {
+            --accent: #7fe9ff;
+            --deep: #02030a;
+        }
+
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+        body, html {
+            margin: 0; padding: 0;
+            width: 100%; height: 100%;
+            overflow: hidden;
+            background: #000;
+            font-family: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
+            touch-action: none;
+        }
+
+        #canvas-container {
+            position: absolute; inset: 0; z-index: 1;
+        }
+
+        .vignette {
+            position: fixed; inset: 0; z-index: 3; pointer-events: none;
+            background: radial-gradient(ellipse at 50% 45%, transparent 50%, rgba(0,0,4,.72) 100%);
+        }
+
+        .grain {
+            position: fixed; inset: 0; z-index: 4; pointer-events: none;
+            opacity: .05; mix-blend-mode: overlay;
+            background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+        }
+
+        .ui-panel {
+            position: absolute;
+            bottom: max(28px, env(safe-area-inset-bottom));
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 10;
+            width: 100%;
+            max-width: 460px;
+            padding: 0 20px;
+        }
+
+        .input-group {
+            display: flex;
+            align-items: center;
+            width: 100%;
+            height: 54px;
+            padding: 0 6px 0 24px;
+            background: linear-gradient(180deg, rgba(255,255,255,.085), rgba(255,255,255,.035));
+            backdrop-filter: blur(22px) saturate(140%);
+            -webkit-backdrop-filter: blur(22px) saturate(140%);
+            border: 1px solid rgba(255,255,255,.13);
+            border-radius: 999px;
+            box-shadow:
+                0 12px 40px rgba(0,0,0,.45),
+                0 0 0 1px rgba(127,233,255,.04),
+                inset 0 1px 0 rgba(255,255,255,.12);
+            transition: border-color .35s ease, box-shadow .35s ease;
+        }
+        .input-group:focus-within {
+            border-color: rgba(127,233,255,.55);
+            box-shadow:
+                0 12px 40px rgba(0,0,0,.45),
+                0 0 38px rgba(127,233,255,.18),
+                inset 0 1px 0 rgba(255,255,255,.16);
+        }
+        .input-group.shake { animation: shake .42s cubic-bezier(.36,.07,.19,.97); }
+        @keyframes shake {
+            10%, 90% { transform: translateX(-1px); }
+            20%, 80% { transform: translateX(3px); }
+            30%, 50%, 70% { transform: translateX(-5px); }
+            40%, 60% { transform: translateX(5px); }
+        }
+
+        input {
+            flex: 1; min-width: 0;
+            background: transparent; border: none; outline: none;
+            color: #f2fcff;
+            font-size: 1.05rem; font-weight: 500;
+            letter-spacing: 5px;
+            caret-color: var(--accent);
+        }
+
+        button {
+            flex: none;
+            width: 42px; height: 42px;
+            display: grid; place-items: center;
+            border: none; border-radius: 50%;
+            background: rgba(255,255,255,.08);
+            color: rgba(230,250,255,.85);
+            cursor: pointer;
+            transition: background .3s ease, color .3s ease, transform .3s ease;
+        }
+        button svg { width: 18px; height: 18px; transition: transform .5s ease; }
+        button:hover { background: rgba(127,233,255,.2); color: #fff; }
+        button:hover svg { transform: rotate(-180deg); }
+        button:active { transform: scale(.92); }
+
+        #loading-screen {
+            position: fixed; inset: 0; z-index: 100;
+            background: #010206;
+            transition: opacity 1s ease;
+        }
+
+        #text-canvas { display: none; }
+
+        .gl-error {
+            position: fixed; inset: 0; z-index: 99;
+            display: flex; align-items: center; justify-content: center;
+            color: #ff8d8d; letter-spacing: 2px; text-align: center; padding: 30px;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="loading-screen"></div>
+
+    <div class="ui-panel">
+        <div class="input-group" id="input-group">
+            <input type="text" id="text-input" aria-label="Mətn" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+            <button id="reset-btn" aria-label="Sıfırla">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/></svg>
+            </button>
+        </div>
+    </div>
+
+    <canvas id="text-canvas"></canvas>
+    <div id="canvas-container"></div>
+
+    <script>
+        'use strict';
+
+        /* =================== QURĞU =================== */
+        const isTouch = ('ontouchstart' in window);
+        const isSmall = Math.min(screen.width, screen.height) < 720;
+        const N = isSmall ? 18000 : 36000;
+        const MAX_LETTERS = 12;
+        const PER_LETTER = Math.floor(N / MAX_LETTERS);
+        const SPH_R = 55;
+        const SPH_Y = 34;
+        const WORD_Y = -78;
+        const UI_MARGIN = 60;
+        const FONT_PX = 110;
+        const CHAR_GAP = 16;
+        const SPACE_W = FONT_PX * 0.3;
+        const WORLD_H_MAX = 42;
+        const ZMAX = isSmall ? 520 : 420;
+
+        const loadingScreen = document.getElementById('loading-screen');
+        const textInput = document.getElementById('text-input');
+        const resetBtn = document.getElementById('reset-btn');
+        const inputGroup = document.getElementById('input-group');
+        const textCanvas = document.getElementById('text-canvas');
+        const tCtx = textCanvas.getContext('2d', { willReadFrequently: true });
+
+        let renderer;
+        try {
+            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        } catch (e) {
+            const d = document.createElement('div');
+            d.className = 'gl-error';
+            d.textContent = 'WebGL dəstəklənmir';
+            document.body.appendChild(d);
+            loadingScreen.style.display = 'none';
+            throw e;
+        }
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        document.getElementById('canvas-container').appendChild(renderer.domElement);
+
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 2500);
+        camera.position.z = 300;
+        const FOV_TAN = Math.tan(30 * Math.PI / 180);
+        const visH = z => 2 * z * FOV_TAN;
+        const visW = z => visH(z) * camera.aspect;
+
+        /* =================== BUFERLƏR =================== */
+        const positions = new Float32Array(N * 3);
+        const colors = new Float32Array(N * 3);
+        const fColors = new Float32Array(N * 3);
+        const targets = new Float32Array(N * 3);
+        const velocities = new Float32Array(N * 3);
+        const spd = new Float32Array(N);
+        const phase = new Float32Array(N);
+        const sizes = new Float32Array(N);
+        const state = new Uint8Array(N);
+        const releaseAt = new Float32Array(N);
+        const ambR = new Float32Array(N);
+        const ambY = new Float32Array(N);
+        const ang0 = new Float32Array(N);
+        const angW = new Float32Array(N);
+        const fS = new Float32Array(N * 3);             // uçuş başlanğıc nöqtəsi
+        const fC = new Float32Array(N * 3);             // uçuş əyri nəzarət nöqtəsi
+        const fT0 = new Float32Array(N);                // uçuş başlama vaxtı
+        const fDur = new Float32Array(N);               // uçuş müddəti
+
+        const rand = Math.random;
+
+        function setOrbit(i) {
+            const r = 0.88 + rand() * 0.26;               // nisbi radius (kürənin cari ölçüsünə vurulur)
+            const phi = Math.acos(2 * rand() - 1);
+            ambY[i] = r * Math.cos(phi);
+            ambR[i] = r * Math.sin(phi);
+            ang0[i] = rand() * Math.PI * 2;
+            angW[i] = 0.04 + rand() * 0.11;
+        }
+        function scatter(i) {
+            const i3 = i * 3;
+            positions[i3]     = (rand() - 0.5) * 1100;
+            positions[i3 + 1] = (rand() - 0.5) * 1100;
+            positions[i3 + 2] = (rand() - 0.5) * 1100;
+        }
+
+        // Rafine palitra: buz göyü, ağ, yumşaq mavi-bənövşəyi, az qızılı
+        const CYAN = [0.38, 0.88, 1.0], ICE = [0.62, 0.78, 1.0], WHITE = [0.95, 0.99, 1], VIOLET = [0.62, 0.56, 1.0], GOLD = [1, 0.82, 0.45];
+        const E_R = 0.95, E_G = 0.72, E_B = 0.4;
+
+        for (let i = 0; i < N; i++) {
+            const i3 = i * 3;
+            setOrbit(i);
+            scatter(i);
+            spd[i] = 0.018 + rand() * 0.04;
+            phase[i] = rand();
+            const r = rand();
+            const c = r < 0.55 ? CYAN : r < 0.77 ? ICE : r < 0.88 ? VIOLET : r < 0.96 ? WHITE : GOLD;
+            fColors[i3] = c[0]; fColors[i3 + 1] = c[1]; fColors[i3 + 2] = c[2];
+            colors[i3] = c[0]; colors[i3 + 1] = c[1]; colors[i3 + 2] = c[2];
+            sizes[i] = (c === GOLD || c === WHITE) ? 1.5 + rand() * 0.9 : 0.9 + rand() * 0.9;
+        }
+
+        /* =================== GEOMETRİYA / MATERIAL =================== */
+        const geometry = new THREE.BufferGeometry();
+        const posAttr = new THREE.BufferAttribute(positions, 3).setUsage(THREE.DynamicDrawUsage);
+        const colAttr = new THREE.BufferAttribute(colors, 3).setUsage(THREE.DynamicDrawUsage);
+        geometry.setAttribute('position', posAttr);
+        geometry.setAttribute('aColor', colAttr);
+        geometry.setAttribute('aSize', new THREE.BufferAttribute(sizes, 1));
+        geometry.setAttribute('aPhase', new THREE.BufferAttribute(phase, 1));
+
+        const material = new THREE.ShaderMaterial({
+            uniforms: {
+                uTime: { value: 0 },
+                uPixelRatio: { value: Math.min(window.devicePixelRatio, 2) }
+            },
+            transparent: true,
+            depthWrite: false,
+            blending: THREE.AdditiveBlending,
+            vertexShader: `
+                attribute vec3 aColor;
+                attribute float aSize;
+                attribute float aPhase;
+                uniform float uTime;
+                uniform float uPixelRatio;
+                varying vec3 vColor;
+                varying float vTw;
+                void main() {
+                    vColor = aColor;
+                    vTw = 0.84 + 0.2 * sin(uTime * (1.0 + fract(aPhase * 7.31) * 2.0) + aPhase * 6.2831);
+                    vec4 mv = modelViewMatrix * vec4(position, 1.0);
+                    float att = clamp(420.0 / max(1.0, -mv.z), 1.8, 4.0);
+                    float ps = aSize * uPixelRatio * att * (0.92 + 0.14 * vTw);
+                    gl_PointSize = min(ps, 44.0);
+                    gl_Position = projectionMatrix * mv;
+                }`,
+            fragmentShader: `
+                varying vec3 vColor;
+                varying float vTw;
+                void main() {
+                    vec2 uv = gl_PointCoord - 0.5;
+                    float d = length(uv);
+                    if (d > 0.5) discard;
+                    float glow = smoothstep(0.5, 0.0, d);
+                    float core = pow(smoothstep(0.28, 0.0, d), 2.2);
+                    float alpha = glow * glow * 0.5 + core * 0.9;
+                    vec3 col = vColor * (0.88 + 0.4 * vTw) + vec3(core * 0.5);
+                    gl_FragColor = vec4(col, alpha);
+                }`
+        });
+
+        const pointsObj = new THREE.Points(geometry, material);
+        pointsObj.frustumCulled = false;
+        scene.add(pointsObj);
+
+        // küre mərkəzində yumşaq işıq (halo)
+        function makeGlowTexture() {
+            const c = document.createElement('canvas');
+            c.width = c.height = 256;
+            const g = c.getContext('2d');
+            const grad = g.createRadialGradient(128, 128, 0, 128, 128, 128);
+            grad.addColorStop(0, 'rgba(120,210,255,0.55)');
+            grad.addColorStop(0.35, 'rgba(70,130,255,0.18)');
+            grad.addColorStop(1, 'rgba(0,0,0,0)');
+            g.fillStyle = grad;
+            g.fillRect(0, 0, 256, 256);
+            return new THREE.CanvasTexture(c);
+        }
+        const halo = new THREE.Sprite(new THREE.SpriteMaterial({
+            map: makeGlowTexture(), transparent: true, opacity: 0.55,
+            blending: THREE.AdditiveBlending, depthWrite: false
+        }));
+        halo.scale.set(220, 220, 1);
+
+        // arxa plan ulduzları
+        const starGeo = new THREE.BufferGeometry();
+        {
+            const sN = 1100;
+            const sp = new Float32Array(sN * 3);
+            for (let i = 0; i < sN; i++) {
+                const r = 500 + rand() * 700;
+                const a = rand() * Math.PI * 2;
+                const b = Math.acos(2 * rand() - 1);
+                sp[i * 3] = r * Math.sin(b) * Math.cos(a);
+                sp[i * 3 + 1] = r * Math.cos(b) * 0.6;
+                sp[i * 3 + 2] = r * Math.sin(b) * Math.sin(a);
+            }
+            starGeo.setAttribute('position', new THREE.BufferAttribute(sp, 3));
+        }
+        const stars = new THREE.Points(starGeo, new THREE.PointsMaterial({
+            color: 0xa8c8ff, size: 1.4, sizeAttenuation: true,
+            transparent: true, opacity: 0.4,
+            blending: THREE.AdditiveBlending, depthWrite: false
+        }));
+        stars.frustumCulled = false;
+
+        /* =================== HƏRF ŞƏKİLLƏNDİRMƏ =================== */
+        const shapeCache = new Map();
+
+        function shapeChar(ch) {
+            if (shapeCache.has(ch)) return shapeCache.get(ch);
+            const font = `bold ${FONT_PX}px Arial, 'Helvetica Neue', 'Segoe UI', sans-serif`;
+            tCtx.font = font;
+            const mW = Math.ceil(tCtx.measureText(ch).width);
+            const w = Math.max(4, mW + 10);
+            const h = Math.ceil(FONT_PX * 1.4);
+            textCanvas.width = w;
+            textCanvas.height = h;
+            tCtx.font = font;
+            tCtx.fillStyle = '#fff';
+            tCtx.textAlign = 'center';
+            tCtx.textBaseline = 'middle';
+            tCtx.clearRect(0, 0, w, h);
+            tCtx.fillText(ch, w / 2, h / 2);
+            const data = tCtx.getImageData(0, 0, w, h).data;
+            const pts = [];
+            for (let y = 0; y < h; y++) {
+                for (let x = 0; x < w; x++) {
+                    if (data[(y * w + x) * 4 + 3] > 120) pts.push(x - w / 2, h / 2 - y);
+                }
+            }
+            const res = { w, pts };
+            shapeCache.set(ch, res);
+            return res;
+        }
+
+        let placed = [];
+        let letterCount = 0;
+        let committed = '';
+        let dustOver = false;
+        let worldH = WORLD_H_MAX;
+        let desiredZ = 110;
+        let desiredCamY = 0;
+
+        function computeFit(totalPx) {
+            const spanScale = 2 * FOV_TAN * camera.aspect * 0.86;
+            const spanAtMax = visW(ZMAX) * 0.86;
+            worldH = Math.min(WORLD_H_MAX, FONT_PX * spanAtMax / Math.max(totalPx, 1));
+            const totalW = totalPx * (worldH / FONT_PX);
+            const needZW = totalW / spanScale;
+            const topY = SPH_Y + SPH_R * 1.08;
+            const wordBottom = WORD_Y - worldH * 0.75;
+            const needZH = (topY - (wordBottom - UI_MARGIN)) / (2 * FOV_TAN);
+            desiredZ = Math.max(110, Math.min(ZMAX, Math.max(needZW, needZH)));
+            desiredCamY = (topY + wordBottom - UI_MARGIN) / 2;
+        }
+
+        function layout() {
+            let totalPx = 0;
+            for (const it of placed) totalPx += (it.ch === ' ' ? SPACE_W : it.shape.w) + CHAR_GAP;
+            if (placed.length) totalPx -= CHAR_GAP;
+            computeFit(totalPx);
+            const scale = worldH / FONT_PX;
+            let x = -(totalPx * scale) / 2;
+            for (const it of placed) {
+                const wpx = it.ch === ' ' ? SPACE_W : it.shape.w;
+                if (it.ch !== ' ') {
+                    const cx = x + (wpx * scale) / 2;
+                    const pts = it.shape.pts;
+                    const pc = pts.length / 2;
+                    for (let j = 0; j < it.count; j++) {
+                        const i3 = (it.start + j) * 3;
+                        const p = (j % pc) * 2;
+                        targets[i3]     = cx + pts[p] * scale + (rand() - 0.5) * 0.6;
+                        targets[i3 + 1] = WORD_Y + pts[p + 1] * scale + (rand() - 0.5) * 0.6;
+                        targets[i3 + 2] = (rand() - 0.5) * 1.2;
+                    }
+                }
+                x += (wpx + CHAR_GAP) * scale;
+            }
+        }
+
+        function spawnLetter(ch) {
+            const shape = shapeChar(ch);
+            if (!shape.pts.length) return false;
+            const start = letterCount * PER_LETTER;
+            const now = clock.elapsedTime;
+            placed.push({ ch, start, count: PER_LETTER, shape });
+            letterCount++;
+            sphKick = 1;
+            layout();
+            // hərf soldan sağa süpürmə ilə tədricən formalaşır
+            let minX = Infinity, maxX = -Infinity;
+            for (let j = 0; j < PER_LETTER; j++) {
+                const x = targets[(start + j) * 3];
+                if (x < minX) minX = x;
+                if (x > maxX) maxX = x;
+            }
+            const span = Math.max(1, maxX - minX);
+            for (let j = 0; j < PER_LETTER; j++) {
+                const i = start + j;
+                state[i] = 1;
+                releaseAt[i] = now + ((targets[i * 3] - minX) / span) * 0.9 + rand() * 0.25;
+                velocities[i * 3] = 0;
+                velocities[i * 3 + 1] = 0;
+                velocities[i * 3 + 2] = 0;
+            }
+            return true;
+        }
+
+        function releaseRange(start, count) {
+            for (let j = 0; j < count; j++) {
+                const i = start + j;
+                state[i] = 0;
+                setOrbit(i);
+            }
+        }
+
+        /* =================== UI =================== */
+        function flashOver() {
+            inputGroup.classList.remove('shake');
+            void inputGroup.offsetWidth;
+            inputGroup.classList.add('shake');
+        }
+
+        function tryChar(ch) {
+            if (dustOver) { flashOver(); return; }
+            if (ch === ' ') {
+                if (committed.length && committed.length < 24 && letterCount < MAX_LETTERS) {
+                    committed += ' ';
+                    placed.push({ ch: ' ', start: 0, count: 0, shape: null });
+                    layout();
+                    textInput.value = committed;
+                }
+                return;
+            }
+            if (letterCount >= MAX_LETTERS) { flashOver(); return; }
+            if (spawnLetter(ch)) {
+                committed += ch;
+                textInput.value = committed;
+                if (letterCount === MAX_LETTERS) dustOver = true;
+            }
+        }
+
+        function removeLast() {
+            if (!committed.length) return;
+            const item = placed[placed.length - 1];
+            if (item.ch !== ' ') { releaseRange(item.start, item.count); letterCount--; }
+            placed.pop();
+            committed = committed.slice(0, -1);
+            if (dustOver && letterCount < MAX_LETTERS) dustOver = false;
+            textInput.value = committed;
+            layout();
+        }
+
+        textInput.addEventListener('input', () => {
+            const v = textInput.value;
+            if (v === committed) return;
+            if (v.length > committed.length && v.startsWith(committed)) {
+                for (const ch of v.slice(committed.length)) tryChar(ch);
+            } else if (committed.startsWith(v)) {
+                let k = committed.length - v.length;
+                while (k-- > 0) removeLast();
+            }
+            textInput.value = committed;
+        });
+
+        window.addEventListener('keydown', (e) => {
+            if (document.activeElement === textInput) return;
+            if (e.ctrlKey || e.metaKey || e.altKey) return;
+            if (e.key === 'Backspace') { removeLast(); e.preventDefault(); }
+            else if (e.key.length === 1) tryChar(e.key);
+        });
+
+        resetBtn.addEventListener('click', resetAll);
+
+        function resetAll() {
+            placed = []; letterCount = 0; committed = ''; dustOver = false;
+            textInput.value = '';
+            for (let i = 0; i < N; i++) { state[i] = 0; setOrbit(i); scatter(i); }
+            layout();
+            if (!isTouch) textInput.focus();
+        }
+
+        /* =================== SİÇAN / TOXUNUŞ =================== */
+        const mouseN = new THREE.Vector2(10, 10);
+        const mouseW = new THREE.Vector3(0, 0, 0);
+        const tmpV = new THREE.Vector3();
+
+        function ndcFromEvent(cx, cy) {
+            mouseN.x = (cx / window.innerWidth) * 2 - 1;
+            mouseN.y = -(cy / window.innerHeight) * 2 + 1;
+        }
+        window.addEventListener('mousemove', (e) => {
+            if (e.target === textInput || e.target === resetBtn || resetBtn.contains(e.target)) { mouseN.set(10, 10); return; }
+            ndcFromEvent(e.clientX, e.clientY);
+        });
+        window.addEventListener('touchmove', (e) => {
+            if (e.target === textInput) return;
+            const t = e.touches[0];
+            if (t) ndcFromEvent(t.clientX, t.clientY);
+        }, { passive: true });
+        window.addEventListener('touchend', () => mouseN.set(10, 10));
+
+        function updateMouseWorld() {
+            tmpV.set(mouseN.x, mouseN.y, 0.5).unproject(camera);
+            tmpV.sub(camera.position).normalize();
+            const dist = -camera.position.z / tmpV.z;
+            mouseW.copy(camera.position).addScaledVector(tmpV, dist);
+        }
+
+        /* =================== ANİMASİYA =================== */
+        const clock = new THREE.Clock();
+        const MOUSE_R = 17;
+        const MOUSE_R2 = MOUSE_R * MOUSE_R;
+        let parX = 0;
+        let sphR = SPH_R, ambCount = N, sphKick = 0;
+
+        function animate() {
+            requestAnimationFrame(animate);
+            clock.getDelta();
+            const t = clock.elapsedTime;
+            material.uniforms.uTime.value = t;
+
+            // yumşaq kamera hərəkəti + incə parallaks
+            camera.position.z += (desiredZ - camera.position.z) * 0.04;
+            camera.position.y += (desiredCamY - camera.position.y) * 0.04;
+            const pTarget = Math.abs(mouseN.x) <= 1 ? mouseN.x * 5 : 0;
+            parX += (pTarget - parX) * 0.03;
+            camera.position.x = parX + Math.sin(t * 0.18) * 2.2;
+
+
+            updateMouseWorld();
+            const mx = mouseW.x, my = mouseW.y, mz = mouseW.z;
+            const pos = positions, col = colors, fc = fColors, vel = velocities;
+            // küre ölçüsü qalan tozun həcminə görə kiçilir (radius ~ həcmin kub kökü)
+            // f^0.6: hər yeni hərflə azalma əvvəlkindən daha çox olur; basış anında əlavə "sıxılma" zərbəsi
+            sphKick *= 0.93;
+            const sphTarget = SPH_R * Math.pow(ambCount / N, 0.6) * (1 - 0.12 * sphKick);
+            sphR += (sphTarget - sphR) * 0.06;
+            let amb = 0;
+
+            for (let i = 0; i < N; i++) {
+                const i3 = i * 3;
+                const px = pos[i3], py = pos[i3 + 1], pz = pos[i3 + 2];
+
+                // qopma anı: küredən çıxıb əyri trayektoriya ilə hədəfə uçuş başlayır
+                if (state[i] === 1 && t >= releaseAt[i]) {
+                    const ox = px, oy = py - SPH_Y, oz = pz;
+                    const ol = Math.sqrt(ox * ox + oy * oy + oz * oz) || 1;
+                    const bulge = 14 + rand() * 26;
+                    const tgx = targets[i3], tgy = targets[i3 + 1], tgz = targets[i3 + 2];
+                    fS[i3] = px; fS[i3 + 1] = py; fS[i3 + 2] = pz;
+                    fC[i3]     = px + (ox / ol) * bulge + (tgx - px) * 0.3 + (rand() - 0.5) * 12;
+                    fC[i3 + 1] = py + (oy / ol) * bulge * 0.5 + (tgy - py) * 0.35 + (rand() - 0.5) * 8;
+                    fC[i3 + 2] = pz + (oz / ol) * bulge + (tgz - pz) * 0.3 + (rand() - 0.5) * 12;
+                    fT0[i] = t;
+                    fDur[i] = 1.0 + rand() * 0.6;
+                    state[i] = 2;
+                    vel[i3] = 0; vel[i3 + 1] = 0; vel[i3 + 2] = 0;
+                }
+
+                const effAmbient = (state[i] === 0) || (state[i] === 1);
+                if (effAmbient) amb++;
+                let gold = false;
+                if (effAmbient) {
+                    const mdx = px - mx, mdy = py - my, mdz = pz - mz;
+                    const md2 = mdx * mdx + mdy * mdy + mdz * mdz;
+                    if (md2 < MOUSE_R2) {
+                        const md = Math.sqrt(md2) || 0.001;
+                        const force = (MOUSE_R - md) / MOUSE_R;
+                        const push = force * 1.7;
+                        vel[i3]     += (mdx / md) * push;
+                        vel[i3 + 1] += (mdy / md) * push;
+                        vel[i3 + 2] += (mdz / md) * push;
+                        gold = true;
+                    }
+                }
+
+                if (effAmbient) {
+                    const th = ang0[i] + t * angW[i];
+                    const tx2 = ambR[i] * sphR * Math.sin(th);
+                    const ty2 = SPH_Y + ambY[i] * sphR;
+                    const tz2 = ambR[i] * sphR * Math.cos(th);
+                    pos[i3]     = px + (tx2 - px) * 0.022 + vel[i3];
+                    pos[i3 + 1] = py + (ty2 - py) * 0.022 + vel[i3 + 1];
+                    pos[i3 + 2] = pz + (tz2 - pz) * 0.022 + vel[i3 + 2];
+
+                    const kr = gold ? 1 : fc[i3];
+                    const kg = gold ? 0.84 : fc[i3 + 1];
+                    const kb = gold ? 0.4 : fc[i3 + 2];
+                    const kc = gold ? 0.3 : 0.05;
+                    col[i3]     += (kr - col[i3]) * kc;
+                    col[i3 + 1] += (kg - col[i3 + 1]) * kc;
+                    col[i3 + 2] += (kb - col[i3 + 2]) * kc;
+                } else if (state[i] === 2) {
+                    // UÇUŞ: kvadratik Bezier əyrisi boyunca hamar sürüşmə
+                    let u = (t - fT0[i]) / fDur[i];
+                    if (u >= 1) { u = 1; state[i] = 3; }
+                    const e = u < 0.5 ? 4 * u * u * u : 1 - Math.pow(-2 * u + 2, 3) / 2;
+                    const a = 1 - e;
+                    const w0 = a * a, w1 = 2 * a * e, w2 = e * e;
+                    pos[i3]     = w0 * fS[i3]     + w1 * fC[i3]     + w2 * targets[i3];
+                    pos[i3 + 1] = w0 * fS[i3 + 1] + w1 * fC[i3 + 1] + w2 * targets[i3 + 1];
+                    pos[i3 + 2] = w0 * fS[i3 + 2] + w1 * fC[i3 + 2] + w2 * targets[i3 + 2];
+
+                    // yolda isti ton, hədəfə çatdıqca öz rənginə keçir
+                    const m = (1 - u) * 0.7;
+                    col[i3]     += (fc[i3]     * (1 - m) + E_R * m - col[i3])     * 0.15;
+                    col[i3 + 1] += (fc[i3 + 1] * (1 - m) + E_G * m - col[i3 + 1]) * 0.15;
+                    col[i3 + 2] += (fc[i3 + 2] * (1 - m) + E_B * m - col[i3 + 2]) * 0.15;
+                } else {
+                    // OTURMUŞ HƏRF: hədəfə yumşaq bağlanır, cüzi nəfəs alma
+                    const ph = phase[i] * 6.283;
+                    const sx = Math.sin(t * 1.4 + ph) * 0.12;
+                    const sy = Math.cos(t * 1.2 + ph * 1.3) * 0.12;
+                    pos[i3]     = px + (targets[i3]     + sx - px) * 0.14;
+                    pos[i3 + 1] = py + (targets[i3 + 1] + sy - py) * 0.14;
+                    pos[i3 + 2] = pz + (targets[i3 + 2]      - pz) * 0.14;
+                    col[i3]     += (fc[i3]     - col[i3])     * 0.1;
+                    col[i3 + 1] += (fc[i3 + 1] - col[i3 + 1]) * 0.1;
+                    col[i3 + 2] += (fc[i3 + 2] - col[i3 + 2]) * 0.1;
+                }
+
+                vel[i3]     *= 0.9;
+                vel[i3 + 1] *= 0.9;
+                vel[i3 + 2] *= 0.9;
+            }
+
+            ambCount = amb;
+            posAttr.needsUpdate = true;
+            colAttr.needsUpdate = true;
+
+            renderer.render(scene, camera);
+        }
+
+        /* =================== BAŞLANĞIC =================== */
+        layout();
+
+        function startIntro() {
+            loadingScreen.style.opacity = '0';
+            setTimeout(() => { loadingScreen.style.display = 'none'; }, 1050);
+            if (!isTouch) textInput.focus();
+        }
+        if (document.readyState === 'complete') startIntro();
+        else window.addEventListener('load', startIntro);
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            material.uniforms.uPixelRatio.value = Math.min(window.devicePixelRatio, 2);
+            layout();
+        });
+
+        animate();
+    </script>
+</body>
+</html>
