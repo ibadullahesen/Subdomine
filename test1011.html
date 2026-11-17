@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Qızılı Səs Dalğası - Səpələnmə</title>
+    <title>Qızılı Səs Dalğası - Gücləndirilmiş İdarəetmə</title>
     <style>
         body, html {
             margin: 0;
@@ -45,11 +45,11 @@
         let targetHandPosition = new THREE.Vector3(0, 0, 0);
         
         let isFist = false;
-        let scatterAmount = 0.0;       // Əl açıldıqda zərrəciklərin hər tərəfə qopub uçması üçün səpələnmə gücü
+        let scatterAmount = 0.0;
         let targetScatter = 0.0;
         
-        let fistScale = 0.55;
-        let targetFistScale = 0.55;
+        let fistScale = 0.6;
+        let targetFistScale = 0.6;
 
         function init() {
             scene = new THREE.Scene();
@@ -63,7 +63,7 @@
 
             particleGeometry = new THREE.BufferGeometry();
             positions = new Float32Array(particleCount * 3);
-            originalDirections = new Float32Array(particleCount * 3); // Hər zərrəciyin fərqli uçuş istiqaməti
+            originalDirections = new Float32Array(particleCount * 3);
             baseRadii = new Float32Array(particleCount);
             speeds = new Float32Array(particleCount);
             phases = new Float32Array(particleCount);
@@ -84,12 +84,11 @@
 
                 baseRadii[i] = radius;
 
-                // Hər zərrəciyə tamamilə fərqli, random 3D vektoru veririk ki, açanda hər biri ayrı istiqamətə səpələnsin
                 const u = Math.random();
                 const v = Math.random();
                 const thetaRand = u * 2.0 * Math.PI;
                 const phiRand = Math.acos(2.0 * v - 1.0);
-                const rRand = 0.8 + Math.random() * 2.5; // Kəskin fərqli sürətlər üçün
+                const rRand = 0.8 + Math.random() * 2.5;
 
                 originalDirections[i * 3] = rRand * Math.sin(phiRand) * Math.cos(thetaRand);
                 originalDirections[i * 3 + 1] = rRand * Math.sin(phiRand) * Math.sin(thetaRand);
@@ -138,7 +137,7 @@
             const ctx = canvas.getContext('2d');
             const gradient = ctx.createRadialGradient(32, 32, 0, 32, 32, 32);
             gradient.addColorStop(0, 'rgba(255,255,255,1)');
-            gradient.addColorStop(0.3, 'rgba(255,215,0,0.9)');
+            gradient.addColorStop(0.3, 'rgba(255,215,0,0.95)');
             gradient.addColorStop(1, 'rgba(0,0,0,0)');
             ctx.fillStyle = gradient;
             ctx.fillRect(0, 0, 64, 64);
@@ -196,7 +195,6 @@
                 });
                 totalSpread /= 4;
                 
-                // Əli açdıqca səpələnməni maksimum artırırıq (şəkil kimi böyümür, hər tərəfə qoparaq dağılır)
                 targetScatter = Math.max(0, (totalSpread - 0.35) * 8.0);
 
                 let avgDistanceToWrist = 0;
@@ -211,8 +209,9 @@
                 if (isFist) {
                     const thumbTip = landmarks[4];
                     const indexTip = landmarks[8];
+                    // Barmaqları aralayıb-yığdıqda miqyas dəyişməsi kəskinləşdirildi (0.2 ilə 2.8 arası)
                     const pinchDist = Math.hypot(thumbTip.x - indexTip.x, thumbTip.y - indexTip.y);
-                    targetFistScale = 0.4 + (pinchDist * 1.8);
+                    targetFistScale = 0.2 + (pinchDist * 3.5);
                 }
             } else {
                 targetHandPosition.set(0, 0, 0);
@@ -228,7 +227,7 @@
 
             handPosition.lerp(targetHandPosition, 0.08);
             scatterAmount += (targetScatter - scatterAmount) * 0.06;
-            fistScale += (targetFistScale - fistScale) * 0.08;
+            fistScale += (targetFistScale - fistScale) * 0.12; // Ölçü dəyişməsi daha sürətli və hiss olunan edildi
 
             particles.position.copy(handPosition);
             particles.rotation.y = elapsedTime * 0.12;
@@ -236,11 +235,12 @@
 
             const posAttribute = particleGeometry.attributes.position;
 
-            let targetOpacity = isFist ? 0.95 : 0.85;
-            particleMaterial.opacity += (targetOpacity - particleMaterial.opacity) * 0.1;
+            // Yumruq zamanı parlaqlıq və ölçü kəskin şəkildə artırıldı (daha canlı və parlaq olması üçün)
+            let targetOpacity = isFist ? 1.0 : 0.85;
+            particleMaterial.opacity += (targetOpacity - particleMaterial.opacity) * 0.15;
 
-            let targetSize = isFist ? 0.038 : 0.045;
-            particleMaterial.size += (targetSize - particleMaterial.size) * 0.1;
+            let targetSize = isFist ? 0.065 : 0.045; // Yumruqda zərrəciklər daha iri və parlaq olur
+            particleMaterial.size += (targetSize - particleMaterial.size) * 0.15;
 
             for (let i = 0; i < particleCount; i++) {
                 const origX = originalDirections[i * 3];
@@ -255,23 +255,20 @@
                 const waveAnim = Math.sin(elapsedTime * 4.0 + pPhase) * 0.1;
 
                 if (isFist) {
-                    const compactWave = Math.sin(elapsedTime * 5 + pPhase) * 0.015;
+                    const compactWave = Math.sin(elapsedTime * 6 + pPhase) * 0.02;
                     const r = baseR * (fistScale + compactWave);
-                    // Yumruqda normal səs dalğası kürə formasına qayıdır
                     const phi = Math.acos(-1 + (2 * i) / particleCount);
                     const theta = Math.sqrt(particleCount * Math.PI) * phi;
                     tx = r * Math.sin(phi) * Math.cos(theta);
                     ty = r * Math.sin(phi) * Math.sin(theta);
                     tz = r * Math.cos(phi);
                 } else {
-                    // Açıq əl: Səs dalğası forması qorunur, amma scatterAmount artdıqca hər zərrəcik öz random istiqamətində kənara uçaraq səpələnir
                     const phi = Math.acos(-1 + (2 * i) / particleCount);
                     const theta = Math.sqrt(particleCount * Math.PI) * phi;
                     const baseWaveX = (baseR + waveAnim) * Math.sin(phi) * Math.cos(theta);
                     const baseWaveY = (baseR + waveAnim) * Math.sin(phi) * Math.sin(theta);
                     const baseWaveZ = (baseR + waveAnim) * Math.cos(phi);
 
-                    // Səpələnmə effekti: bazaya random səpələnmə vektoru əlavə olunur
                     tx = baseWaveX + (origX * scatterAmount * pSpeed);
                     ty = baseWaveY + (origY * scatterAmount * pSpeed);
                     tz = baseWaveZ + (origZ * scatterAmount * pSpeed);
