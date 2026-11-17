@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Qızılı Səs Dalğası - Səpələnmə Effekti</title>
+    <title>Qızılı Səs Dalğası - Səpələnmə</title>
     <style>
         body, html {
             margin: 0;
@@ -39,14 +39,14 @@
     <script>
         let scene, camera, renderer, particles, particleGeometry, particleMaterial;
         const particleCount = 20000;
-        let currentPositions, targetPositions, originalDirections, baseRadii, phases;
+        let positions, originalDirections, baseRadii, speeds, phases;
         
         let handPosition = new THREE.Vector3(0, 0, 0);
         let targetHandPosition = new THREE.Vector3(0, 0, 0);
         
         let isFist = false;
-        let dispersionFactor = 1.0;       // Əl açıldıqca hər tərəfə səpələnmə əmsalı
-        let targetDispersion = 1.0;
+        let scatterAmount = 0.0;       // Əl açıldıqda zərrəciklərin hər tərəfə qopub uçması üçün səpələnmə gücü
+        let targetScatter = 0.0;
         
         let fistScale = 0.55;
         let targetFistScale = 0.55;
@@ -62,39 +62,44 @@
             document.getElementById('canvas-container').appendChild(renderer.domElement);
 
             particleGeometry = new THREE.BufferGeometry();
-            currentPositions = new Float32Array(particleCount * 3);
-            targetPositions = new Float32Array(particleCount * 3);
-            originalDirections = new Float32Array(particleCount * 3); // Hər zərrəciyin getdiyi xüsusi istiqamət
+            positions = new Float32Array(particleCount * 3);
+            originalDirections = new Float32Array(particleCount * 3); // Hər zərrəciyin fərqli uçuş istiqaməti
             baseRadii = new Float32Array(particleCount);
+            speeds = new Float32Array(particleCount);
             phases = new Float32Array(particleCount);
 
             const colors = new Float32Array(particleCount * 3);
             const colorObj = new THREE.Color();
 
             for (let i = 0; i < particleCount; i++) {
-                // Səs dalğası üçün başlanğıc istiqamət vektoru (normalizə olunmuş)
                 const phi = Math.acos(-1 + (2 * i) / particleCount);
                 const theta = Math.sqrt(particleCount * Math.PI) * phi;
 
                 const wave = Math.sin(theta * 12) * Math.cos(phi * 10) * 0.22;
                 const radius = 1.2 + wave;
 
-                const dirX = radius * Math.sin(phi) * Math.cos(theta);
-                const dirY = radius * Math.sin(phi) * Math.sin(theta);
-                const dirZ = radius * Math.cos(phi);
+                const x = radius * Math.sin(phi) * Math.cos(theta);
+                const y = radius * Math.sin(phi) * Math.sin(theta);
+                const z = radius * Math.cos(phi);
 
-                // İstiqamətin uzunluğunu normalizə edirik ki, hər zərrəcik öz unikallığı ilə xaricə doğru partlasın
-                const length = Math.hypot(dirX, dirY, dirZ);
-                originalDirections[i * 3] = dirX / length;
-                originalDirections[i * 3 + 1] = dirY / length;
-                originalDirections[i * 3 + 2] = dirZ / length;
+                baseRadii[i] = radius;
 
-                baseRadii[i] = length;
+                // Hər zərrəciyə tamamilə fərqli, random 3D vektoru veririk ki, açanda hər biri ayrı istiqamətə səpələnsin
+                const u = Math.random();
+                const v = Math.random();
+                const thetaRand = u * 2.0 * Math.PI;
+                const phiRand = Math.acos(2.0 * v - 1.0);
+                const rRand = 0.8 + Math.random() * 2.5; // Kəskin fərqli sürətlər üçün
 
-                currentPositions[i * 3] = dirX;
-                currentPositions[i * 3 + 1] = dirY;
-                currentPositions[i * 3 + 2] = dirZ;
+                originalDirections[i * 3] = rRand * Math.sin(phiRand) * Math.cos(thetaRand);
+                originalDirections[i * 3 + 1] = rRand * Math.sin(phiRand) * Math.sin(thetaRand);
+                originalDirections[i * 3 + 2] = rRand * Math.cos(phiRand);
 
+                positions[i * 3] = x;
+                positions[i * 3 + 1] = y;
+                positions[i * 3 + 2] = z;
+
+                speeds[i] = 0.5 + Math.random() * 1.5;
                 phases[i] = Math.random() * Math.PI * 2;
 
                 colorObj.setHSL(0.12, 0.9, 0.5 + Math.random() * 0.5);
@@ -103,7 +108,7 @@
                 colors[i * 3 + 2] = colorObj.b;
             }
 
-            particleGeometry.setAttribute('position', new THREE.BufferAttribute(currentPositions, 3));
+            particleGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
             particleGeometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
 
             const canvasTex = createParticleTexture();
@@ -191,8 +196,8 @@
                 });
                 totalSpread /= 4;
                 
-                // Əl açıldıqca zərrəciklərin hər tərəfə səpələnmə məsafəsini kəskin artırırıq
-                targetDispersion = 1.0 + Math.pow(totalSpread * 3.5, 2.2);
+                // Əli açdıqca səpələnməni maksimum artırırıq (şəkil kimi böyümür, hər tərəfə qoparaq dağılır)
+                targetScatter = Math.max(0, (totalSpread - 0.35) * 8.0);
 
                 let avgDistanceToWrist = 0;
                 [8, 12, 16, 20].forEach(tipIdx => {
@@ -211,7 +216,7 @@
                 }
             } else {
                 targetHandPosition.set(0, 0, 0);
-                targetDispersion = 1.0;
+                targetScatter = 0.0;
             }
         }
 
@@ -222,7 +227,7 @@
             const elapsedTime = clock.getElapsedTime();
 
             handPosition.lerp(targetHandPosition, 0.08);
-            dispersionFactor += (targetDispersion - dispersionFactor) * 0.05;
+            scatterAmount += (targetScatter - scatterAmount) * 0.06;
             fistScale += (targetFistScale - fistScale) * 0.08;
 
             particles.position.copy(handPosition);
@@ -238,37 +243,47 @@
             particleMaterial.size += (targetSize - particleMaterial.size) * 0.1;
 
             for (let i = 0; i < particleCount; i++) {
-                const dirX = originalDirections[i * 3];
-                const dirY = originalDirections[i * 3 + 1];
-                const dirZ = originalDirections[i * 3 + 2];
+                const origX = originalDirections[i * 3];
+                const origY = originalDirections[i * 3 + 1];
+                const origZ = originalDirections[i * 3 + 2];
                 const baseR = baseRadii[i];
+                const pSpeed = speeds[i];
                 const pPhase = phases[i];
 
                 let tx, ty, tz;
 
-                const waveAnim = Math.sin(elapsedTime * 3.5 + pPhase) * 0.07;
+                const waveAnim = Math.sin(elapsedTime * 4.0 + pPhase) * 0.1;
 
                 if (isFist) {
                     const compactWave = Math.sin(elapsedTime * 5 + pPhase) * 0.015;
                     const r = baseR * (fistScale + compactWave);
-                    tx = dirX * r;
-                    ty = dirY * r;
-                    tz = dirZ * r;
+                    // Yumruqda normal səs dalğası kürə formasına qayıdır
+                    const phi = Math.acos(-1 + (2 * i) / particleCount);
+                    const theta = Math.sqrt(particleCount * Math.PI) * phi;
+                    tx = r * Math.sin(phi) * Math.cos(theta);
+                    ty = r * Math.sin(phi) * Math.sin(theta);
+                    tz = r * Math.cos(phi);
                 } else {
-                    // Əl açıldıqca hər zərrəcik öz istiqaməti üzrə xaricə doğru səpələnir (partlayır) + səs dalğası qorunur
-                    const expandedR = (baseR + waveAnim) * dispersionFactor;
-                    tx = dirX * expandedR;
-                    ty = dirY * expandedR;
-                    tz = dirZ * expandedR;
+                    // Açıq əl: Səs dalğası forması qorunur, amma scatterAmount artdıqca hər zərrəcik öz random istiqamətində kənara uçaraq səpələnir
+                    const phi = Math.acos(-1 + (2 * i) / particleCount);
+                    const theta = Math.sqrt(particleCount * Math.PI) * phi;
+                    const baseWaveX = (baseR + waveAnim) * Math.sin(phi) * Math.cos(theta);
+                    const baseWaveY = (baseR + waveAnim) * Math.sin(phi) * Math.sin(theta);
+                    const baseWaveZ = (baseR + waveAnim) * Math.cos(phi);
+
+                    // Səpələnmə effekti: bazaya random səpələnmə vektoru əlavə olunur
+                    tx = baseWaveX + (origX * scatterAmount * pSpeed);
+                    ty = baseWaveY + (origY * scatterAmount * pSpeed);
+                    tz = baseWaveZ + (origZ * scatterAmount * pSpeed);
                 }
 
                 let px = posAttribute.getX(i);
                 let py = posAttribute.getY(i);
                 let pz = posAttribute.getZ(i);
 
-                px += (tx - px) * 0.06;
-                py += (ty - py) * 0.06;
-                pz += (tz - pz) * 0.06;
+                px += (tx - px) * 0.08;
+                py += (ty - py) * 0.08;
+                pz += (tz - pz) * 0.08;
 
                 posAttribute.setXYZ(i, px, py, pz);
             }
