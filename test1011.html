@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Qızılı Səs Dalğası - Gücləndirilmiş İdarəetmə</title>
+    <title>Qızılı Səs Dalğası - Maksimum Parlaqlıq və Ölçü</title>
     <style>
         body, html {
             margin: 0;
@@ -38,7 +38,7 @@
 
     <script>
         let scene, camera, renderer, particles, particleGeometry, particleMaterial;
-        const particleCount = 20000;
+        const particleCount = 28000; // Zərrəcik sayı daha da artırıldı
         let positions, originalDirections, baseRadii, speeds, phases;
         
         let handPosition = new THREE.Vector3(0, 0, 0);
@@ -88,7 +88,7 @@
                 const v = Math.random();
                 const thetaRand = u * 2.0 * Math.PI;
                 const phiRand = Math.acos(2.0 * v - 1.0);
-                const rRand = 0.8 + Math.random() * 2.5;
+                const rRand = 0.8 + Math.random() * 3.5; // Genişlənmə diapazonu artırıldı
 
                 originalDirections[i * 3] = rRand * Math.sin(phiRand) * Math.cos(thetaRand);
                 originalDirections[i * 3 + 1] = rRand * Math.sin(phiRand) * Math.sin(thetaRand);
@@ -114,7 +114,7 @@
             const texture = new THREE.CanvasTexture(canvasTex);
 
             particleMaterial = new THREE.PointsMaterial({
-                size: 0.045,
+                size: 0.05,
                 map: texture,
                 vertexColors: true,
                 transparent: true,
@@ -137,7 +137,8 @@
             const ctx = canvas.getContext('2d');
             const gradient = ctx.createRadialGradient(32, 32, 0, 32, 32, 32);
             gradient.addColorStop(0, 'rgba(255,255,255,1)');
-            gradient.addColorStop(0.3, 'rgba(255,215,0,0.95)');
+            gradient.addColorStop(0.2, 'rgba(255,230,100,1)');
+            gradient.addColorStop(0.5, 'rgba(255,215,0,0.9)');
             gradient.addColorStop(1, 'rgba(0,0,0,0)');
             ctx.fillStyle = gradient;
             ctx.fillRect(0, 0, 64, 64);
@@ -195,7 +196,8 @@
                 });
                 totalSpread /= 4;
                 
-                targetScatter = Math.max(0, (totalSpread - 0.35) * 8.0);
+                // Əl açıldıqda çox nəhəng şəkildə böyüyüb dağılması üçün əmsal qat-qat artırıldı
+                targetScatter = Math.max(0, (totalSpread - 0.3) * 16.0);
 
                 let avgDistanceToWrist = 0;
                 [8, 12, 16, 20].forEach(tipIdx => {
@@ -209,9 +211,8 @@
                 if (isFist) {
                     const thumbTip = landmarks[4];
                     const indexTip = landmarks[8];
-                    // Barmaqları aralayıb-yığdıqda miqyas dəyişməsi kəskinləşdirildi (0.2 ilə 2.8 arası)
                     const pinchDist = Math.hypot(thumbTip.x - indexTip.x, thumbTip.y - indexTip.y);
-                    targetFistScale = 0.2 + (pinchDist * 3.5);
+                    targetFistScale = 0.2 + (pinchDist * 4.0);
                 }
             } else {
                 targetHandPosition.set(0, 0, 0);
@@ -227,7 +228,7 @@
 
             handPosition.lerp(targetHandPosition, 0.08);
             scatterAmount += (targetScatter - scatterAmount) * 0.06;
-            fistScale += (targetFistScale - fistScale) * 0.12; // Ölçü dəyişməsi daha sürətli və hiss olunan edildi
+            fistScale += (targetFistScale - fistScale) * 0.12;
 
             particles.position.copy(handPosition);
             particles.rotation.y = elapsedTime * 0.12;
@@ -235,11 +236,12 @@
 
             const posAttribute = particleGeometry.attributes.position;
 
-            // Yumruq zamanı parlaqlıq və ölçü kəskin şəkildə artırıldı (daha canlı və parlaq olması üçün)
-            let targetOpacity = isFist ? 1.0 : 0.85;
+            // Yumruq və ya açıq əl zamanı parlaqlıq maksimum səviyyəyə qaldırıldı
+            let targetOpacity = isFist ? 1.0 : 0.95;
             particleMaterial.opacity += (targetOpacity - particleMaterial.opacity) * 0.15;
 
-            let targetSize = isFist ? 0.065 : 0.045; // Yumruqda zərrəciklər daha iri və parlaq olur
+            // Ölçü çox böyüdüldü (həm yumruqda, həm də səpələnəndə parlaq və iri görünməsi üçün)
+            let targetSize = isFist ? 0.08 : (0.05 + scatterAmount * 0.012);
             particleMaterial.size += (targetSize - particleMaterial.size) * 0.15;
 
             for (let i = 0; i < particleCount; i++) {
