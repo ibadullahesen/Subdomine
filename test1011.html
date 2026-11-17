@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Qızılı Səs Dalğası Küresi - Əl İdarəetməsi</title>
+    <title>Qızılı Səs Dalğası - İnteraktiv Əl İdarəetməsi</title>
     <style>
         body, html {
             margin: 0;
@@ -29,14 +29,14 @@
             bottom: 20px;
             left: 50%;
             transform: translateX(-50%);
-            color: rgba(255, 215, 0, 0.7);
-            background: rgba(0, 0, 0, 0.6);
+            color: rgba(255, 215, 0, 0.8);
+            background: rgba(0, 0, 0, 0.7);
             padding: 10px 20px;
             border-radius: 20px;
             font-size: 14px;
             pointer-events: none;
             letter-spacing: 1px;
-            border: 1px solid rgba(255, 215, 0, 0.2);
+            border: 1px solid rgba(255, 215, 0, 0.3);
             text-align: center;
             z-index: 10;
         }
@@ -52,22 +52,25 @@
 
     <div id="canvas-container"></div>
     <video id="webcam" playsinline></video>
-    <div id="info">Əlini göstər: Baş & işarə barmaq məsafəsi ilə uzaqlaşdır/yaxınlaşdır | Yumruq edərək topla</div>
+    <div id="info">Əlini aç: Dağılsın | Yumruq et: Toplansın | Yumruqda baş & işarə barmaqla ölçünü dəyiş</div>
 
     <script>
         let scene, camera, renderer, particles, particleGeometry, particleMaterial;
-        const particleCount = 4000;
-        let positions, targetPositions, originalPositions;
+        const particleCount = 10000; // Zərrəcik sayı artırıldı
+        let positions, targetPositions, originalPositions, phases;
         
         // Əl izləmə dəyişənləri
         let handPosition = new THREE.Vector3(0, 0, 0);
         let targetHandPosition = new THREE.Vector3(0, 0, 0);
+        
         let isFist = false;
-        let targetZDistance = 0; // Baş və işarə barmaq məsafəsi ilə idarə olunan Z oxu / miqyas
-        let currentZDistance = 0;
+        let handSpread = 1.0;       // Əlin açılma dərəcəsi
+        let targetHandSpread = 1.0;
+        
+        let fistScale = 0.3;        // Yumruq zamanı baş/işarə barmaqla idarə olunan ölçü
+        let targetFistScale = 0.3;
 
         function init() {
-            // Three.js səhnəsinin qurulması
             scene = new THREE.Scene();
             camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
             camera.position.z = 5;
@@ -77,22 +80,21 @@
             renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
             document.getElementById('canvas-container').appendChild(renderer.domElement);
 
-            // Zərrəcik sisteminin yaradılması
             particleGeometry = new THREE.BufferGeometry();
             positions = new Float32Array(particleCount * 3);
             targetPositions = new Float32Array(particleCount * 3);
             originalPositions = new Float32Array(particleCount * 3);
+            phases = new Float32Array(particleCount);
 
             const colors = new Float32Array(particleCount * 3);
             const colorObj = new THREE.Color();
 
             for (let i = 0; i < particleCount; i++) {
-                // Səs dalğası kimi qabarıq kürə formalı ilkin koordinatlar (Fibonacci sphere + noise)
                 const phi = Math.acos(-1 + (2 * i) / particleCount);
                 const theta = Math.sqrt(particleCount * Math.PI) * phi;
 
-                // Səs dalğası effekti üçün radiusa dalğavari dəyişkənlik əlavə edirik
-                const wave = Math.sin(theta * 8) * Math.cos(phi * 6) * 0.25;
+                // Səs dalğası kimi qabarıq kürə forması
+                const wave = Math.sin(theta * 10) * Math.cos(phi * 8) * 0.2;
                 const radius = 1.2 + wave;
 
                 const x = radius * Math.sin(phi) * Math.cos(theta);
@@ -107,12 +109,10 @@
                 positions[i * 3 + 1] = y;
                 positions[i * 3 + 2] = z;
 
-                targetPositions[i * 3] = x;
-                targetPositions[i * 3 + 1] = y;
-                targetPositions[i * 3 + 2] = z;
+                phases[i] = Math.random() * Math.PI * 2;
 
-                // Qızılı tonlar
-                colorObj.setHSL(0.12, 0.9, 0.6 + Math.random() * 0.4);
+                // Parlaq qızılı rənglər
+                colorObj.setHSL(0.12, 0.9, 0.5 + Math.random() * 0.5);
                 colors[i * 3] = colorObj.r;
                 colors[i * 3 + 1] = colorObj.g;
                 colors[i * 3 + 2] = colorObj.b;
@@ -121,12 +121,11 @@
             particleGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
             particleGeometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
 
-            // Parıltılı və yumşaq zərrəcik şader materialı
             const canvasTex = createParticleTexture();
             const texture = new THREE.CanvasTexture(canvasTex);
 
             particleMaterial = new THREE.PointsMaterial({
-                size: 0.08,
+                size: 0.05,
                 map: texture,
                 vertexColors: true,
                 transparent: true,
@@ -142,7 +141,6 @@
             animate();
         }
 
-        // Yumşaq işıqlı nöqtə toxuması
         function createParticleTexture() {
             const canvas = document.createElement('canvas');
             canvas.width = 64;
@@ -150,7 +148,7 @@
             const ctx = canvas.getContext('2d');
             const gradient = ctx.createRadialGradient(32, 32, 0, 32, 32, 32);
             gradient.addColorStop(0, 'rgba(255,255,255,1)');
-            gradient.addColorStop(0.3, 'rgba(255,215,0,0.8)');
+            gradient.addColorStop(0.3, 'rgba(255,215,0,0.9)');
             gradient.addColorStop(1, 'rgba(0,0,0,0)');
             ctx.fillStyle = gradient;
             ctx.fillRect(0, 0, 64, 64);
@@ -163,7 +161,6 @@
             renderer.setSize(window.innerWidth, window.innerHeight);
         }
 
-        // MediaPipe Hands Quraşdırılması
         function initMediaPipe() {
             const videoElement = document.getElementById('webcam');
             
@@ -190,28 +187,29 @@
             cameraUtils.start();
         }
 
-        // Əl hərəkətlərinin təhlili
         function onHandResults(results) {
             if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
                 const landmarks = results.multiHandLandmarks[0];
 
-                // Əlin mərkəzi (Bilək və orta barmaq əsası ortası)
                 const wrist = landmarks[0];
                 const middleMCP = landmarks[9];
                 
-                // Ekran koordinatlarına çevirmə (-1 ilə 1 arası)
                 const x = -((wrist.x + middleMCP.x) / 2 - 0.5) * 5;
                 const y = -((wrist.y + middleMCP.y) / 2 - 0.5) * 4;
                 targetHandPosition.set(x, y, 0);
 
-                // 1. Baş barmaq (4) və işarə barmaq (8) ucları arasındakı məsafə (Uzaqlaşdırma / Yaxınlaşdırma)
-                const thumbTip = landmarks[4];
-                const indexTip = landmarks[8];
-                const pinchDist = Math.hypot(thumbTip.x - indexTip.x, thumbTip.y - indexTip.y);
-                // Pinch məsafəsini Z dərinliyinə və miqyasa çeviririk
-                targetZDistance = (pinchDist - 0.15) * 4.5; // Araladıqda yaxınlaşır, yaxınlaşdırdıqda uzaqlaşır
+                // 1. Əlin açılma dərəcəsi: Bilək (0) ilə barmaq ucları (8, 12, 16, 20) arasındakı orta məsafə
+                let totalSpread = 0;
+                [8, 12, 16, 20].forEach(tipIdx => {
+                    const tip = landmarks[tipIdx];
+                    const dist = Math.hypot(tip.x - wrist.x, tip.y - wrist.y);
+                    totalSpread += dist;
+                });
+                totalSpread /= 4;
+                // Əl nə qədər çox açılarsa, targetHandSpread bir o qədər böyüyür (məs: 0.8 ilə 2.5 arası)
+                targetHandSpread = 0.6 + (totalSpread * 3.5);
 
-                // 2. Yumruq yoxlanışı: Barmaq uclarının (8, 12, 16, 20) ovuc evinə (0) yaxınlığı
+                // 2. Yumruq yoxlanışı
                 let avgDistanceToWrist = 0;
                 [8, 12, 16, 20].forEach(tipIdx => {
                     const tip = landmarks[tipIdx];
@@ -219,12 +217,18 @@
                     avgDistanceToWrist += dist;
                 });
                 avgDistanceToWrist /= 4;
-
-                // Əgər barmaqlar bükülübsə (yumruq)
                 isFist = avgDistanceToWrist < 0.28;
+
+                // 3. Əgər yumruqdadırsa, baş barmaq (4) və işarə barmaq (8) məsafəsi ilə kiçik kürənin ölçüsünü tənzimlə
+                if (isFist) {
+                    const thumbTip = landmarks[4];
+                    const indexTip = landmarks[8];
+                    const pinchDist = Math.hypot(thumbTip.x - indexTip.x, thumbTip.y - indexTip.y);
+                    targetFistScale = 0.1 + (pinchDist * 1.5); // Barmaqları açdıqca yumruq içindəki kürə böyüyür
+                }
             } else {
                 targetHandPosition.set(0, 0, 0);
-                targetZDistance = 0;
+                targetHandSpread = 1.0;
             }
         }
 
@@ -234,56 +238,55 @@
             requestAnimationFrame(animate);
             const elapsedTime = clock.getElapsedTime();
 
-            // Əl mövqeyini hamar şəkildə izləmə (Lerp)
             handPosition.lerp(targetHandPosition, 0.1);
-            currentZDistance += (targetZDistance - currentZDistance) * 0.1;
+            handSpread += (targetHandSpread - handSpread) * 0.1;
+            fistScale += (targetFistScale - fistScale) * 0.1;
 
             particles.position.copy(handPosition);
-
-            // Küre öz oxu ətrafında yavaşca fırlanır
-            particles.rotation.y = elapsedTime * 0.2;
-            particles.rotation.x = Math.sin(elapsedTime * 0.1) * 0.1;
+            particles.rotation.y = elapsedTime * 0.15;
+            particles.rotation.x = Math.sin(elapsedTime * 0.08) * 0.1;
 
             const posAttribute = particleGeometry.attributes.position;
-            const colorAttribute = particleGeometry.attributes.color;
 
-            // Yumruq vəziyyətinə görə parıltı və ölçünün tənzimlənməsi
-            let targetOpacity = isFist ? 0.2 : 0.85;
+            // Yumruq zamanı zərrəciklər tam itmir, kiçik parlaq nöqtəyə yığılır
+            let targetOpacity = isFist ? 0.9 : 0.85;
             particleMaterial.opacity += (targetOpacity - particleMaterial.opacity) * 0.1;
 
-            let targetSize = isFist ? 0.04 : 0.08;
+            let targetSize = isFist ? 0.03 : 0.05;
             particleMaterial.size += (targetSize - particleMaterial.size) * 0.1;
 
             for (let i = 0; i < particleCount; i++) {
                 let ix = originalPositions[i * 3];
                 let iy = originalPositions[i * 3 + 1];
                 let iz = originalPositions[i * 3 + 2];
+                let pPhase = phases[i];
 
                 let tx, ty, tz;
 
+                // Daimi səs dalğası animasiyası (həmişə işləyir)
+                const waveAnim = Math.sin(elapsedTime * 4 + pPhase) * 0.08;
+
                 if (isFist) {
-                    // Yumruq edəndə hamısı sıx bir nöqtəyə (mərkəzə) yığılır
-                    tx = 0;
-                    ty = 0;
-                    tz = 0;
+                    // Yumruq: Mərkəzə yığılır, amma baş/işarə barmaqla ölçüsü idarə olunur + yüngül dalğalanır
+                    const compactWave = Math.sin(elapsedTime * 6 + pPhase) * 0.02;
+                    tx = ix * (fistScale + compactWave);
+                    ty = iy * (fistScale + compactWave);
+                    tz = iz * (fistScale + compactWave);
                 } else {
-                    // Normal vəziyyət: Səs dalğası kimi dinamik hərəkət edən kürə
-                    const pulse = Math.sin(elapsedTime * 3 + i) * 0.08;
-                    const scaleFactor = 1.0 + currentZDistance + pulse;
-                    
+                    // Açıq əl: Əli nə qədər çox açırsınızsa (handSpread), toz bir o qədər çox dağılır
+                    const scaleFactor = handSpread + waveAnim;
                     tx = ix * scaleFactor;
                     ty = iy * scaleFactor;
                     tz = iz * scaleFactor;
                 }
 
-                // Zərrəciklərin mövqeyini hamar şəkildə hədəfə daşıyırıq
                 let px = posAttribute.getX(i);
                 let py = posAttribute.getY(i);
                 let pz = posAttribute.getZ(i);
 
-                px += (tx - px) * 0.08;
-                py += (ty - py) * 0.08;
-                pz += (tz - pz) * 0.08;
+                px += (tx - px) * 0.1;
+                py += (ty - py) * 0.1;
+                pz += (tz - pz) * 0.1;
 
                 posAttribute.setXYZ(i, px, py, pz);
             }
